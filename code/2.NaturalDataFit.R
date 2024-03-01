@@ -24,22 +24,20 @@ library(wesanderson) # for color palette
 library(ggthemes) 
 library(grid)
 #---- 1.2. Import the competitive data ----
-
-competition <- read.csv("/Users/lisabuche/Documents/Projects/Perenjori/data/Sevenello2022_competition.csv",
+setwd("~/Documents/Projects/Facilitation_gradient")
+competition <- read.csv("data/competition.csv",
                         header = T,stringsAsFactors = F, sep=",",
                         na.strings=c("","NA"))
+
 species.neigh <- names(competition)
-species.neigh  <- species.neigh[!species.neigh %in% c("reserve","focal","crop", "site", "plot","treatment","year")]
+species.neigh  <- species.neigh[!species.neigh %in% c("day","month","year","plot","subplot","focal","fruit","comments",
+                                                      "observers", "site", "treatment")]
 
 competition.to.keep <- competition %>%  
   dplyr::select(all_of(c(species.neigh)))%>%
   mutate_at( species.neigh, as.numeric) %>%
   colSums(na.rm=T)
 length(competition.to.keep[competition.to.keep == 0]) # check if any is 0
-
-
-competition <- competition %>% 
-  dplyr::filter(treatment =="OP") 
 
 # change the format of the rows to numeric 
 competition[species.neigh] <- sapply(competition[species.neigh],as.numeric)
@@ -50,54 +48,25 @@ competition[is.na(competition)] <- 0
 focal.levels <- levels(as.factor(competition$focal))
 
 #---- 1.2. Make Teasorus ----
-perenjory_tesaorus <- read.csv("/Users/lisabuche/Documents/Projects/Perenjori/data/perenjory_tesaorus.csv",
+plant_code <- read.csv("data/plant_code.csv",
                         header = T,stringsAsFactors = F, sep=",",
                         na.strings=c("","NA"))
 
 competition.long.neigh <- competition %>%
-  gather(any_of(perenjory_tesaorus$code), key="code",value="abundance") %>%
-  left_join(perenjory_tesaorus) 
+  gather(any_of(plant_code$code.plant), key="code.plant",value="abundance") %>%
+  left_join(plant_code) 
 
 competition.long.focal <- competition.long.neigh %>%
-  filter(focal ==code) %>%
+  filter(focal == code.plant) %>%
   rename("conspecific"="abundance") %>%
-  dplyr::select(-code) 
+  dplyr::select(focal,conspecific,fruit,seed,plot,subplot,year) 
 
 competition.long <- competition.long.neigh %>%
-  aggregate(abundance ~  family + reserve + year + site + focal+ crop + site + plot + treatment, sum )%>%
-  spread(family, abundance)  %>%# change this ti have grass /forb or native/exotic
-  right_join(competition.long.focal)
+  aggregate(abundance ~  focal + fruit + seed + family + plot + subplot + year, sum )%>%
+  spread(family, abundance) %>% # change this ti have grass /forb or native/exotic
+  right_join(competition.long.focal) 
 
-competition.long <- competition.long.neigh %>%
-  aggregate(abundance ~  functional.group + reserve + year + site + focal+ crop + site + plot + treatment, sum )%>%
-  spread(functional.group, abundance)  %>%# change this ti have grass /forb or native/exotic
-  right_join(competition.long.focal)
-
-#---- 1.4. Import the seeds data ----
-fecundity.df <- read.csv("/Users/lisabuche/Documents/Projects/Perenjori/data/Sevenello2022_seeds.csv",
-                         header = T,stringsAsFactors = F, sep=",",
-                         na.strings=c("","NA"))
-head(fecundity.df)
-fecundity.df <- fecundity.df %>% 
-  dplyr::filter(treatment =="OP")
-
-fecundity.df$reserve <- as.factor(fecundity.df$reserve)
-
-seeds.model <- glm(round(seeds) ~ reserve + focal  ,fecundity.df, 
-                     family="poisson")
-
-summary(seeds.model) # random Side effect not signidicant - not considered further
   
-seeds.graph <- ggplot(fecundity.df,aes(x=seeds,color=focal)) + 
-    geom_density() +
-  xlim(0,200)
-    
-# join both compeetiton and seed 
-competition.seeds <- left_join(competition.long,fecundity.df,
-                               by=c("site", "focal", "crop", "reserve", "plot", "treatment"))
-
-
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 2. Run the model for each focal----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,13 +75,15 @@ run.stan = 1
 function.grouping = 1
 grouping ="family"
 for(Code.focal in "LARO"){ #focal.levels
- for (function.int in c(1:4)){
-  print(paste(Code.focal,", function",function.int))
+  for(year.int in levels(as.factor(competition.long$year))){ #focal.levels
+    for (function.int in c(4)){
+  print(paste(Code.focal,year.int ,", function",function.int,))
     function.vec <- c(0,0,0,0)
   function.vec[function.int] <- 1
   
  # data for the focal
-  SpDataFocal <- competition.seeds[which(competition.seeds$focal==Code.focal),] 
+  SpDataFocal <- competition.seeds[which(competition.long$focal == Code.focal & 
+                                           competition.long$year == year.int),] 
   names(SpDataFocal) <- tolower(names(SpDataFocal))
   SpDataFocal <-  SpDataFocal[!is.na(SpDataFocal$seeds),]
   SpDataFocal[is.na(SpDataFocal)] <- 0
