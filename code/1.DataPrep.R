@@ -35,6 +35,7 @@ library("tidyverse")
 library(dplyr)
 library(ggpubr)
 library(ggplot2)
+library(plotly)
 #rstan_options(auto_write = TRUE)
 library(tidyr) #fill is part of tidyr
 library(lme4)
@@ -101,13 +102,89 @@ head(competition.long_spain )
 # 2. Data from Perenjori, WA, Australia----
 # Main collector Trace Martin, Courtney Taylor, Margie Mayfield
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#---- Wainwright 2014 preparation
+plant_code_aus <- read.csv("data/plant_code_aus.csv",
+                           header = T, stringsAsFactors = F, sep=",",
+                           na.strings = c("","NA"))
+
+Wainwright2014.seed <-  read.csv("data/aus_rawdata/Wainwright2014_seed_aus.csv" )
+nrow(Wainwright2014.seed)
+Wainwright2014.seed <- Wainwright2014.seed %>%
+  filter(!is.na(seed)) %>%
+  filter( trt.water=="D" & reserve == "Perenjori") %>%
+  mutate(year = 2014,
+         plot = str_remove_all(plot, '\\.')) %>%
+  unite("plot",c(plot,quadrant),sep="_",remove=T) %>%
+  mutate(focal=case_when(focal == "A" ~ "ARCA",
+                         focal == "T" ~ "TRCY",
+                         focal == "W" ~ "WAAC",
+                         focal == "H" ~ "HYGA")) %>%
+  aggregate(seed  ~ plot + focal + year ,mean) 
+str(Wainwright2014.seed)  
+
+Wainwright2014 <-  read.csv("data/aus_rawdata/Wainwright2014_com_aus.csv" )
+names(Wainwright2014) <- tolower(names(Wainwright2014))
+Wainwright2014<- Wainwright2014 %>%
+  filter( trt.water=="D" & reserve == "perenjori") %>%
+  mutate(year = 2014) %>%
+  unite("plot",c(plot,quadrant),sep="_",remove=T) %>%
+  separate(col=species, into=c("genus","species")) %>%
+  filter(!is.na(genus)) %>%
+  right_join(plant_code_aus[,c("genus","species","final.code")], 
+             by=c("genus","species"),
+             relationship = "many-to-many") %>%
+  filter(!is.na(count)) %>%
+  mutate(focal=case_when(focal == "a" ~ "ARCA",
+                         focal == "t" ~ "TRCY",
+                         focal == "w" ~ "WAAC",
+                         focal == "h" ~ "HYGA")) %>%
+  aggregate(count ~ plot + focal + final.code + year,mean) %>%
+  spread(final.code,count) %>%
+  right_join(Wainwright2014.seed, relationship = "many-to-many") %>%
+  filter(!is.na(seed))
+
+
+Wainwright2014[is.na(Wainwright2014)] <- 0
+view(Wainwright2014) 
+table(Wainwright2014$focal)
+
+#---- Martyn 2016 preparation
+Martyn2016 <-  read.csv("data/aus_rawdata/Martyn2016_aus.csv" )
+Martyn2016<- Martyn2016 %>%
+  select(-"focal.ID")
+str(Martyn2016)
+table(Martyn2016$focal)
+
+#---- Pastore 2017 preparation
+Pastore2017_com <-  read.csv("data/aus_rawdata/Pastore2017_com_aus.csv" )
+Pastore2017_seed <-  read.csv("data/aus_rawdata/Pastore2017_seed_aus.csv" )
+
+Pastore2017_com <- Pastore2017_com %>% 
+  filter(!is.na(.[,"ARCA"])) %>%
+  mutate(plot.id.focal = paste0(.[,"plot"],.[,"id.focal"],.[,"focal"])) 
+Pastore2017_com <- Pastore2017_com[!duplicated(Pastore2017_com$plot.id.focal),]
+
+head(Pastore2017_seed)
+
+#---- Merge
+competition_aus <- bind_rows(Martyn2016,Wainwright2014)
+
+
+write.csv(competition_aus,
+          "data/competition_aus.csv")
+
+
 #---- 2.1. Import the competitive data ----
 
-competition_aus <- read.csv("data/competition_aus_2016.csv",
+competition_aus <- read.csv("data/competition_aus.csv",
                         header = T,stringsAsFactors = F, sep=",",
                         na.strings=c("","NA"))
-
+competition_aus$year <- 2016
 head(competition_aus)
+
+view(Wainwright2014)
+
+
 
 species.neigh <- names(competition_aus)
 species.neigh  <- species.neigh[!species.neigh %in% c("day","month","year","plot","subplot","seed","focal.ID",
@@ -126,9 +203,14 @@ competition_aus[species.neigh] <- sapply(competition_aus[species.neigh],as.numer
 # change na values to 0
 competition_aus[is.na(competition_aus)] <- 0
 
-focal.levels <- levels(as.factor(competition_aus$focal))
+focal.levels_aus <- levels(as.factor(competition_aus$focal))
+
+ggplotly(ggplot(competition_aus, aes(x=seed,color=focal)) +geom_density() + xlim(0,250))
 
 #---- 2.2. Read Teasorus ----
+
+
+
 plant_code_aus <- read.csv("data/plant_code_aus.csv",
                             header = T, stringsAsFactors = F, sep=",",
                             na.strings = c("","NA"))

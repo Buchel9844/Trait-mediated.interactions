@@ -106,3 +106,4 @@ Abundance.plot<- function(lambda,Amin, Aslope, C , N0,No, time,b.alpha,b.lambda)
 
   return(Nt.plot)
 }
+
