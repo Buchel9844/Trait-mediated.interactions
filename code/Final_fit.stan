@@ -6,6 +6,7 @@ data{
   int<lower = 1> S; // Number of plant species (same across years for consistency)
   int<lower = 1> year[N]; // Indicator variable for the year each observations
   int<lower = 1> Y; // number of years
+  int<lower = 1> FMax[1]; //Max fecundity
 
   int Fecundity[N];  // Fecundity of the focal species in each observation
   matrix[N,S] SpMatrix;  // Matrix of abundances for each species (nncluding abundances of non-focal individuals of the focal species)
@@ -58,7 +59,7 @@ transformed parameters{
  // implement the biological model
 
   for(n in 1:N){
-    lambda_ei[n] = lambda_mean[1] + lambda_sd[year[n]];
+    lambda_ei[n] = (lambda_mean[1] + lambda_sd[year[n]])*FMax;
 
     for(s in 1:S){
       

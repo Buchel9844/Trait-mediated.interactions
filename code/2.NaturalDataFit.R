@@ -29,106 +29,65 @@ project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
 
 #---- 1.2. Import the competitive data ----
 #setwd("~/Documents/Projects/Facilitation_gradient")
-competition <- read.csv(paste0(home.dic,"data/competition_spain.csv"),
-                        header = T,stringsAsFactors = F, sep=",",
-                        na.strings=c("","NA"))
+#source(paste0(home.dic,"code/1.DataPrep.R"))
+# see competition.spain_long
+#write.csv(competition.spain_long,
+#          file=paste0(home.dic,"results/competition.spain_long.csv"))
 
-species.neigh <- names(competition)
-species.neigh  <- species.neigh[!species.neigh %in% c("day","month","year","plot","subplot","focal","fruit","comments",
-                                                      "observers", "site", "treatment")]
-
-competition.to.keep <- competition %>%  
-  dplyr::select(all_of(c(species.neigh)))%>%
-  mutate_at( species.neigh, as.numeric) %>%
-  colSums(na.rm=T)
-length(competition.to.keep[competition.to.keep == 0]) # check if any is 0
-
-# change the format of the rows to numeric 
-competition[species.neigh] <- sapply(competition[species.neigh],as.numeric)
-
-# change na values to 0
-competition[is.na(competition)] <- 0
-
-focal.levels <- levels(as.factor(competition$focal))
-
-#---- 1.3. Make Teasorus ----
-plant_code <- read.csv(paste0(home.dic, "data/plant_code_spain.csv"),
-                       header = T, stringsAsFactors = F, sep=",",
-                       na.strings = c("","NA"))
-
-competition.long.neigh <- competition %>%
-  gather(any_of(plant_code$code.plant), key="code.plant",value="abundance") %>%
-  left_join(plant_code) 
-
-competition.long.focal <- competition.long.neigh %>%
-  filter(focal == code.plant) %>%
-  rename("conspecific"="abundance") %>%
-  dplyr::select(focal,conspecific,fruit,seed,plot,subplot,year) 
-
-competition.long <- competition.long.neigh %>%
-  aggregate(abundance ~  focal + fruit + seed + family + plot + subplot + year, sum )%>%
-  spread(family, abundance) %>% # change this ti have grass /forb or native/exotic
-  right_join(competition.long.focal,
-             multiple = "all") 
-
-head(competition.long ) 
-
-ggplot(competition.long[which(competition.long$focal =="LEMA"),],aes(y=seed, x=year,group=year) ) + 
-  geom_boxplot()
-
-ggplot(competition.long[which(competition.long$focal =="LEMA"),],aes(x=seed) ) + 
-  geom_density()
+competition.spain_long <- read.csv(paste0(home.dic,"results/competition.spain_long.csv"))      
+species.spain <- levels(as.factor(competition.spain_long$focal.analysis))
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #---- 2. Run the model for each focal----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 run.diagnostic =1
-run.prelimfit = 0
-run.finalfit = 0
-grouping ="family"
-year.int = "All"    
-Code.focal = "LEMA"
-
-for(Code.focal in c("LEMA")){ #focal.levels
+run.prelimfit = 1
+run.finalfit = 1
+#grouping ="family"
+#year.int = "All"    
+#Code.focal = "LEMA"
+#"BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
+#"PLCO","PO.sp","SASO", "SCLA","SPRU","rare"
+for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
+                    "PLCO","PO.sp","SASO", "SCLA","SPRU","rare")){ #focal.levels
   for(year.int in c("All")){ #year.levels
     
     print(paste(Code.focal,year.int))
     
     # data for the focal
-    if(year.int == "All"){
-      SpDataFocal <- competition.long[which(competition.long$focal == Code.focal),] 
-      
-      if(length(levels(as.factor(  SpDataFocal$year)))>1){
-        "All good for year"
-      }
-    }else{
-      SpDataFocal <- competition.long[which(competition.long$focal == Code.focal & 
-                                              competition.long$year == year.int),] 
-      
-      if(lenght(levels(as.factor(  SpDataFocal$year))) == 1 &
-         length(levels(as.factor(  SpDataFocal$focal))) == 1){
-        "All good for year and focal"
-      }
-    }
+    competition.spain_focal <- competition.spain_long  %>%
+      filter(focal.analysis == Code.focal) %>%
+      gather(any_of(species.spain), key="code.analysis",value="abundance") %>%
+      aggregate(abundance ~ code.analysis + year, sum) %>%
+      spread(year, abundance) 
     
-    names(SpDataFocal) <- tolower(names(SpDataFocal))
-    SpDataFocal <-  SpDataFocal[!is.na(SpDataFocal$seed),]
-    SpDataFocal[is.na(SpDataFocal)] <- 0
+    competition.spain_focal[competition.spain_focal==0] <- NA
+    names.to.keep <- competition.spain_focal$code.analysis[complete.cases(competition.spain_focal)] 
+    # filter not working so doing it that hard way 
+    
+    competition.to.keep <- competition.spain_long  %>%
+      filter(focal.analysis == Code.focal) %>%
+      gather(any_of(species.spain), 
+             key="code.analysis",value="abundance") %>%
+      mutate(code.analysis.2 = case_when(!code.analysis %in% c(names.to.keep,"rare") ~ "others",
+                                         T~ code.analysis)) %>%
+      aggregate(abundance ~ day + month + year + plot + subplot + focal.analysis +
+                  fruit + seed + code.analysis, sum) %>%
+      spread(code.analysis, abundance) %>%
+      dplyr::filter(seed < 5000)
+    
+    competition.to.keep <-  competition.to.keep[!is.na(competition.to.keep$seed),]
+    competition.to.keep[is.na(competition.to.keep)] <- 0
     # Next continue to extract the data needed to run the model. 
-    N <- as.integer(nrow(SpDataFocal))
-    Fecundity <- as.integer(SpDataFocal$seed) 
-    year.vec <- as.integer(factor(SpDataFocal$year,unique(SpDataFocal$year))) # vector of levels
-    Y <- length(levels(as.factor(SpDataFocal$year)))
-    year.levels = levels(as.factor(SpDataFocal$year))
-    year.veclevels <- SpDataFocal$year # vector of levels
+    N <- as.integer(nrow(competition.to.keep))
+    Fecundity <- round(competition.to.keep$seed) 
+    year.vec <- as.integer(factor(competition.to.keep$year,unique(competition.to.keep$year))) # vector of levels
+    Y <- length(levels(as.factor(competition.to.keep$year)))
+    year.levels = levels(as.factor(competition.to.keep$year))
+    year.veclevels <- competition.to.keep$year # vector of levels
     
     
-    if(grouping =="family"){
-      specific.focal <- tolower(plant_code$family[which(plant_code$code.plant==Code.focal)])
-    }else{
-      specific.focal <- tolower(SpDataFocal$functional.group[1])
-    }
     #---- 2. ABUDANCE MATRIX----
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #---- 2.1. Interaction (direct) matrix of plant with COMP ----
@@ -136,9 +95,9 @@ for(Code.focal in c("LEMA")){ #focal.levels
     # Now calculate the total number of plant species to use for the model, discounting
     #       any species columns with 0 abundance. Save a vector of the species names
     #       corresponding to each column for easy matching later.
-    AllSpNames <- names(SpDataFocal)[!names(SpDataFocal) %in% c("focal","year","day","month",                
-                                                                "seed","fruit","subplot","plot")]
-    AllSpAbunds <- SpDataFocal %>% 
+    AllSpNames <- names(competition.to.keep)[!names(competition.to.keep) %in% c("focal.analysis","year","day","month",                
+                                                                                "seed","fruit","subplot","plot")]
+    AllSpAbunds <- competition.to.keep %>% 
       dplyr::select(all_of(c(AllSpNames)))%>%
       mutate_at( AllSpNames, as.numeric)
     
@@ -154,9 +113,6 @@ for(Code.focal in c("LEMA")){ #focal.levels
     i <- 1
     for(s in 1:length(AllSpNames)){
       if(SpToKeep[s] == 1){
-        #if(SpTotals[s] < 5){
-        #  SpMatrix[,S+1] <- SpMatrix[,S+1] + AllSpAbunds[,s]
-        # }else{
         SpMatrix[,i] <- AllSpAbunds[,s]
         i <- i + 1
       }else{next}
@@ -164,14 +120,14 @@ for(Code.focal in c("LEMA")){ #focal.levels
     
     SpNames <- c(AllSpNames[SpToKeep])
     colnames(SpMatrix) <-  SpNames
-    Intra <- ifelse(SpNames == "conspecific", 1, 0)
-    SpMatrix[,which(SpNames ==specific.focal)] <- SpMatrix[,which(SpNames == specific.focal)] - SpMatrix[,"conspecific"]  # remove conspecific obs from focal family
+    Intra <- ifelse(SpNames == Code.focal, 1, 0)
+    #SpMatrix[,which(SpNames ==specific.focal)] <- SpMatrix[,which(SpNames == specific.focal)] - SpMatrix[,"conspecific"]  # remove conspecific obs from focal family
     
     # max fecundity
     Nmax <- c(SpMatrix[which.max(Fecundity),])
     
     # Upper bound intrinsic fecundity
-    U <- ceiling(log(max(Fecundity)))
+    FMax <- ceiling(log(max(Fecundity)))
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #---- 3. BAYES FIT----
@@ -185,9 +141,9 @@ for(Code.focal in c("LEMA")){ #focal.levels
                     year.veclevels = year.veclevels,
                     year.levels =year.levels ,
                     Y = Y,
-                    U= U,
+                    FMax = FMax,
                     Nmax=Nmax,
-                    Fecundity=Fecundity,
+                    Fecundity = Fecundity,
                     SpMatrix =SpMatrix,
                     Intra=Intra,
                     run_estimation=1,
@@ -205,13 +161,13 @@ for(Code.focal in c("LEMA")){ #focal.levels
     library("codetools")
     options(mc.cores = parallel::detectCores())
     
-    list.init <- function(...)list(lambda_mean= array(as.numeric(max(log(Fecundity)), 
-                                                                 dim = 1)),
-                                   N_opt_mean= array(as.numeric(DataVec$Nmax, 
-                                                                dim = DataVec$S)))
+    list.init <- function(...)list(#lambda_mean= array(as.numeric(mean(log(Fecundity)), 
+      #                               dim = 1)),
+      N_opt_mean= array(as.numeric(DataVec$Nmax, 
+                                   dim = DataVec$S)))
     
     if( run.prelimfit == 1){                               
-      Prelimfit <- stan(file = paste0(home.dic,"code/chapt3/Preliminary_fit.stan"), 
+      Prelimfit <- stan(file = paste0(home.dic,"code/Preliminary_fit.stan"), 
                         data = DataVec,
                         init =  list.init,
                         warmup= 500,
@@ -221,24 +177,24 @@ for(Code.focal in c("LEMA")){ #focal.levels
                         control=list(max_treedepth=15),
                         seed= 1644)
       
-      save(file= paste0(home.dic,"results/chapt3/Prelimfit_",Code.focal,"_",year.int,".rds"),
+      save(file= paste0(home.dic,"results/Prelimfit_",Code.focal,"_",year.int,".rds"),
            Prelimfit)
     }
     
-    load(paste0(home.dic,"results/chapt3/Prelimfit_",Code.focal,"_",year.int,".rds"))
+    load(paste0(home.dic,"results/Prelimfit_",Code.focal,"_",year.int,".rds"))
     
     PrelimfitPosteriors <- rstan::extract(Prelimfit)
     
-    save(file= paste0(home.dic,"results/chapt3/PrelimfitPosteriors",Code.focal,"_",year.int,".Rdata"),
+    save(file= paste0(home.dic,"results/PrelimfitPosteriors",Code.focal,"_",year.int,".Rdata"),
          PrelimfitPosteriors)
-    load(file= paste0(home.dic,"results/chapt3/PrelimfitPosteriors",Code.focal,"_",year.int,".Rdata"))
+    #load(file= paste0(home.dic,"results/PrelimfitPosteriors",Code.focal,"_",year.int,".Rdata"))
     
     print("Preliminary Fit done")
     
     #---- 3.3. Preliminary fit posterior check and behavior checks---- 
     
     ##### Diagnostic plots and post prediction 
-    pdf(paste0(home.dic,"figure/chapt3/Prelimfit_",Code.focal,"_",year.int,".pdf"))
+    pdf(paste0(home.dic,"figures/Prelimfit_",Code.focal,"_",year.int,".pdf"))
     # Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
     #source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
     source("~/Eco_Bayesian/Test_simulation/code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
@@ -246,7 +202,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
     stan_post_pred_check(PrelimfitPosteriors,"F_hat",Fecundity,
-                         paste0("results/chapt3/PostFec_",Code.focal,"_",year.int,".csv.gz"),
+                         paste0("results/PostFec_",Code.focal,"_",year.int,".csv.gz"),
                          limx=max(Fecundity)+100) 
     
     
@@ -303,7 +259,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     alpha_slope_ys <- c()
     alpha_c_ys <- c()
     
-    IntLevel <- 0.1 #0.5 usually, 0.75 for Waitzia, shade
+    IntLevel <- 0.4 #0.5 usually, 0.75 for Waitzia, shade
     for(y in 1:Y){
       for(s in 1:length(SpNames)){
         # ALPHA INITIAL
@@ -339,7 +295,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     
     
     save(file= paste0(home.dic,
-                      "results/chapt3/Inclusion",Code.focal,"_",year.int,".Rdata"),
+                      "results/Inclusion",Code.focal,"_",year.int,".Rdata"),
          Inclusion)
     
     DataVec.final <- append(DataVec, 
@@ -348,7 +304,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
                                  Inclusion_c = Inclusion_c))
     
     save(file= paste0(home.dic,
-                      "results/chapt3/Inclusion",
+                      "results/Inclusion",
                       Code.focal,"_",year.int,".Rdata"),
          DataVec.final)
     
@@ -375,7 +331,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     if(run.finalfit == 1){
       rstan_options(auto_write = TRUE) 
       options(mc.cores = parallel::detectCores()) # to use the core at disposition 
-      Finalfit <- stan(file = paste0(home.dic,"code/chapt3/Final_fit.stan") ,
+      Finalfit <- stan(file = paste0(home.dic,"code/Final_fit.stan") ,
                        #fit= PrelimFit, 
                        data = DataVec.final,
                        init =list.init, # all initial values are 0 
@@ -386,25 +342,30 @@ for(Code.focal in c("LEMA")){ #focal.levels
                        chains = 4,
                        seed= 1616) 
       
-      save(file= paste0(home.dic,"results/chapt3/Finalfit_",Code.focal,"_",year.int,".rds"),
+      save(file= paste0(home.dic,"results/Finalfit_",Code.focal,"_",year.int,".rds"),
            Finalfit)
     }
     
-    load(paste0(home.dic,"results/chapt3/Finalfit_",Code.focal,"_",year.int,".rds"))
+    load(paste0(home.dic,"results/Finalfit_",Code.focal,"_",year.int,".rds"))
     
     FinalfitPosteriors <- rstan::extract(Finalfit)
     
-    save(file= paste0(home.dic,"results/chapt3/FinalFitPosteriors",Code.focal,"_",year.int,".Rdata"),
+    save(file= paste0(home.dic,"results/FinalFitPosteriors",Code.focal,"_",year.int,".Rdata"),
          FinalfitPosteriors)
-    load(file= paste0(home.dic,"results/chapt3/FinalFitPosteriors",Code.focal,"_",year.int,".Rdata"))
+    load(file= paste0(home.dic,"results/FinalFitPosteriors",Code.focal,"_",year.int,".Rdata"))
     
+    
+    Finalfit_loo <- rstan::loo(Finalfit,pars ="F_sim")
+    
+    save(file= paste0(home.dic,"results/FinalFitLOO",Code.focal,"_",year.int,".Rdata"),
+         Finalfit_loo)
     
     print("Final Fit done")
     
     #---- 3.3. Final fit posterior check and behavior checks---- 
     
     ##### Diagnostic plots and post prediction 
-    pdf(paste0(home.dic,"figure/chapt3/FinalFit_",Code.focal,"_",year.int,".pdf"))
+    pdf(paste0(home.dic,"figures/FinalFit_",Code.focal,"_",year.int,".pdf"))
     # Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
     #source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
     source("~/Eco_Bayesian/Test_simulation/code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
@@ -412,7 +373,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
     stan_post_pred_check(FinalfitPosteriors,"F_hat",Fecundity,
-                         paste0("results/chapt3/PostFec_Finalfit_",Code.focal,"_",year.int,".csv.gz"),
+                         paste0("results/PostFec_Finalfit_",Code.focal,"_",year.int,".csv.gz"),
                          limx=max(Fecundity)+100) 
     
     
@@ -462,7 +423,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     
     df_N_opt_mean <- FinalfitPosteriors$N_opt_mean %>% 
       as.data.frame() %>%
-      setNames(Sp.names)
+      setNames(SpNames)
     
     
     generic_name <- c("alpha_initial","alpha_slope","c")
@@ -482,6 +443,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
     df_alpha_initial <- matrix(nrow=2000, ncol=nrow(which(Inclusion_alpha_initial==1,arr.ind=T)))
     colnames_alpha_initial <- c()
     for( n in 1:nrow(which(Inclusion_alpha_initial==1,arr.ind=T))){
+      if(nrow(which(Inclusion_alpha_initial==1,arr.ind=T)) ==0) next
       coord.n <- which(Inclusion_alpha_initial==1,arr.ind=T)[n,]
       
       df_alpha_initial[,n] <- c(FinalfitPosteriors$alpha_initial_hat[,coord.n[1],coord.n[2]])
@@ -494,6 +456,8 @@ for(Code.focal in c("LEMA")){ #focal.levels
     df_alpha_slope <- matrix(nrow=2000, ncol=nrow(which(Inclusion_alpha_slope==1,arr.ind=T)))
     colnames_alpha_slope <- c()
     for( n in 1:nrow(which(Inclusion_alpha_slope ==1,arr.ind=T))){
+      if(nrow(which(Inclusion_alpha_slope==1,arr.ind=T)) ==0) next
+      
       coord.n <- which(Inclusion_alpha_slope==1,arr.ind=T)[n,]
       
       df_alpha_slope[,n] <- FinalfitPosteriors$alpha_slope_hat[,coord.n[1],coord.n[2]]
@@ -506,10 +470,11 @@ for(Code.focal in c("LEMA")){ #focal.levels
     df_alpha_c <- matrix(nrow=2000, ncol=nrow(which(Inclusion_c==1,arr.ind=T)))
     colnames_alpha_c <- c()
     for( n in 1:nrow(which(Inclusion_c==1,arr.ind=T))){
+      if(nrow(which(Inclusion_c==1,arr.ind=T)) ==0) next   
       coord.n <- which(Inclusion_c==1,arr.ind=T)[n,]
       
       df_alpha_c[,n] <- FinalfitPosteriors$c_hat[,coord.n[1],coord.n[2]]
-      colnames_alpha_c [n] <- paste(year.levels[coord.n[1]],SpNames[coord.n[2]],sep="_")
+      colnames_alpha_c[n] <- paste(year.levels[coord.n[1]],SpNames[coord.n[2]],sep="_")
       
     }
     colnames(df_alpha_c) <- colnames_alpha_c
@@ -521,7 +486,7 @@ for(Code.focal in c("LEMA")){ #focal.levels
                      df_alpha_slope=df_alpha_slope,
                      df_alpha_initial =  df_alpha_initial)
     
-    save(file= paste0(home.dic,"results/chapt3/Parameters_",Code.focal,"_",year.int,".Rdata"),
+    save(file= paste0(home.dic,"results/Parameters_",Code.focal,"_",year.int,".Rdata"),
          parameter)
     
   }

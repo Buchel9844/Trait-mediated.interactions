@@ -6,7 +6,7 @@ data{
   int<lower = 1> S; // Number of plant species (same across years for consistency)
   int<lower = 1> year[N]; // Indicator variable for the year each observations
   int<lower = 1> Y; // number of years
-
+  int<lower = 0> FMax; //Max fecundity
   int Fecundity[N];  // Fecundity of the focal species in each observation
   matrix[N,S] SpMatrix;  // Matrix of abundances for each species (nncluding abundances of non-focal individuals of the focal species)
   int<lower = 0> Intra[S];  // Indicator boolean variable to identify the focal species (0 for non-focal and 1 for focal). Included for easier calculations
@@ -25,7 +25,7 @@ transformed data{
 
 parameters{
   real<lower=0> lambda_mean[1];
-  real<lower=0> lambda_sd[Y];
+  real lambda_sd[Y];
 
   real<lower=-1,upper=1> alpha_initial[S];
   matrix[Y,S] alpha_initial_hat_tilde; // direct interaction inter plants - plants ; species -specific term 
@@ -103,7 +103,7 @@ transformed parameters{
  // implement the biological model
 
   for(n in 1:N){
-    lambda_ei[n] = lambda_mean[1] + lambda_sd[year[n]];
+    lambda_ei[n] = (lambda_mean[1] + lambda_sd[year[n]])*FMax;
 
     for(s in 1:S){
       
