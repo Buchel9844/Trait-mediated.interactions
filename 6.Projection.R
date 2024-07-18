@@ -191,7 +191,7 @@ abundance_spain_rare <- abundance_spain %>%
   geom_boxplot()
 
 #---- 3. Projection ----
-time.step <- 10 
+time.step <- 20 
 dry.year <- c("2019","2020","2021")
 var.year <- c("2015","2016")
 wet.year <- c("2018","2017")
@@ -203,7 +203,7 @@ names(g) <- species.spain
 s <-  data.frame(matrix(0.7,ncol=length(species.spain),
                         nrow=1))
 names(s) <- species.spain
-
+species.spain <- species.spain[which(!species.spain =="ME.sp")]
 list.projection <- list()
 for(env.cat.int in c("dry","wet","variable")){
   print(env.cat.int)
@@ -292,7 +292,7 @@ df.projection <- NULL
   list.projection[[env.cat.int]] <-  df.projection
 }
  
-nsafe_colorblind_palette <- c("black","#88CCEE", "#CC6677", "#DDCC77", "#117733", "#332288", "#AA4499", 
+safe_colorblind_palette <- c("black","#88CCEE", "#CC6677", "#DDCC77", "#117733", "#332288", "#AA4499", 
                              "#44AA99", "#999933", "#882255", "#661100", "#6699CC", "#888888")
 scales::show_col(safe_colorblind_palette)
 
@@ -311,9 +311,9 @@ plot.projection[[env.cat.int]] <- list.projection[[env.cat.int]] %>%
   stat_summary(fun = mean,
                geom = "line",size=1) +
   labs(color="Groups",
-       y="Averaged number of individuals \n in 1meter squarred plot",
+       #y="Averaged number of individuals \n in 1meter squarred plot",
        x="year",
-       title="Density over time of annual plants in Caracoles") +
+       title=env.cat.int) +
   #coord_cartesian( xlim = NULL, ylim = c(0,500),expand = TRUE, default = FALSE, clip = "on") +
   scale_color_manual(values=safe_colorblind_palette) +
   #scale_y_log10() +
