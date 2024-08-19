@@ -42,8 +42,7 @@ species.spain <- levels(as.factor(competition.spain_long$focal.analysis))
 #---- 2. Run the model for each focal----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 run.diagnostic =1
-run.prelimfit = 1
-run.finalfit = 1
+run.fit = 1
 #grouping ="family"
 #year.int = "All"    
 #Code.focal = "LEMA"
@@ -83,10 +82,6 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     N <- as.integer(nrow(competition.to.keep))
     Fecundity <- round(competition.to.keep$seed) 
     year.vec <- as.integer(factor(competition.to.keep$year,unique(competition.to.keep$year))) # vector of levels
-    Y <- length(levels(as.factor(competition.to.keep$year)))
-    year.levels = levels(as.factor(competition.to.keep$year))
-    year.veclevels <- competition.to.keep$year # vector of levels
-    
     
     #---- 2. ABUDANCE MATRIX----
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -127,7 +122,7 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     Nmax <- c(SpMatrix[which.max(Fecundity),])
     
     # Upper bound intrinsic fecundity
-    FMax <- ceiling(log(max(Fecundity)))
+    FMax <- ceiling(log(median(Fecundity)))
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #---- 3. BAYES FIT----
@@ -135,14 +130,13 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     ##---- 3.1. Set up summary interactions df and parameters ---- 
     
     
-    DataVec <- list(N=N, 
+    
+     DataVec <- list(N=N, 
                     S=S,
-                    year= year.vec,
-                    year.veclevels = year.veclevels,
-                    year.levels =year.levels ,
-                    Y = Y,
                     FMax = FMax,
                     Nmax=Nmax,
+                    year= year.vec,
+                    Y = nlevels(as.factor(year.vec)),
                     Fecundity = Fecundity,
                     SpMatrix =SpMatrix,
                     Intra=Intra,
@@ -153,187 +147,24 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     )
     
     
-    ##---- 3.2. Run Preliminary fit ----
+    ##---- 3.2. Run Final fit ----
     # Now run a fianl fit of the model to assess parameter 
-    print("Preliminary Sparse fit begins")
+    print("Final fit begins")
     
-    #install.packages("codetools")
-    library("codetools")
-    options(mc.cores = parallel::detectCores())
+    set.seed(1616)
+    std.error <- function(x) sd(x)/sqrt(length(x))
     
     list.init <- function(...)list(#lambda_mean= array(as.numeric(mean(log(Fecundity)), 
       #                               dim = 1)),
       N_opt_mean= array(as.numeric(DataVec$Nmax, 
                                    dim = DataVec$S)))
     
-    if( run.prelimfit == 1){                               
-      Prelimfit <- stan(file = paste0(home.dic,"code/Preliminary_fit.stan"), 
-                        data = DataVec,
-                        init =  list.init,
-                        warmup= 500,
-                        iter = 1000, 
-                        init_r = 1,
-                        chains = 3,
-                        control=list(max_treedepth=15),
-                        seed= 1644)
-      
-      save(file= paste0(home.dic,"results/Prelimfit_",Code.focal,"_",year.int,".rds"),
-           Prelimfit)
-    }
-    
-    load(paste0(home.dic,"results/Prelimfit_",Code.focal,"_",year.int,".rds"))
-    
-    PrelimfitPosteriors <- rstan::extract(Prelimfit)
-    
-    save(file= paste0(home.dic,"results/PrelimfitPosteriors",Code.focal,"_",year.int,".Rdata"),
-         PrelimfitPosteriors)
-    #load(file= paste0(home.dic,"results/PrelimfitPosteriors",Code.focal,"_",year.int,".Rdata"))
-    
-    print("Preliminary Fit done")
-    
-    #---- 3.3. Preliminary fit posterior check and behavior checks---- 
-    
-    ##### Diagnostic plots and post prediction 
-    pdf(paste0(home.dic,"figures/Prelimfit_",Code.focal,"_",year.int,".pdf"))
-    # Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
-    #source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
-    source("~/Eco_Bayesian/Test_simulation/code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
-    
-    # check the distribution of Rhats and effective sample sizes 
-    ##### Posterior check
-    stan_post_pred_check(PrelimfitPosteriors,"F_hat",Fecundity,
-                         paste0("results/PostFec_",Code.focal,"_",year.int,".csv.gz"),
-                         limx=max(Fecundity)+100) 
-    
-    
-    # N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
-    hist(summary(Prelimfit)$summary[,"Rhat"],
-         main = paste("Prelim Fit: Histogram of Rhat for",
-                      Code.focal," and ",year.int))
-    hist(summary(Prelimfit)$summary[,"n_eff"],
-         main = paste("Prelim Fit: Histogram of Neff for",
-                      Code.focal," and ",year.int))
-    
-    # plot the corresponding graphs
-    param <- c("alpha_initial","alpha_slope","c",
-               "lambda_mean","N_opt_mean[1]",
-               "alpha_initial_hat_tilde[1,1]",
-               "initial_hat_shrinkage[1,1]",
-               "alpha_slope_hat_tilde[1,1]",
-               "slope_hat_shrinkage[1,1]",
-               "c_hat_tilde[1,1]",
-               "c_hat_shrinkage[1,1]")
-    
-    trace <- stan_trace(Prelimfit, pars=param,
-                        inc_warmup = TRUE)
-    print(trace)
-    dens <- stan_dens(Prelimfit, 
-                      pars=param)
-    print(dens)
-    splot <- stan_plot(Prelimfit, 
-                       pars=param)
-    print(splot)
-    sampler_params <- get_sampler_params(Prelimfit, inc_warmup = TRUE)
-    summary(do.call(rbind, sampler_params), digits = 2)
-    #pairs(Prelimfit, pars = param)
-    
-    dev.off()
-    #---- 3.3. Extract Inclusion ----
-    
-    
-    Inclusion_alpha_initial <- matrix(data = rep(0,times=Y*S), nrow = Y, 
-                                      ncol = S,
-                                      dimnames = list(year.levels,
-                                                      SpNames))
-    
-    Inclusion_alpha_slope <- matrix(data = 0, nrow = Y, 
-                                    ncol = S,
-                                    dimnames = list(year.levels,
-                                                    SpNames))
-    
-    Inclusion_c <- matrix(data = 0, nrow = Y, 
-                          ncol = S,
-                          dimnames = list(year.levels,
-                                          SpNames))
-    alpha_initial_ys <- c()
-    alpha_slope_ys <- c()
-    alpha_c_ys <- c()
-    
-    IntLevel <- 0.4 #0.5 usually, 0.75 for Waitzia, shade
-    for(y in 1:Y){
-      for(s in 1:length(SpNames)){
-        # ALPHA INITIAL
-        # hdi : Calculate the highest density interval (HDI) for a probability distribution for a given probability mass
-        alpha_initial_ys <- HDInterval::hdi(PrelimfitPosteriors$alpha_initial_hat[,y,s],
-                                            credMass = IntLevel)
-        if(alpha_initial_ys[1] > 0 | alpha_initial_ys[2] < 0){
-          Inclusion_alpha_initial[y,s] <- 1
-        }
-        # ALPHA SLOPE
-        # hdi : Calculate the highest density interval (HDI) for a probability distribution for a given probability mass
-        alpha_slope_ys <- HDInterval::hdi(PrelimfitPosteriors$alpha_slope_hat[,y,s],
-                                          credMass = IntLevel)
-        if(alpha_slope_ys[1] > 0 | alpha_slope_ys[2] < 0){
-          Inclusion_alpha_slope[y,s] <- 1
-        }
-        # ALPHA C
-        # hdi : Calculate the highest density interval (HDI) for a probability distribution for a given probability mass
-        alpha_c_ys <- HDInterval::hdi(PrelimfitPosteriors$c_hat[,y,s],
-                                      credMass = IntLevel)
-        if(alpha_c_ys[1] > 0 | alpha_c_ys[2] < 0){
-          Inclusion_c[y,s] <- 1
-        }
-      }
-    }
-    
-    Inclusion <- list(DataVec=DataVec, 
-                      Inclusion_alpha_initial = Inclusion_alpha_initial,
-                      Inclusion_alpha_slope = Inclusion_alpha_slope,
-                      Inclusion_c = Inclusion_c
-    )
-    
-    
-    
-    save(file= paste0(home.dic,
-                      "results/Inclusion",Code.focal,"_",year.int,".Rdata"),
-         Inclusion)
-    
-    DataVec.final <- append(DataVec, 
-                            list(Inclusion_alpha_initial = Inclusion_alpha_initial,
-                                 Inclusion_alpha_slope = Inclusion_alpha_slope,
-                                 Inclusion_c = Inclusion_c))
-    
-    save(file= paste0(home.dic,
-                      "results/Inclusion",
-                      Code.focal,"_",year.int,".Rdata"),
-         DataVec.final)
-    
-    ##---- 3.4. Run Final fit ----
-    # Now run a fianl fit of the model to assess parameter 
-    print("Final fit begins")
-    
-    
-    set.seed(1616)
-    std.error <- function(x) sd(x)/sqrt(length(x))
-    
-    list.init <- function(...)list(lambda_mean= array(as.numeric( abs(mean(PrelimfitPosteriors$lambda_mean))), dim = 1),
-                                   N_opt_mean= array(as.numeric(abs(mean(PrelimfitPosteriors$N_opt_mean))), dim = DataVec$S),
-                                   alpha_initial = array(as.numeric( colMeans(PrelimfitPosteriors$alpha_initial)), 
-                                                         dim = DataVec$S),
-                                   alpha_slope = array(as.numeric(colMeans(PrelimfitPosteriors$alpha_slope)), 
-                                                       dim = DataVec$S),
-                                   c = array(as.numeric(colMeans(PrelimfitPosteriors$c)),
-                                             dim = DataVec$S),
-                                   disp_dev = array(as.numeric(rnorm(1,mean = mean(PrelimfitPosteriors$disp_dev),
-                                                                     sd= std.error(PrelimfitPosteriors$disp_dev))), 
-                                                    dim = 1))
-    
-    if(run.finalfit == 1){
+    if(run.fit == 1){
       rstan_options(auto_write = TRUE) 
       options(mc.cores = parallel::detectCores()) # to use the core at disposition 
-      Finalfit <- stan(file = paste0(home.dic,"code/Final_fit.stan") ,
+      Modelfit <- stan(file = paste0(home.dic,"code/Ricker_fit.stan") ,
                        #fit= PrelimFit, 
-                       data = DataVec.final,
+                       data = DataVec,
                        init =list.init, # all initial values are 0 
                        control=list(max_treedepth=15),
                        warmup = 500,
@@ -342,67 +173,64 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
                        chains = 4,
                        seed= 1616) 
       
-      save(file= paste0(home.dic,"results/Finalfit_",Code.focal,"_",year.int,".rds"),
-           Finalfit)
+      save(file= paste0(home.dic,"results/Modelfit_",Code.focal,"_",year.int,".rds"),
+           Modelfit)
     }
     
-    load(paste0(home.dic,"results/Finalfit_",Code.focal,"_",year.int,".rds"))
+    load(paste0(home.dic,"results/Modelfit_",Code.focal,"_",year.int,".rds"))
     
-    FinalfitPosteriors <- rstan::extract(Finalfit)
+    ModelfitPosteriors <- rstan::extract(Modelfit)
     
-    save(file= paste0(home.dic,"results/FinalFitPosteriors",Code.focal,"_",year.int,".Rdata"),
-         FinalfitPosteriors)
-    load(file= paste0(home.dic,"results/FinalFitPosteriors",Code.focal,"_",year.int,".Rdata"))
+    save(file= paste0(home.dic,"results/ModelfitPosteriors",Code.focal,"_",year.int,".Rdata"),
+         ModelfitPosteriors)
+    load(file= paste0(home.dic,"results/ModelfitPosteriors",Code.focal,"_",year.int,".Rdata"))
     
     
-    Finalfit_loo <- rstan::loo(Finalfit,pars ="F_sim")
+    Modelfit_loo <- rstan::loo(Modelfit,pars ="F_sim")
     
-    save(file= paste0(home.dic,"results/FinalFitLOO",Code.focal,"_",year.int,".Rdata"),
-         Finalfit_loo)
+    save(file= paste0(home.dic,"results/ModelfitLOO",Code.focal,"_",year.int,".Rdata"),
+         Modelfit_loo)
     
     print("Final Fit done")
     
     #---- 3.3. Final fit posterior check and behavior checks---- 
     
     ##### Diagnostic plots and post prediction 
-    pdf(paste0(home.dic,"figures/FinalFit_",Code.focal,"_",year.int,".pdf"))
+    pdf(paste0(home.dic,"figures/Modelfit_",Code.focal,"_",year.int,".pdf"))
     # Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
     #source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
-    source("~/Eco_Bayesian/Test_simulation/code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
+    source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
     
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
-    stan_post_pred_check(FinalfitPosteriors,"F_hat",Fecundity,
-                         paste0("results/PostFec_Finalfit_",Code.focal,"_",year.int,".csv.gz"),
+    stan_post_pred_check(ModelfitPosteriors,"F_hat",Fecundity,
+                         paste0("results/PostFec_Modelfit_",Code.focal,"_",year.int,".csv.gz"),
                          limx=max(Fecundity)+100) 
     
     
     # N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
-    hist(summary(Finalfit)$summary[,"Rhat"],
+    hist(summary(Modelfit)$summary[,"Rhat"],
          main = paste("Final Fit: Histogram of Rhat for",
                       Code.focal," and ",year.int))
-    hist(summary(Finalfit)$summary[,"n_eff"],
+    hist(summary(Modelfit)$summary[,"n_eff"],
          main = paste("Final Fit: Histogram of Neff for",
                       Code.focal," and ",year.int))
     
     # plot the corresponding graphs
-    param <- c("alpha_initial[1]","alpha_slope[1]","c[1]",
-               "lambda_mean[1]","lambda_sd[1]",
-               "N_opt_mean[1]",
-               "alpha_initial_hat[1,1]",
-               "c_hat[1,1]",
-               "alpha_slope_hat[1,1]")
+    param <- c("alpha_initial","alpha_slope","c",
+               "lambda_mean","lambda_sd",
+               "N_opt_i")
     
-    trace <- stan_trace(Finalfit, pars=param,
+    trace <- stan_trace(Modelfit, pars=param,
                         inc_warmup = TRUE)
     print(trace)
-    dens <- stan_dens(Finalfit, 
+    dens <- stan_dens(Modelfit, 
                       pars=param)
     print(dens)
-    splot <- stan_plot(Finalfit, 
+    splot <- stan_plot(Modelfit, 
                        pars=param)
     print(splot)
-    sampler_params <- get_sampler_params(Finalfit, inc_warmup = TRUE)
+    sampler_params <- get_sampler_params(Modelfit, inc_warmup = TRUE)
     summary(do.call(rbind, sampler_params), digits = 2)
     #pairs(Prelimfit, pars = param)
     
@@ -412,79 +240,38 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     
     df_parameter_n <-NULL
     
-    df_lambda_mean <- FinalfitPosteriors$lambda_mean %>% 
+    df_lambda_mean <- ModelfitPosteriors$lambda_mean %>% 
       as.data.frame() %>%
       setNames(Code.focal)
     
-    df_lambda_sd <- FinalfitPosteriors$lambda_sd %>% 
+    df_lambda_sd <- ModelfitPosteriors$lambda_sd %>% 
       as.data.frame() %>%
-      setNames(year.levels)
+      setNames(levels(as.factor(competition.to.keep$year)))
     
     
-    df_N_opt_mean <- FinalfitPosteriors$N_opt_mean %>% 
+    df_N_opt <- ModelfitPosteriors$N_opt %>% 
       as.data.frame() %>%
       setNames(SpNames)
     
     
     generic_name <- c("alpha_initial","alpha_slope","c")
-    generic_name <- generic_name[generic_name %in%  names(FinalfitPosteriors)]
+    generic_name <- generic_name[generic_name %in%  names(ModelfitPosteriors)]
     df_alpha_generic_param <- NULL
     
     for ( n in generic_name ){
-      df_parameter_hat_n <- FinalfitPosteriors[[n]] %>% 
+      df_parameter_hat_n <- ModelfitPosteriors[[n]] %>% 
         as.data.frame() %>%
         setNames(SpNames) %>%
         mutate(parameter = n)
       
       df_alpha_generic_param  <- bind_rows(df_alpha_generic_param , df_parameter_hat_n)
     }
-    
-    # Species specific parameters
-    df_alpha_initial <- matrix(nrow=2000, ncol=nrow(which(Inclusion_alpha_initial==1,arr.ind=T)))
-    colnames_alpha_initial <- c()
-    for( n in 1:nrow(which(Inclusion_alpha_initial==1,arr.ind=T))){
-      if(nrow(which(Inclusion_alpha_initial==1,arr.ind=T)) ==0) next
-      coord.n <- which(Inclusion_alpha_initial==1,arr.ind=T)[n,]
-      
-      df_alpha_initial[,n] <- c(FinalfitPosteriors$alpha_initial_hat[,coord.n[1],coord.n[2]])
-      colnames_alpha_initial[n] <- paste(year.levels[coord.n[1]],SpNames[coord.n[2]],sep="_")
-      
-    }
-    colnames(df_alpha_initial) <- colnames_alpha_initial 
-    
-    
-    df_alpha_slope <- matrix(nrow=2000, ncol=nrow(which(Inclusion_alpha_slope==1,arr.ind=T)))
-    colnames_alpha_slope <- c()
-    for( n in 1:nrow(which(Inclusion_alpha_slope ==1,arr.ind=T))){
-      if(nrow(which(Inclusion_alpha_slope==1,arr.ind=T)) ==0) next
-      
-      coord.n <- which(Inclusion_alpha_slope==1,arr.ind=T)[n,]
-      
-      df_alpha_slope[,n] <- FinalfitPosteriors$alpha_slope_hat[,coord.n[1],coord.n[2]]
-      colnames_alpha_slope[n] <- paste(year.levels[coord.n[1]],SpNames[coord.n[2]],sep="_")
-      
-    }
-    colnames(df_alpha_slope) <- colnames_alpha_slope
-    
-    
-    df_alpha_c <- matrix(nrow=2000, ncol=nrow(which(Inclusion_c==1,arr.ind=T)))
-    colnames_alpha_c <- c()
-    for( n in 1:nrow(which(Inclusion_c==1,arr.ind=T))){
-      if(nrow(which(Inclusion_c==1,arr.ind=T)) ==0) next   
-      coord.n <- which(Inclusion_c==1,arr.ind=T)[n,]
-      
-      df_alpha_c[,n] <- FinalfitPosteriors$c_hat[,coord.n[1],coord.n[2]]
-      colnames_alpha_c[n] <- paste(year.levels[coord.n[1]],SpNames[coord.n[2]],sep="_")
-      
-    }
-    colnames(df_alpha_c) <- colnames_alpha_c
-    parameter = list(df_N_opt_mean = df_N_opt_mean, 
+   
+    parameter = list(df_N_opt = df_N_opt, 
                      df_lambda_mean = df_lambda_mean, 
                      df_lambda_sd = df_lambda_sd,
-                     df_alpha_generic_param = df_alpha_generic_param, 
-                     df_alpha_c=df_alpha_c,
-                     df_alpha_slope=df_alpha_slope,
-                     df_alpha_initial =  df_alpha_initial)
+                     df_alpha_generic_param = df_alpha_generic_param
+                     )
     
     save(file= paste0(home.dic,"results/Parameters_",Code.focal,"_",year.int,".Rdata"),
          parameter)
