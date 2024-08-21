@@ -69,7 +69,7 @@ model{
   alpha_slope ~ normal(0,1);
   c ~ normal(0,1);
 
-  lambda_mean ~ normal(0, 1);
+  lambda_mean ~ normal(0, 10);
     
    for(y in 1:Y){
      lambda_sd[y] ~ normal(0, 1);

@@ -46,33 +46,35 @@ run.fit = 1
 #grouping ="family"
 #year.int = "All"    
 #Code.focal = "LEMA"
-#"BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
-#"PLCO","PO.sp","SASO", "SCLA","SPRU","rare"
-for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
-                    "PLCO","PO.sp","SASO", "SCLA","SPRU","rare")){ #focal.levels
-  for(year.int in c("All")){ #year.levels
+
+load(file=paste0(home.dic,"data/clean.data.aus.RData"))
+load(file=paste0(home.dic,"data/clean.data.spain.RData"))
+
+for(country in c("aus","spain")){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species.",country)]]
+  for(Code.focal in Code.focal.list){ #focal.levels
+    print(paste(Country,Code.focal))
     
-    print(paste(Code.focal,year.int))
-    
-    # data for the focal
-    competition.spain_focal <- competition.spain_long  %>%
-      filter(focal.analysis == Code.focal) %>%
-      gather(any_of(species.spain), key="code.analysis",value="abundance") %>%
+    competition_focal_neigh <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] %>%
+      filter(focal == Code.focal) %>%
+      gather(any_of(Code.focal.list),
+             key="code.analysis",value="abundance") %>%
       aggregate(abundance ~ code.analysis + year, sum) %>%
-      spread(year, abundance) 
+      spread(code.analysis, abundance)
     
     competition.spain_focal[competition.spain_focal==0] <- NA
-    names.to.keep <- competition.spain_focal$code.analysis[complete.cases(competition.spain_focal)] 
+    names.to.keep <- names(competition_focal_neigh)[
+      colSums(competition_focal_neigh)>10 & # more than 10 individuals found across all sample in the neighbourhood of the focal
+        !is.na(colSums(competition_focal_neigh)) 
+      & names(competition_focal_neigh) %in% Code.focal.list] 
+    
     # filter not working so doing it that hard way 
     
-    competition.to.keep <- competition.spain_long  %>%
-      filter(focal.analysis == Code.focal) %>%
-      gather(any_of(species.spain), 
-             key="code.analysis",value="abundance") %>%
-      mutate(code.analysis.2 = case_when(!code.analysis %in% c(names.to.keep,"rare") ~ "others",
-                                         T~ code.analysis)) %>%
-      aggregate(abundance ~ day + month + year + plot + subplot + focal.analysis +
-                  fruit + seed + code.analysis, sum) %>%
+    competition.to.keep <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] %>%
+      filter(focal == Code.focal) %>%
+      gather(any_of(names.to.keep),
+             key="code.analysis",value="abundance")  %>%
+      aggregate(abundance ~ year + plot +  focal + seed + code.analysis, sum) %>%
       spread(code.analysis, abundance) %>%
       dplyr::filter(seed < 5000)
     
@@ -90,7 +92,7 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     # Now calculate the total number of plant species to use for the model, discounting
     #       any species columns with 0 abundance. Save a vector of the species names
     #       corresponding to each column for easy matching later.
-    AllSpNames <- names(competition.to.keep)[!names(competition.to.keep) %in% c("focal.analysis","year","day","month",                
+    AllSpNames <- names(competition.to.keep)[!names(competition.to.keep) %in% c("focal","year","day","month",                
                                                                                 "seed","fruit","subplot","plot")]
     AllSpAbunds <- competition.to.keep %>% 
       dplyr::select(all_of(c(AllSpNames)))%>%
@@ -128,8 +130,6 @@ for(Code.focal in c("BEMA","CETE","CHFU","HOMA","LEMA","ME.sp","PAIN",
     #---- 3. BAYES FIT----
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ##---- 3.1. Set up summary interactions df and parameters ---- 
-    
-    
     
      DataVec <- list(N=N, 
                     S=S,

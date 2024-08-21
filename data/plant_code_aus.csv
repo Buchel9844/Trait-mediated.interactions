@@ -1,4 +1,4 @@
-code,genus,species,functional.group,family,flowercolor,final.code,name,height,synonym,note
+code,genus,species,functional.group,family,flowercolor,final.code,name,height,synonym,code.analysis
 ACUL,Actinobole,uliginosum,NA,Asteraceae,NA,ACUL,Actinobole uliginosum,NA,NA,
 AICU,Aira,cupaniana,grass,Poaceae,green,AICU,Aira cupaniana,NA,NA,
 ANAR,Anagallis,arvensis,NA,Primulaceae,NA,ANAR,Anagallis arvensis,NA,NA,

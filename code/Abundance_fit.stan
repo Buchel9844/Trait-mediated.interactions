@@ -30,10 +30,10 @@ data{
 }
 
 parameters{
-  real<lower=0> lambda_mean[1];
+  real<lower=1> lambda_mean[1];
   real<lower=0> lambda_sd[Y];
-  real<lower=0> g[1];
-  real<lower=0> seed_s[1];
+  real<lower=1> g[1];
+  real<lower=1> seed_s[1];
   
   real<lower=-1,upper=1> alpha_initial[S];
 
@@ -74,15 +74,16 @@ transformed parameters{
 }
 model{
   for(s in 1:S){
-  N_opt[s] ~ normal(1, N_opt_sd[1,s]);
+  N_opt[s] ~ normal(N_opt_mean[1,s], N_opt_sd[1,s]);
   alpha_initial[s] ~ normal(alpha_initial_mean[1,s], alpha_initial_sd[1,s]);  // normal prior on lambda
   alpha_slope[s] ~ normal(alpha_slope_mean[1,s], alpha_slope_sd[1,s]);     // normal prior on alpha
   c[s] ~ normal(c_mean[1,s], c_sd[1,s]);     // normal prior on alpha
     }
+    
   disp_dev ~ normal(0,1);
   g ~ normal(g_mean, g_sd);  
   seed_s ~ normal(seed_s_mean, seed_s_sd); 
-  lambda_mean ~ normal(0,1);
+  lambda_mean ~ normal(0,10);
   for(y in 1:Y){
     lambda_sd[y] ~ normal(0,1);
   }
@@ -91,3 +92,12 @@ model{
   growth_ratio[n] ~ normal((1 - g[1])*seed_s[1] + g[1]*lambda_ei[n]*exp(interaction_effects[n]),disp_dev);
   }
 }
+
+generated quantities{
+  vector[N] GR;
+ for(n in 1:N){
+    GR[n] = normal_lpdf(growth_ratio[n]|((1 - g[1])*seed_s[1] + g[1]*lambda_ei[n]*exp(interaction_effects[n])),disp_dev);
+              }
+}
+
+

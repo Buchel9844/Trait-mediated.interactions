@@ -54,11 +54,11 @@ source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 list_alpha_mean <- list()
 list_alpha_sd <- list()
 
-for(Code.focal in species.spain){
+#for(Code.focal in species.spain){
   load(file= paste0(home.dic,
                     "results/Parameters_",Code.focal,"_",year.int,".Rdata"))
   
-  df_alpha_generic_param = parameters$df_alpha_generic_param
+  df_alpha_generic_param = parameter$df_alpha_generic_param
 
   list_alpha_mean[[Code.focal]] <- df_alpha_generic_param %>%
       group_by(parameter) %>% 
@@ -80,7 +80,7 @@ for(Code.focal in species.spain){
                 mutate(parameter="N_opt"))%>%
     column_to_rownames("parameter")
 
-    }
+ #   }
 
 #---- 2.2 Germination ----
 seed_germination_spain <- read.csv(paste0("data/spain_rawdata/seed_germination.csv"),
@@ -155,7 +155,7 @@ abundance_spain_rare <- abundance_spain %>%
 
 focal = "LEMA"
 year.levels = levels(as.factor(abundance_spain_short$year))
-year.int = n.levels(as.factor(abundance_spain_short$year))
+year.int = nlevels(as.factor(abundance_spain_short$year))
 growth.ratio.df <- NULL
 for(y in 1:nlevels(as.factor(abundance_spain_short$year))){
   for(i in levels(as.factor(abundance_spain_short$com_id))){
@@ -181,9 +181,9 @@ view(abundance_spain_LEMA)
 DataVec <- list(N= nrow(abundance_spain_LEMA),
                 S= length(species.spain),
                 SpAbundance = abundance_spain_LEMA %>%
-                  select(all_of(species.spain)),
+                select(all_of(species.spain)),
                 growth_ratio = abundance_spain_LEMA$growth.ratio ,
-                #lambda_mean_obs = mean(abundance_spain_LEMA$growth.ratio),
+                lambda_mean_obs = mean(abundance_spain_LEMA$growth.ratio),
                 year =  as.integer(factor(abundance_spain_LEMA$year,unique(abundance_spain_LEMA$year))),
                 Y= nlevels(as.factor(abundance_spain_LEMA$year)),
                 g_mean = seed_germination_spain$g.mean[which(seed_germination_spain$code.analysis == focal)],
@@ -201,16 +201,91 @@ DataVec <- list(N= nrow(abundance_spain_LEMA),
                 )
 list.init <- function(...)list(N_opt= array(as.numeric(sapply(abundance_spain_LEMA %>%
                                  select(all_of(species.spain)),median),
-                                 dim = DataVec$S))) 
+                                 dim = DataVec$S)),
+                               lambda_mean= array(as.numeric( mean(abundance_spain_LEMA$growth.ratio),
+                                                       dim = 1))
+                               ) 
 
 
 Inv.Modelfit <- stan(file = paste0(home.dic,"code/Abundance_fit.stan") ,
                  #fit= PrelimFit, 
                  data = DataVec,
-                 init =list.init, # all initial values are 0 
+                 init ="random", # all initial values are 0 
                  control=list(max_treedepth=15),
                  warmup = 500,
                  iter = 1000, 
                  init_r = 2,
-                 chains = 4,
-                 seed= 1616)                
+                 chains = 1,
+                 seed= 1616) 
+
+save(file= paste0(home.dic,"results/Inv.Modelfit_",Code.focal,".rds"),
+     Inv.Modelfit)
+
+#load(paste0(home.dic,"results/Inv.Modelfit_",Code.focal,"_",year.int,".rds"))
+
+Inv.ModelfitPosteriors <- rstan::extract(Inv.Modelfit)
+
+save(file= paste0(home.dic,"results/Inv.ModelfitPosteriors",Code.focal,".Rdata"),
+     Inv.ModelfitPosteriors)
+load(file= paste0(home.dic,"results/Inv.ModelfitPosteriors",Code.focal,".Rdata"))
+
+
+Inv.Modelfit_loo <- rstan::loo(Inv.Modelfit,pars ="F_sim")
+
+save(file= paste0(home.dic,"results/Inv.ModelfitLOO",Code.focal,".Rdata"),
+     Inv.Modelfit_loo)
+
+print("Final Fit done")
+
+#---- 3.3. Final fit posterior check and behavior checks---- 
+
+##### Diagnostic plots and post prediction 
+pdf(paste0(home.dic,"figures/Inv.Modelfit_",Code.focal,".pdf"))
+# Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
+#source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
+source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
+
+# check the distribution of Rhats and effective sample sizes 
+##### Posterior check
+stan_post_pred_check(Inv.ModelfitPosteriors,"GR",
+                     abundance_spain_LEMA$growth.ratio) 
+hist(abundance_spain_LEMA$growth.ratio,breaks = 150)
+# N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
+hist(summary(Inv.Modelfit)$summary[,"Rhat"],
+     main = paste("Inversed Fit: Histogram of Rhat for",
+                  Code.focal," and ",year.int))
+hist(summary(Inv.Modelfit)$summary[,"n_eff"],
+     main = paste("Inversed Fit: Histogram of Neff for",
+                  Code.focal," and ",year.int))
+
+# plot the corresponding graphs
+param <- c("lambda_mean","lambda_sd",
+           "N_opt","disp_dev")
+
+trace <- stan_trace(Inv.Modelfit, pars=param,
+                    inc_warmup = TRUE)
+print(trace)
+dens <- stan_dens(Inv.Modelfit, 
+                  pars=param)
+print(dens)
+splot <- stan_plot(Inv.Modelfit, 
+                   pars=param)
+print(splot)
+sampler_params <- get_sampler_params(Inv.Modelfit, inc_warmup = TRUE)
+summary(do.call(rbind, sampler_params), digits = 2)
+#pairs(Prelimfit, pars = param)
+
+dev.off()
+
+#---- 3.3. Extract Estimate----
+
+df_lambda_mean <- Inv.ModelfitPosteriors$lambda_mean %>% 
+  as.data.frame() %>%
+  setNames(Code.focal)
+
+df_lambda_sd <- Inv.ModelfitPosteriors$lambda_sd %>% 
+  as.data.frame() %>%
+  setNames(levels(as.factor(abundance_spain_LEMA$year)))
+
+write.csv(bind_cols(df_lambda_mean,df_lambda_sd),
+          file=paste0(home.dic,"results/IntGR_",Code.focal,".csv"))

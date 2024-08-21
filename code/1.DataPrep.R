@@ -36,6 +36,7 @@ library(dplyr)
 library(ggpubr)
 library(ggplot2)
 library(plotly)
+library(tidyverse)
 #rstan_options(auto_write = TRUE)
 library(tidyr) #fill is part of tidyr
 library(lme4)
@@ -73,9 +74,15 @@ species.list.to.keep <- c("BEMA","CETE","CHFU",
                           "POMA","POMO","SASO","SCLA","SPRU")
 # Amaranthaceae, Gentianaceae, Asteraceae, 
 # Poaceae, Fabaceae,Plantaginaceae, Amaranthaceae, Caryophyllaceae
-final.species.list <- c("BEMA","CETE","CH.sp",
+final.species.list.spain <- c("BEMA","CETE","CH.sp",
                         "HOMA","LEMA","ME.sp","PAIN","PLCO",
-                        "PO.sp","SASO","SCLA","SPRU","rare")
+                        "PO.sp","SASO","SCLA","SPRU")
+
+abundance_spain.summary <- abundance_spain %>%
+  select(individuals,year,species) %>%
+  filter( species %in% final.species.list.spain )%>%
+  rename("count"="individuals")
+
 
 # regroup POMA and POMO under Polypogon
 # regroup MEEL and MESU under Melilotus ? 
@@ -255,10 +262,87 @@ ggsave(paste0("figures/supp/Seed.per.ind.spain.pdf"),
 write.csv(competition.spain_long,
           file=paste0(home.dic,"results/competition.spain_long.csv"))
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 2. Data from Perenjori, WA, Australia----
+#---- 2.4. Save data SPAIN ----
+competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
+  rename("focal"="focal.analysis")
+clean.data.spain = list(species_spain = final.species.list.spain,
+                      competition_spain =competition.spain_long,
+                      abundance_spain.summary=abundance_spain.summary)
+save(clean.data.spain,
+     file="data/clean.data.spain.RData")
+# 3. Data from Perenjori, WA, Australia----
 # Main collector Trace Martin, Courtney Taylor, Margie Mayfield
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- Wainwright 2014 preparation ----
+#---- 3.0. Identify most abundance species ----
+load("/Users/lisabuche/Documents/Projects/Perenjori/results/community_id_df.csv.gz")
+abundance_aus <- community_id_df
+
+abundance_aus.summary <- abundance_aus %>%
+  mutate(count=as.numeric(count/scale.weight)) %>%
+  select(count,year,final.code) %>%
+  filter( final.code %in% species.list.to.keep.aus) %>%
+  rename("species"="final.code")
+
+
+abundance_aus_plot <- ggplot() +
+  stat_summary(data=abundance_aus.summary,
+               aes(x=as.character(year), y = count,
+                   group=as.factor(final.code),
+                   color=as.factor(final.code)),
+               fun.y = mean,
+               fun.ymin = function(x) mean(x) - sd(x), 
+               fun.ymax = function(x) mean(x) + sd(x), 
+               geom = "pointrange",size=2) +
+  stat_summary(data=abundance_aus.summary,
+               aes(x=as.character(year), y = count,
+                   group=as.factor(final.code),
+                   color=as.factor(final.code)),
+               fun.y = mean,
+               geom = "line",size=1) +
+  scale_x_discrete("year",limits=c("2010","2011","2012-2013","2014","2015","2016",
+                                   "2017","2018","2019","2020","2021","2022")) +
+  labs(color="species",y="Mean number of \nindividuals in 1meter squarred plot",
+       title="Density over time of annual plants in Perenjory region") +
+  coord_cartesian( xlim = NULL, ylim = c(0,200),expand = TRUE, default = FALSE, clip = "on") +
+  #scale_color_manual(values=safe_colorblind_palette) +
+  theme_bw() +
+  theme( legend.key.size = unit(1, 'cm'),
+         legend.position = "bottom",
+         strip.background = element_blank(),
+         panel.grid.minor = element_blank(),
+         panel.grid.major.x = element_blank(),
+         strip.text = element_text(size=28),
+         legend.text=element_text(size=20),
+         legend.title=element_text(size=20),
+         #axis.ticks.x=element_blank(),
+         axis.text.x= element_text(size=20, angle=66, hjust=1),
+         axis.text.y= element_text(size=20),
+         axis.title.x= element_text(size=24),
+         axis.title.y= element_text(size=24),
+         title=element_text(size=16))
+
+
+library(plotly)
+plotly::ggplotly(abundance_aus_plot)
+
+species.list.to.keep.aus <- c("ARCA","AUEL",'BRPE',"CHPS","GOBE","GOPU","GORO",
+                              "HYGL","LARO","MEDI","MIMY","PEAI",
+                              "PLDE","POAR","POCA","POGN","POLE","PTGA",
+                              "STPA","TRCY","TROR","VECY","WAAC")
+
+abundance_aus.summary.year <- abundance_aus %>%
+  mutate(count=as.numeric((count/scale.weight)*0.25)) %>%
+  select(count,year,final.code) %>%
+  filter( final.code %in% species.list.to.keep.aus) %>%
+  aggregate(count~ year + final.code, mean) %>%
+  spread(final.code,count)
+
+view(abundance_aus.summary.year)
+# only keep the species that have maximum of two years without abundance data
+final.species.list.aus <- c("ARCA",'BRPE',"CHPS","GOBE","GORO",
+                            "PEAI","PLDE","POAR","POCA","POLE","PTGA",
+                            "STPA","TRCY","TROR","VECY","WAAC")
+#---- 3.1. Wainwright 2014 preparation ----
 plant_code_aus <- read.csv("data/plant_code_aus.csv",
                            header = T, stringsAsFactors = F, sep=",",
                            na.strings = c("","NA"))
@@ -297,15 +381,17 @@ Wainwright2014<- Wainwright2014 %>%
   aggregate(count ~ plot + focal + final.code + year,mean) %>%
   spread(final.code,count) %>%
   left_join(Wainwright2014.seed, relationship = "many-to-many") %>%
-  filter(!is.na(seed))
+  filter(!is.na(seed)) %>%
+  mutate(plot=as.character(plot)) %>%
+  select(any_of(c("plot","focal","year","seed",final.species.list.aus)))
 
 
 Wainwright2014[is.na(Wainwright2014)] <- 0
-view(Wainwright2014) 
+str(Wainwright2014) 
 head(Wainwright2014) 
 table(Wainwright2014$focal)
 
-#---- Martyn 2016 preparation----
+#---- 3.2. Martyn 2016 preparation----
 Martyn2016 <-  read.csv("data/aus_rawdata/Martyn2016_aus.csv" )
 Martyn2016<- Martyn2016 %>%
   select(-"focal.ID") %>%
@@ -316,14 +402,18 @@ Martyn2016<- Martyn2016 %>%
              by=c("code"),
              relationship = "many-to-many") %>%
   aggregate(count ~ plot + focal + final.code + seed,sum) %>%
-  spread(final.code,count) 
+  spread(final.code,count) %>%
+  mutate( year=2016)%>%
+  mutate(plot=as.character(plot))%>%
+  select(any_of(c("plot","focal","year","seed",final.species.list.aus)))
+
 
 #str(Martyn2016)
 #table(Martyn2016$focal)
 #head(Martyn2016)
 
 
-#---- Pastore 2017 preparation----
+#---- 3.3. Pastore 2017 preparation----
 Pastore2017_com <-  read.csv("data/aus_rawdata/Pastore2017_com_aus.csv" )
 Pastore2017_seed <-  read.csv("data/aus_rawdata/Pastore2017_seed_aus.csv" )
 
@@ -338,13 +428,17 @@ Pastore2017 <- Pastore2017_com %>%
              by=c("code"),
              relationship = "many-to-many") %>%
   aggregate(count ~ plot + id.focal + focal + final.code + seed,sum) %>%
-  spread(final.code,count) 
+  spread(final.code,count) %>%
+  mutate( year=2017)%>%
+  mutate(plot=as.character(plot)) %>%
+  select(any_of(c("plot","focal","year","seed",final.species.list.aus)))
+
 
 #view(Pastore2017)
-#head(Pastore2017)
+#str(Pastore2017)
 #table(Pastore2017$focal)
 
-#---- Sevenello 2022 preparation----
+#---- 3.4. Sevenello 2022 preparation----
 
 Sevenello2022_com <- read.csv("data/aus_rawdata/Sevenello2022_com_aus.csv",
                         header = T,stringsAsFactors = F, sep=",",
@@ -352,8 +446,10 @@ Sevenello2022_com <- read.csv("data/aus_rawdata/Sevenello2022_com_aus.csv",
 Sevenello2022_seed <- read.csv("data/aus_rawdata/Sevenello2022_seed_aus.csv",
                          header = T,stringsAsFactors = F, sep=",",
                          na.strings=c("","NA"))
+view(Sevenello2022_seed )
 Sevenello2022 <- Sevenello2022_com %>% 
-  left_join(Sevenello2022_seed,relationship = "many-to-many") %>%
+  left_join(Sevenello2022_seed,
+              relationship = "many-to-many") %>%
   dplyr::filter(treatment %in% c("OP")) %>%
   filter(!is.na(seed)) %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
@@ -363,14 +459,18 @@ Sevenello2022 <- Sevenello2022_com %>%
              by=c("code"),
              relationship = "many-to-many") %>%
   aggregate(count ~ plot + focal + final.code + seed,sum) %>%
-  spread(final.code,count) 
+  spread(final.code,count) %>%
+  mutate( year=2022)%>%
+  mutate(plot=as.character(plot)) %>%
+  select(any_of(c("plot","focal","year","seed",final.species.list.aus)))
+
   
 #str(Sevenello2022)
 #head(Sevenello2022)
 #table(Sevenello2022$focal)
 
 
-#---- Taylor 2023 preparation----
+#---- 3.5. Taylor 2023 preparation----
 load("data/aus_rawdata/Taylor2023_com_aus.RData")
 Taylor2023_com <- bind_rows(neighbourhoods[["BOCL"]] %>% as.data.frame(),
                             neighbourhoods[["BOOP"]] %>% as.data.frame(),
@@ -378,11 +478,12 @@ Taylor2023_com <- bind_rows(neighbourhoods[["BOCL"]] %>% as.data.frame(),
                             neighbourhoods[["CAOP"]] %>% as.data.frame(),
                             neighbourhoods[["PECL"]] %>% as.data.frame(),
                             neighbourhoods[["PEOP"]] %>% as.data.frame())
-str(Taylor2023_com)
+view(Taylor2023_com)
 Taylor2023_seed <- read.csv("data/aus_rawdata/Taylor2023_seed_aus.csv",
                                header = T,stringsAsFactors = F, sep=",",
                                na.strings=c("","NA"))
-str(Taylor2023_seed ) 
+view(Taylor2023_seed ) 
+view(Taylor2023)
 Taylor2023 <- Taylor2023_com %>% 
   rename("focal" ="SPECIES" ) %>%
   left_join(Taylor2023_seed,relationship = "many-to-many") %>%
@@ -390,26 +491,34 @@ Taylor2023 <- Taylor2023_com %>%
   filter(!is.na(seed)) %>%
   gather(any_of(c(plant_code_aus$name)[!is.na(c(plant_code_aus$name))]), 
          key="species", value="count") %>%
-  select(plot,seed,focal,code,count) %>%
-  left_join(plant_code_aus[,c("code","genus",
+  select(plot,seed,code,count,species) %>%
+  rename("focal" ="code",
+         "name"="species") %>%
+  left_join(plant_code_aus[,c("code","genus","name",
                                "species","final.code")], 
-             by=c("code"),
+             by=c("name"),
              relationship = "many-to-many") %>%
-  aggregate(count ~ plot + focal + final.code + seed,sum) %>%
+  filter(plot,focal,final.code,seed) %>%
+ # unique()
+  #aggregate(count ~ plot + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
-  left_join(plant_code_aus[,c("name","final.code")] %>%
-               rename("focal" ="name" ) %>%
+  left_join(plant_code_aus[,c("code","final.code")] %>%
+               rename("focal" ="code" ) %>%
                rename("final.focal" ="final.code" ), 
              by=c("focal"),
              relationship = "many-to-many") %>%
   select(-"focal") %>%
-  rename("focal" ="final.focal" )
+  rename("focal" ="final.focal" ) %>%
+  mutate( year=2023)%>%
+  mutate(plot=as.character(plot)) %>%
+  select(any_of(c("plot","focal","year","seed",final.species.list.aus)))
 
+view((Taylor2023))
 #str(Taylor2023)
 #head(Taylor2023)
 #table(Taylor2023$focal)
 
-# summary table
+#---- 3.6. summary table ----
 
 summary_table_aus <- bind_rows(as.data.frame(table(Martyn2016$focal)) %>%
   mutate(year=2016),
@@ -423,8 +532,9 @@ summary_table_aus <- bind_rows(as.data.frame(table(Martyn2016$focal)) %>%
     mutate(year=2022)
     ) %>%
   rename("focal"="Var1") %>%
-  mutate(focal = case_when(focal="VERO"~"GORO",
+  mutate(focal = case_when(focal=="VERO"~"GORO",
                            T~focal))
+
 ggplot(summary_table_aus[which(summary_table_aus$Freq>50),],
        aes(y=Freq,x=year,color=focal,fill=focal)) +
   geom_bar(stat="identity",position="dodge") +
@@ -433,10 +543,18 @@ ggplot(summary_table_aus[which(summary_table_aus$Freq>50),],
            #vjust=0.3,
             angle=90)
 
-#---- Merge
-competition_aus <- bind_rows(Martyn2016,Wainwright2014)
+#---- 3.7. Merge ----
+competition_aus <- bind_rows(Martyn2016,Wainwright2014,
+                             Pastore2017,Taylor2023,
+                             Sevenello2022)
+
+str(competition_aus)
+names(competition_aus)
 
 
-write.csv(competition_aus,
-          "data/competition_aus.csv")
-
+# ---- 4. Save data AUS ----
+clean.data.aus = list(species_aus = final.species.list.aus,
+                      competition_aus =competition_aus,
+                      abundance_aus.summary=abundance_aus.summary)
+save(clean.data.aus,
+     file="data/clean.data.aus.RData")
