@@ -1,9 +1,8 @@
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 1. SET UP: Import data, create df with competiton and seed distributions----
+#---- 1. SET UP: Import packages----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#---- 1.1. Import packages ----
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
 library(rstan)
 #install.packages("HDInterval")
@@ -25,32 +24,34 @@ library(ggthemes)
 library(grid)
 library(ggridges)
 
-home.dic <- "/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
-year.int = "All"    
-Code.focal = "LEMA"
+setwd("/home/lbuche/Eco_Bayesian/chapt3")
+home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
+project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
+
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 2. Visualisation Species interactions ----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 2.0 Load data ----
-competition.spain_long <- read.csv(paste0(home.dic,"results/competition.spain_long.csv"))      
-species.spain <- levels(as.factor(competition.spain_long$focal.analysis))
+load(file=paste0(home.dic,"data/clean.data.aus.RData"))
+load(file=paste0(home.dic,"data/clean.data.spain.RData"))
+
 RawData <- list()
 Parameters <- list()
-for(Code.focal in species.spain) {
-  load(file= paste0(home.dic,"results/parameter/Parameters_",Code.focal,"_All.Rdata"))
+country.list <- as.character(args[1]) #c("aus","spain")
+
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  for(Code.focal in Code.focal.list){ #focal.levels
+    
+  load(file =paste0(home.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"))
   #assign(paste0("parameter_",Code.focal),
   #       parameter)
-  Parameters[[Code.focal]] <- parameter
-  load(file= paste0(home.dic,"results/inclusion/Inclusion",Code.focal,"_All.Rdata"))
-  #assign(paste0("Data_",Code.focal),
-  #       DataVec.final)
-  
-  RawData[[Code.focal]] <- DataVec.final
-  
-  
+  Parameters[[paste(country,"_",Code.focal)]] <- parameter
+  }
 }
 
+# environemtnal data
 spain_env_pdsi<- read.csv(paste0(home.dic,"results/spain_env_pdsi.csv"))
 
 spain_env_pdsi_med <- spain_env_pdsi %>%
@@ -59,15 +60,20 @@ spain_env_pdsi_med <- spain_env_pdsi %>%
 
 year.levels <- names(parameter$df_lambda_sd)
 
+
 #---- 2.1 Lambda ----
 color.year <- data.frame(year=c("2015","2016","2017","2018","2019","2020","2021"),
                          col.value=colorblind_pal()(8)[2:8])
-plot.lambda<-list()
+plot.lambda <- list()
 
-for(Code.focal in species.spain){
-  year.levels <- RawData[[Code.focal]]$year.levels
-  plot.lambda[[Code.focal]] <- Parameters[[Code.focal]]$df_lambda_sd %>%
-    mutate_at(year.levels, ~ rowSums(cbind(., Parameters[[Code.focal]]$df_lambda_mean))) %>%
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  for(Code.focal in Code.focal.list){ #focal.levels
+    
+  year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
+  
+  plot.lambda[[Code.focal]] <- Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd %>%
+    mutate_at(year.levels, ~ rowSums(cbind(., Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean))) %>%
     gather(key="year", value="lambda_sd") %>%
     mutate(year=as.numeric(year)) %>%
     left_join(spain_env_pdsi_med, by="year") %>%
@@ -99,6 +105,7 @@ for(Code.focal in species.spain){
            axis.title.y= element_text(size=8),
            title=element_text(size=10))
   
+  }
 }
 plot.lambda.all <- ggarrange(plotlist=plot.lambda,
                              common.legend = T,
@@ -106,50 +113,47 @@ plot.lambda.all <- ggarrange(plotlist=plot.lambda,
 ggsave(plot.lambda.all,
        file=paste0(home.dic,"figures/plot.lambda.pdf"))
 
-  
-  
+
   
 #---- 2.2. Sigmoid representation ----
 source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 test.sigmoid.all  <- NULL
+sigmoid.plot.list <- list()
+Param.sigm.df <- list()
 
-for(Code.focal in species.spain){
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  sigmoid.plot.list.focal<- list()
+  Param.sigm.country.df <- NULL
+  for(Code.focal in Code.focal.list){ #focal.levels
+    
   
-  df_alpha_generic_param = Parameters[[Code.focal]]$df_alpha_generic_param
+  df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
   
-  Sp.names = colnames(RawData[[Code.focal]]$SpMatrix)
-  year.levels <- RawData[[Code.focal]]$year.levels
-  print(Code.focal)
+  Sp.names = colnames(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+  year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
+  print(country,Code.focal)
+  
   test.sigmoid.all<- NULL
   test.sigmoid  <- NULL
+  
   for( neigh in Sp.names){
-    for(year.int in year.levels){
-      print(year.int)
+      print(country)
       alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
                                              neigh]
-      if(RawData[[Code.focal]]$Inclusion_alpha_initial[year.int,neigh]>0){
-        alpha_initial = alpha_initial + Parameters[[Code.focal]]$df_alpha_initial[,paste(year.int,neigh,sep="_")]
-      }
       
       alpha_slope = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
                                            neigh]
-      if(RawData[[Code.focal]]$Inclusion_alpha_slope[year.int,neigh]>0){
-        alpha_slope = alpha_slope + Parameters[[Code.focal]]$df_alpha_slope[,paste(year.int,neigh,sep="_")]
-      }
       
       alpha_c = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
                                        neigh]
-      if(RawData[[Code.focal]]$Inclusion_c[year.int,neigh]>0){
-        alpha_c = alpha_c + Parameters[[Code.focal]]$df_alpha_c[,paste(year.int,neigh,sep="_")]
-      }
-      
       
       param.neigh <- data.frame(neigh = neigh, 
-                                year = year.int,
+                                country = country,
                                 alpha_initial = alpha_initial,
                                 alpha_slope = alpha_slope,
                                 alpha_c=  alpha_c,
-                                N_opt_mean = Parameters[[Code.focal]]$df_N_opt_mean[,neigh],
+                                N_opt_mean = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh],
                                 focal=Code.focal)
       
       for (n in 1:nrow(param.neigh)){
@@ -167,131 +171,78 @@ for(Code.focal in species.spain){
         
       }
     }
-  }
+  limits.y <- c(round(min(test.sigmoid$sigmoid),digits=1)-0.1,
+                round(max(test.sigmoid$sigmoid),digits=1)+0.1)
   
-  save(test.sigmoid,
-       file=paste0(home.dic,"results/test.sigmoid_",Code.focal,".rData"))
-  test.sigmoid.all <- bind_rows(test.sigmoid.all,test.sigmoid)
+  sigmoid.plot.list.focal[[Code.focal]] <- ggplot(test.sigmoid,
+                                            aes(y=sigmoid,x=density)) + 
+    stat_smooth(stat_smooth(color = "black", size = 0.5, level = 0.999)) +
+    theme_bw() + 
+    scale_x_continuous(breaks = c(0,5,10))+
+    scale_y_continuous(limits=limits.y) +
+    geom_hline(yintercept=0, color="black") +
+    labs(y="",fill="",color="",
+         #title=Code.neigh,
+         x=paste0("")) +
+    guides(color=guide_legend(nrow = 1,
+                              direction="horizontal",
+                              byrow = TRUE,
+                              title.hjust = 0.1),
+           fill=guide_legend(nrow = 1,
+                             direction="horizontal",
+                             byrow = TRUE,
+                             title.hjust = 0.1)) + 
+    theme( legend.key.size = unit(1, 'cm'),
+           legend.position = "bottom",
+           strip.background = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.grid.major.x = element_blank(),
+           strip.text = element_text(size=12),
+           legend.text=element_text(size=12),
+           legend.title=element_text(size=12),
+           #axis.ticks.x=element_blank(),
+           axis.text.x= element_blank(),#element_text(size=12, angle=66, hjust=1),
+           axis.text.y=  element_blank(), #element_text(size=12),
+           axis.title.x= element_blank(),#element_text(size=12),
+           axis.title.y= element_blank(),#element_text(size=12),
+           title=element_text(size=12))
+  
+  Param.sigm.country.df <- bind_rows( Param.sigm.country.df,test.sigmoid)
+  }
+  sigmoid.plot.list[[country]] <- sigmoid.plot.list.focal
+  Param.sigm.df[[country]] <- Param.sigm.country.df
 }
 
-save(test.sigmoid.all,
-     file="results/test.sigmoid.all.rData")
+save( Param.sigm.df,
+     file="results/Param.sigmoid.rData")
+save( sigmoid.plot.list,
+      file="results/Plot.sigmoid.rData")
 
-load(file=paste0(home.dic,"results/test.sigmoid.all.rData"))
+load(file=paste0(home.dic,"results/Param.sigmoid.rData"))
 
-family.to.keep.spain <- levels(as.factor(test.sigmoid$neigh))
 safe_colorblind_palette <- c("#88CCEE", "#CC6677", "#DDCC77", "#117733", "#332288", "#AA4499", 
                              "#44AA99", "#999933", "#882255", "#661100", "#6699CC", "#888888")
 
-safe_colorblind_palette[family.to.keep.spain=="LEMA"]<- "black"
 
-#---- 2.2.1 Raw sigmoid functions per year and family ----
-sigmoid.plot.list.2 <- list()
-color.year <- data.frame(year=c("2015","2016","2017","2018","2019","2020","2021"),
-                         col.value=colorblind_pal()(8)[2:8])
+#---- 2.2.1 Raw sigmoid illustration ----
 
-for(Code.focal in species.spain){
-  print(Code.focal)
-  load(file=paste0(home.dic,"results/test.sigmoid_",Code.focal,".rData"))
-  sigmoid.plot.list <- list()
-  df.sigmoid.n <- test.sigmoid %>%
-    dplyr::filter( focal == Code.focal)
-  limits.y <- c(round(min(df.sigmoid.n$sigmoid),digits=1)-0.1,
-                round(max(df.sigmoid.n$sigmoid),digits=1)+0.1)
-  
-  for(Code.neigh in  c(species.spain,"others")){
-    
-    df.sigmoid.n <- test.sigmoid %>%
-      dplyr::filter( focal == Code.focal & neigh == Code.neigh)
-    if(nrow(df.sigmoid.n)==0){
-      sigmoid.plot.list[[paste0(Code.neigh)]] <- ggplot(df.sigmoid.n, aes(y=sigmoid,x=density,
-                                                                          group=year)) +
-        geom_blank() +
-        theme_bw() +
-        scale_y_continuous(limits=limits.y) +
-        theme(strip.background = element_blank(),
-              panel.grid.minor = element_blank(),
-              panel.grid.major = element_blank(),
-              panel.border = element_blank(),
-              axis.ticks.x=element_blank(),
-              axis.line.x = element_blank(),
-              axis.text.x= element_blank(),#element_text(size=12, angle=66, hjust=1),
-              axis.text.y=  element_blank(),#element_text(size=12),
-              axis.title.x= element_blank(),#element_text(size=12),
-              axis.title.y= element_blank())
-      
-    }else{
-      year.levels <-levels(as.factor(df.sigmoid.n$year))
-      
-      sigmoid.plot.list[[paste0(Code.neigh)]] <- ggplot(df.sigmoid.n, aes(y=sigmoid,x=density,
-                                                                          group=year)) + 
-        stat_smooth(stat_smooth(color = "black", size = 0.5, level = 0.999) +) +
-        # geom_smooth(aes(color=year,fill=year), size=2) +
-        scale_color_manual(values= color.year[which(color.year$year %in% year.levels),"col.value"]) +
-        scale_fill_manual(values= color.year[which(color.year$year %in% year.levels),"col.value"]) +
-        theme_bw() + 
-        scale_x_continuous(breaks = c(0,5,10))+
-        scale_y_continuous(limits=limits.y) +
-        geom_hline(yintercept=0, color="black") +
-        labs(y="",fill="",color="",
-             #title=Code.neigh,
-             x=paste0("")) +
-        guides(color=guide_legend(nrow = 1,
-                                  direction="horizontal",
-                                  byrow = TRUE,
-                                  title.hjust = 0.1),
-               fill=guide_legend(nrow = 1,
-                                 direction="horizontal",
-                                 byrow = TRUE,
-                                 title.hjust = 0.1)) + 
-        theme( legend.key.size = unit(1, 'cm'),
-               legend.position = "bottom",
-               strip.background = element_blank(),
-               panel.grid.minor = element_blank(),
-               panel.grid.major.x = element_blank(),
-               strip.text = element_text(size=12),
-               legend.text=element_text(size=12),
-               legend.title=element_text(size=12),
-               #axis.ticks.x=element_blank(),
-               axis.text.x= element_blank(),#element_text(size=12, angle=66, hjust=1),
-               axis.text.y=  element_blank(), #element_text(size=12),
-               axis.title.x= element_blank(),#element_text(size=12),
-               axis.title.y= element_blank(),#element_text(size=12),
-               title=element_text(size=12))
-    }
-    if(Code.focal=="BEMA"){
-      sigmoid.plot.list[[paste0(Code.neigh)]] <- sigmoid.plot.list[[paste0(Code.neigh)]]+ 
-        labs(title=Code.neigh)}
-    if(Code.focal=="SPRU"){
-      sigmoid.plot.list[[paste0(Code.neigh)]] <- sigmoid.plot.list[[paste0(Code.neigh)]]+ 
-        theme(axis.text.x= element_text(size=12))}
-    if(Code.neigh=="BEMA"){
-      sigmoid.plot.list[[paste0(Code.neigh)]] <- sigmoid.plot.list[[paste0(Code.neigh)]]+ 
-        labs(y=Code.focal) +
-        theme(axis.title.y=  element_text(size=12,angle=90),
-              axis.text.y= element_text(size=12))}
-  }
-  sigmoid.plot.list.2[[Code.focal]] <- ggarrange(plotlist = sigmoid.plot.list,
-                                                 common.legend = T,
-                                                 widths=c(1.8,rep(1,times=13)),
-                                                 nrow=1,
-                                                 legend="none")
-  ggsave( sigmoid.plot.list.2[[Code.focal]],
-          width=21,
-          heigh=5,
-          units = "cm",
-          file=paste0(home.dic,"figures/sigmoid.plot_",Code.focal,".pdf"))
-}
-sigmoid.plot.list.2[length(species.spain)+1] <- get_legend(sigmoid.plot.list.2[["LEMA"]])
-ggsave( ggarrange(plotlist = sigmoid.plot.list.2,
-                  #labels=species.spain,
-                  heights =c(1.2,rep(1,times=11),1.2,0.5),
-                  common.legend = T, ncol=1,
-                  legend="none"),
-        width=21,
+ggsave(ggarrange(plotlist = sigmoid.plot.list[["aus"]],
+                 #labels=species.spain,
+                 common.legend = T, ncol=1,
+                 legend="bottom"),
+       width=21,
+       heigh=40,
+       units = "cm",
+       file=paste0(home.dic,"figures/AUS.sigmoid.plot.pdf"))
+
+ggsave(ggarrange(plotlist = sigmoid.plot.list[["spain"]],
+                 #labels=species.spain,
+                 common.legend = T, ncol=1,
+                 legend="bottom"),
+       width=21,
         heigh=40,
         units = "cm",
-        file=paste0(home.dic,"figures/sigmoid.plot.pdf"))
+        file=paste0(home.dic,"figures/Spain.sigmoid.plot.pdf"))
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -299,9 +250,9 @@ ggsave( ggarrange(plotlist = sigmoid.plot.list.2,
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 for(Code.focal in c("LEMA")){ #focal.levels
-  for(year.int in c("All")){ #year.levels
+  for(country in c("All")){ #year.levels
     
-    # load(paste0(home.dic,"results/chapt3/Inclusion",Code.focal,"_",year.int,".Rdata"))
+    # load(paste0(home.dic,"results/chapt3/Inclusion",Code.focal,"_",country,".Rdata"))
   }
 }
 

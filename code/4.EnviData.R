@@ -1,9 +1,40 @@
-install.packages("scPDSI")
-install.packages("SPEI")
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#---- 1. SET UP: Import packages----
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# Import envi data
+#install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
+library(rstan)
+#install.packages("HDInterval")
+library("HDInterval")
+#install.packages("tidyverse")
+library("tidyverse")
+#install.packages("dplyr")
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+library(plotly)
+#rstan_options(auto_write = TRUE)
+library(tidyr) #fill is part of tidyr
+library(lme4)
+library(car)
+library(loo)
+library(wesanderson) # for color palette
+library(ggthemes) 
+library(grid)
+library(ggridges)
+library(scPDSI)
+library(SPEI)
 
-env_spain <- read.csv("data/env_spain.csv",sep=",")
+setwd("/home/lbuche/Eco_Bayesian/chapt3")
+home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
+project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#---- 2. Import envi data  ----
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#---- SPAIN ----
+
+env_spain <- read.csv("data/spain_rawdata/env_spain.csv",sep=",")
 
 env_spain <- env_spain %>%
   separate("FECHA", sep="/", into=c("day","month","year")) %>%
@@ -109,5 +140,7 @@ plot_spain_env_pdsi <- ggarrange(boxplot_spain_env_pdsi,
 plot_spain_env_pdsi
 ggsave(plot_spain_env_pdsi,
        "figures/plot_spain_env_pdsi.pdf")
+
+#---- AUS ----
 
 

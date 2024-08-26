@@ -54,15 +54,14 @@ setwd("~/Documents/Projects/Facilitation_gradient")
 # Main collector Oscar Godoy and Nacho Bartomeus
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 1.1. Read Teasorus ----
-plant_code_spain <- read.csv( "data/plant_code_spain.csv",
+plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
                               header = T, stringsAsFactors = F, sep=",",
                               na.strings = c("","NA"))
 
 
-
 #---- 2.2. Identify most abundance species ----
  
-abundance_spain <- read.csv("data/abundance_spain.csv",
+abundance_spain <- read.csv("data/spain_rawdata/abundance_spain.csv",
                             header = T,stringsAsFactors = F, sep=",",
                             na.strings=c("","NA"))
 
@@ -74,7 +73,7 @@ species.list.to.keep <- c("BEMA","CETE","CHFU",
                           "POMA","POMO","SASO","SCLA","SPRU")
 # Amaranthaceae, Gentianaceae, Asteraceae, 
 # Poaceae, Fabaceae,Plantaginaceae, Amaranthaceae, Caryophyllaceae
-final.species.list.spain <- c("BEMA","CETE","CH.sp",
+final.species.list.spain <- c("BEMA","CETE","CHFU",
                         "HOMA","LEMA","ME.sp","PAIN","PLCO",
                         "PO.sp","SASO","SCLA","SPRU")
 
@@ -90,8 +89,6 @@ abundance_spain.summary <- abundance_spain %>%
 species.list.to.rare <- c("COSQ","ACHI","ANAR","FRPU","LYTR","MEEL",
                           "MEPO","PUPA","RAPE","SOAS","SUSP")
 
-competition.long.neigh_spain.sum <- competition.long.neigh_spain %>%
-  aggregate(fruit ~ year + focal, length)
 # PLCO and SCLA missing 2018
 # PUPA has good data
 
@@ -148,7 +145,7 @@ ggsave(paste0("figures/supp/observations.spain.pdf"),
        units = c("cm"),
        comp.plot)
 
-#---- 2.2. Seed production -----
+#---- 2.4. Seed production -----
 
 numb.seed.spain <- read.csv("data/spain_rawdata/number_seed.csv")
 str(numb.seed.spain)
@@ -183,7 +180,7 @@ ggsave(paste0("figures/supp/Seed.per.flower.spain.pdf"),
        units = c("cm"),
        numb.seed.spain.plot)
 
-#---- 2.3. Join seed and interactions -----
+#---- 2.5. Join seed and interactions -----
 
 set.seed(1616)
 
@@ -258,16 +255,67 @@ ggsave(paste0("figures/supp/Seed.per.ind.spain.pdf"),
        height = 16,
        units = c("cm"),
        focal.comp.seed.plot)
+#---- 2.6. Seed germination and survival -----
 
-write.csv(competition.spain_long,
-          file=paste0(home.dic,"results/competition.spain_long.csv"))
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 2.4. Save data SPAIN ----
+seed_germination_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"),
+                                   header = T,stringsAsFactors = F, sep=",",
+                                   na.strings=c("","NA")) %>%
+  bind_rows(read.csv(paste0("data/spain_rawdata/germination_2021.csv"),
+                     header = T,stringsAsFactors = F, sep=",",
+                     na.strings=c("","NA"))  %>%
+              tidyr::gather(any_of(plant_code_spain$code.plant),
+                            key="focal.code",value="germination"))%>%
+  bind_rows(read.csv(paste0("data/spain_rawdata/germination_2020.csv"),
+                     header = T,stringsAsFactors = F, sep=",",
+                     na.strings=c("","NA")) %>%
+                          tidyr::gather(any_of(plant_code_spain$code.plant),
+                                        key="focal.code",value="germination")
+  ) %>%
+  select(year,focal.code,focal,germination,survival) %>%
+  rename("code.plant" ="focal.code") %>%
+  left_join(plant_code_spain %>%
+              select(code.plant,code.analysis)) %>%
+  mutate(germination = case_when(year ==2015 ~ germination/100,
+                                 T ~ germination/50)) %>%
+  group_by(code.analysis) %>% 
+  mutate(g.mean = mean(germination, na.rm = T),
+         g.sd = sd(germination, na.rm = T)) %>%
+  select(code.analysis,g.mean,g.sd) %>%
+  unique() %>%
+  ungroup() %>%
+  as.data.frame()
+
+#view(seed_germination_spain)
+
+seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"),
+                                header = T,stringsAsFactors = F, sep=",",
+                                na.strings=c("","NA")) %>%
+  bind_rows(read.csv(paste0("data/spain_rawdata/seed_survival_2020.csv"),
+                     header = T,stringsAsFactors = F, sep=",",
+                     na.strings=c("","NA"))  %>%
+              tidyr::gather(any_of(plant_code_spain$code.plant),
+                            key="focal.code",value="survival")) %>%
+  select(year,focal.code,focal,germination,survival) %>%
+  rename("code.plant" ="focal.code") %>%
+  left_join(plant_code_spain, by="code.plant") %>%
+  mutate(survival = case_when(year ==2015 ~ survival/100,
+                                 T ~ survival/10)) %>%
+  group_by(code.analysis) %>% 
+  mutate(s.mean = mean(survival, na.rm = T),
+         s.sd = sd(survival, na.rm = T)) %>%
+  select(code.analysis,s.mean,s.sd) %>%
+  unique() %>%
+  ungroup()%>%
+  as.data.frame()
+
+#---- 2.5. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
   rename("focal"="focal.analysis")
 clean.data.spain = list(species_spain = final.species.list.spain,
                       competition_spain =competition.spain_long,
-                      abundance_spain.summary=abundance_spain.summary)
+                      abundance_spain.summary=abundance_spain.summary,
+                      seed_germination_spain =seed_germination_spain,
+                      seed_survival_spain = seed_survival_spain)
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
 # 3. Data from Perenjori, WA, Australia----
@@ -343,7 +391,7 @@ final.species.list.aus <- c("ARCA",'BRPE',"CHPS","GOBE","GORO",
                             "PEAI","PLDE","POAR","POCA","POLE","PTGA",
                             "STPA","TRCY","TROR","VECY","WAAC")
 #---- 3.1. Wainwright 2014 preparation ----
-plant_code_aus <- read.csv("data/plant_code_aus.csv",
+plant_code_aus <- read.csv("data/aus_rawdata/plant_code_aus.csv",
                            header = T, stringsAsFactors = F, sep=",",
                            na.strings = c("","NA"))
 
