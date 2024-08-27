@@ -1,0 +1,26 @@
+number,species,family,code.plant,class,Native.sp,rareORabundant
+1,Beta macrocarpa,Amaranthaceae,BEMA,Forb,Native Annual Forb,rare
+2,Chamaemelum fuscatum,Asteraceae,CHFU,Forb,Native Annual Forb,abundant
+3,Chamaemelum mixtum,Asteraceae,CHMI,Forb,Native Annual Forb,rare
+4,Centaurium tenuiflorum,Gentianaceae,CETE,Forb,Native Annual Forb,abundant
+5,Coronopus squamatus,Brassicaceae,COSQ,Forb,Native Annual Forb,rare
+6,Frankenia pulverulenta,Frankeniaceae,FRPU,Forb,Native Annual Forb,rare
+7,Hordeum marinum,Poaceae,HOMA,Grass,Native Annual Grass,abundant
+8,Leontodon maroccanus,Asteraceae,LEMA,Forb,Native Annual Forb,abundant
+9,Lythrum tribracteatum,Lythraceae,LYTR,Forb,Native Annual Forb,rare
+10,Melilotus elengans,Fabaceae,MEEL,Forb,Native Annual Forb,rare
+11,Melilotus sulcatus,Fabaceae,MESU,Forb,Native Annual Forb,rare
+12,Plantago coronopus,Plantaginaceae,PLCO,Forb,Native Annual Forb,rare
+13,Polypogon monspeliensis,Poaceae,POMO,Grass,Native Annual Grass,rare
+14,Polypogon martinus,Poaceae,POMA,Grass,Native Annual Grass,abundant
+15,Pulicaria paludosa,Asteraceae,PUPA,Forb,Native Annual Forb,abundant
+16,Parapholis incurva,Poaceae,PAIN,Grass,Native Annual Grass,abundant
+17,Salsola soda,Amaranthaceae,SASO,Forb,Native Annual Forb,abundant
+18,Scorzonera laciniata,Asteraceae,SCLA,Forb,Native Annual Forb,rare
+19,Spergularia rubra,Caryophyllaceae,SPRU,Forb,Native Annual Forb,rare
+20,Sonchus asper,Asteraceae,SOAS,Forb,Native Annual Forb,rare
+21,Suaeda splendens,Amaranthaceae,SUSP,Forb,Native Annual Forb,rare
+22,Ranunculus peltatus,Ranunculuc,RAPE,Forb,Native Annual Forb,rare
+23,Achicoria sp,Asteraceae,ACHI,Forb,NA,rare
+24,Anagallis arvensis,Primulacea,ANAR,Forb,NA,rare
+25,NA,Fabaceae,MEPO,Forb,NA,rare

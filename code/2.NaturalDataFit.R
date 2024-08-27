@@ -37,6 +37,7 @@ run.fit = 1
 #grouping ="family"
 #year.int = "All"    
 #Code.focal = "LEMA"
+#country ="spain"
 args <- commandArgs(trailingOnly = TRUE)
 country.list <- as.character(args[1]) #c("aus","spain")
 

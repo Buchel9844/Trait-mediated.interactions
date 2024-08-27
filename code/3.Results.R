@@ -2,15 +2,18 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 1. SET UP: Import packages----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#packageurl <- "http://cran.r-project.org/src/contrib/Archive/cli/cli_3.6.2.tar.gz"
+#install.packages(packageurl, repos=NULL, type="source",depedency=T)
 
+library(cli)
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
 library(rstan)
 #install.packages("HDInterval")
 library("HDInterval")
 #install.packages("tidyverse")
-library("tidyverse")
+library(tidyverse)
 #install.packages("dplyr")
-library(dplyr)
+library(dplyr) 
 library(ggpubr)
 library(ggplot2)
 library(plotly)
@@ -23,7 +26,7 @@ library(wesanderson) # for color palette
 library(ggthemes) 
 library(grid)
 library(ggridges)
-
+library(cowplot)
 setwd("/home/lbuche/Eco_Bayesian/chapt3")
 home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
@@ -38,16 +41,16 @@ load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 
 RawData <- list()
 Parameters <- list()
-country.list <- as.character(args[1]) #c("aus","spain")
+country.list <- c("aus","spain")
 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   for(Code.focal in Code.focal.list){ #focal.levels
     
-  load(file =paste0(home.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"))
-  #assign(paste0("parameter_",Code.focal),
-  #       parameter)
-  Parameters[[paste(country,"_",Code.focal)]] <- parameter
+    load(file =paste0(home.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"))
+    #assign(paste0("parameter_",Code.focal),
+    #       parameter)
+    Parameters[[paste(country,"_",Code.focal)]] <- parameter
   }
 }
 
@@ -70,41 +73,41 @@ for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   for(Code.focal in Code.focal.list){ #focal.levels
     
-  year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
-  
-  plot.lambda[[Code.focal]] <- Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd %>%
-    mutate_at(year.levels, ~ rowSums(cbind(., Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean))) %>%
-    gather(key="year", value="lambda_sd") %>%
-    mutate(year=as.numeric(year)) %>%
-    left_join(spain_env_pdsi_med, by="year") %>%
-    ggplot(aes(y=lambda_sd, x=as.numeric(spain_pdsi),
-               group=spain_pdsi)) +
-    geom_boxplot(aes(fill=as.factor(year),color=as.factor(year))) +
-    geom_hline(yintercept=median(Parameters[[Code.focal]]$df_lambda_mean[,1])) + 
-    labs(title = Code.focal, #title="Intrinsic growth rate of LEMA across years,\n as their mean PDSI",
-         y= "intrinsic growth rate (log)",
-         x="PDSI",fill="year") +
-    theme_bw() +
-    scale_color_manual(values= color.year[which(color.year$year %in% year.levels),"col.value"]) +
-    scale_fill_manual(values= color.year[which(color.year$year %in% year.levels),"col.value"]) +
-    guides(fill=guide_legend(nrow = 1,
-                             direction="horizontal",
-                             byrow = TRUE,
-                             title.hjust = 0.1),
-           color="none") +
-    theme( legend.key.size = unit(1, 'cm'),
-           legend.position = "bottom",
-           strip.background = element_blank(),
-           panel.grid.minor = element_blank(),
-           panel.grid.major.x = element_blank(),
-           legend.text=element_text(size=8),
-           legend.title=element_text(size=8),
-           axis.text.x= element_text(size=8, angle=66, hjust=1),
-           axis.text.y= element_text(size=8),
-           axis.title.x= element_text(size=8),
-           axis.title.y= element_text(size=8),
-           title=element_text(size=10))
-  
+    year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
+    
+    plot.lambda[[Code.focal]] <- Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd %>%
+      mutate_at(year.levels, ~ rowSums(cbind(., Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean))) %>%
+      tidyr::gather(all_of(year.levels), key="year", value="lambda_sd") %>%
+      mutate(year=as.numeric(year)) %>%
+      left_join(spain_env_pdsi_med, by="year") %>%
+      ggplot(aes(y=lambda_sd, x=as.numeric(spain_pdsi),
+                 group=spain_pdsi)) +
+      geom_boxplot(aes(fill=as.factor(year),color=as.factor(year))) +
+      geom_hline(yintercept=median(Parameters[[Code.focal]]$df_lambda_mean[,1])) + 
+      labs(title = Code.focal, #title="Intrinsic growth rate of LEMA across years,\n as their mean PDSI",
+           y= "intrinsic growth rate (log)",
+           x="PDSI",fill="year") +
+      theme_bw() +
+      scale_color_manual(values= color.year[which(color.year$year %in% year.levels),"col.value"]) +
+      scale_fill_manual(values= color.year[which(color.year$year %in% year.levels),"col.value"]) +
+      guides(fill=guide_legend(nrow = 1,
+                               direction="horizontal",
+                               byrow = TRUE,
+                               title.hjust = 0.1),
+             color="none") +
+      theme( legend.key.size = unit(1, 'cm'),
+             legend.position = "bottom",
+             strip.background = element_blank(),
+             panel.grid.minor = element_blank(),
+             panel.grid.major.x = element_blank(),
+             legend.text=element_text(size=8),
+             legend.title=element_text(size=8),
+             axis.text.x= element_text(size=8, angle=66, hjust=1),
+             axis.text.y= element_text(size=8),
+             axis.title.x= element_text(size=8),
+             axis.title.y= element_text(size=8),
+             title=element_text(size=10))
+    
   }
 }
 plot.lambda.all <- ggarrange(plotlist=plot.lambda,
@@ -114,11 +117,11 @@ ggsave(plot.lambda.all,
        file=paste0(home.dic,"figures/plot.lambda.pdf"))
 
 
-  
+
 #---- 2.2. Sigmoid representation ----
 source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 test.sigmoid.all  <- NULL
-sigmoid.plot.list <- list()
+
 Param.sigm.df <- list()
 
 for(country in country.list){
@@ -127,18 +130,18 @@ for(country in country.list){
   Param.sigm.country.df <- NULL
   for(Code.focal in Code.focal.list){ #focal.levels
     
-  
-  df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
-  
-  Sp.names = colnames(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
-  year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
-  print(country,Code.focal)
-  
-  test.sigmoid.all<- NULL
-  test.sigmoid  <- NULL
-  
-  for( neigh in Sp.names){
-      print(country)
+    
+    df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
+    
+    Sp.names = colnames(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+    year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
+    print(paste0(country,Code.focal))
+    
+    test.sigmoid.all<- NULL
+    test.sigmoid  <- NULL
+    
+    for( neigh in Sp.names){
+      # print(country)
       alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
                                              neigh]
       
@@ -157,7 +160,7 @@ for(country in country.list){
                                 focal=Code.focal)
       
       for (n in 1:nrow(param.neigh)){
-        if(n==1){print(n)}
+        #if(n==1){print(n)}
         df_neigh_n <- data.frame(density=c(0:10),param.neigh[n,])
         
         
@@ -171,54 +174,64 @@ for(country in country.list){
         
       }
     }
-  limits.y <- c(round(min(test.sigmoid$sigmoid),digits=1)-0.1,
-                round(max(test.sigmoid$sigmoid),digits=1)+0.1)
-  
-  sigmoid.plot.list.focal[[Code.focal]] <- ggplot(test.sigmoid,
-                                            aes(y=sigmoid,x=density)) + 
-    stat_smooth(stat_smooth(color = "black", size = 0.5, level = 0.999)) +
-    theme_bw() + 
-    scale_x_continuous(breaks = c(0,5,10))+
-    scale_y_continuous(limits=limits.y) +
-    geom_hline(yintercept=0, color="black") +
-    labs(y="",fill="",color="",
-         #title=Code.neigh,
-         x=paste0("")) +
-    guides(color=guide_legend(nrow = 1,
-                              direction="horizontal",
-                              byrow = TRUE,
-                              title.hjust = 0.1),
-           fill=guide_legend(nrow = 1,
-                             direction="horizontal",
-                             byrow = TRUE,
-                             title.hjust = 0.1)) + 
-    theme( legend.key.size = unit(1, 'cm'),
-           legend.position = "bottom",
-           strip.background = element_blank(),
-           panel.grid.minor = element_blank(),
-           panel.grid.major.x = element_blank(),
-           strip.text = element_text(size=12),
-           legend.text=element_text(size=12),
-           legend.title=element_text(size=12),
-           #axis.ticks.x=element_blank(),
-           axis.text.x= element_blank(),#element_text(size=12, angle=66, hjust=1),
-           axis.text.y=  element_blank(), #element_text(size=12),
-           axis.title.x= element_blank(),#element_text(size=12),
-           axis.title.y= element_blank(),#element_text(size=12),
-           title=element_text(size=12))
-  
-  Param.sigm.country.df <- bind_rows( Param.sigm.country.df,test.sigmoid)
+    limits.y <- c(round(min(test.sigmoid$sigmoid),digits=1),
+                  round(max(test.sigmoid$sigmoid),digits=1))
+    
+    sigmoid.plot.list.focal[[Code.focal]] <- ggplot(test.sigmoid,
+                                                    aes(y=sigmoid,x=density)) + 
+      stat_smooth(color = "black", size = 0.5, level = 0.999) +
+      theme_bw() + 
+      scale_x_continuous(breaks = c(0,5,10))+
+      scale_y_continuous(limits=limits.y) +
+      geom_hline(yintercept=0, color="black") +
+      labs(y="",fill="",color="",
+           #title=Code.neigh,
+           x=paste0("")) +
+      facet_wrap(.~neigh, nrow=1) +
+      guides(color=guide_legend(nrow = 1,
+                                direction="horizontal",
+                                byrow = TRUE,
+                                title.hjust = 0.1),
+             fill=guide_legend(nrow = 1,
+                               direction="horizontal",
+                               byrow = TRUE,
+                               title.hjust = 0.1)) + 
+      theme( legend.key.size = unit(1, 'cm'),
+             legend.position = "bottom",
+             strip.background = element_blank(),
+             panel.grid.minor = element_blank(),
+             panel.grid.major.x = element_blank(),
+             strip.text = element_text(size=12),
+             legend.text=element_text(size=12),
+             legend.title=element_text(size=12),
+             #axis.ticks.x=element_blank(),
+             axis.text.x= element_blank(),#element_text(size=12, angle=66, hjust=1),
+             axis.text.y=  element_text(size=12),
+             axis.title.x= element_blank(),#element_text(size=12),
+             axis.title.y= element_blank(),#element_text(size=12),
+             title=element_text(size=12))
+    
+    write.csv(test.sigmoid,
+              file=paste0("results/Param.sigmoid.",country,",",Code.focal,".csv"))
+    
+    Param.sigm.country.df <- bind_rows( Param.sigm.country.df,test.sigmoid)
   }
-  sigmoid.plot.list[[country]] <- sigmoid.plot.list.focal
+  
+  #sigmoid.plot.list[[country]] <- sigmoid.plot.list.focal
   Param.sigm.df[[country]] <- Param.sigm.country.df
 }
 
-save( Param.sigm.df,
-     file="results/Param.sigmoid.rData")
-save( sigmoid.plot.list,
-      file="results/Plot.sigmoid.rData")
 
-load(file=paste0(home.dic,"results/Param.sigmoid.rData"))
+write.csv(Param.sigm.df$aus,
+          file=paste0(project.dic,"results/Param.sigmoid.aus.csv.gz"))
+write.csv(Param.sigm.df$spain,
+          file=paste0(project.dic,"results/Param.sigmoid.spain.csv.gz"))
+
+
+Param.sigm.df$aus <- read.csv(paste0(project.dic,"results/Param.sigmoid.aus.csv.gz"))
+Param.sigm.df$spain <- read.csv(paste0(project.dic,"results/Param.sigmoid.spain.csv.gz"))
+
+
 
 safe_colorblind_palette <- c("#88CCEE", "#CC6677", "#DDCC77", "#117733", "#332288", "#AA4499", 
                              "#44AA99", "#999933", "#882255", "#661100", "#6699CC", "#888888")
@@ -226,23 +239,111 @@ safe_colorblind_palette <- c("#88CCEE", "#CC6677", "#DDCC77", "#117733", "#33228
 
 #---- 2.2.1 Raw sigmoid illustration ----
 
-ggsave(ggarrange(plotlist = sigmoid.plot.list[["aus"]],
-                 #labels=species.spain,
-                 common.legend = T, ncol=1,
-                 legend="bottom"),
-       width=21,
+#country <- "aus"
+#Code.focal <-"WAAC"
+sigmoid.plot.list <- list()
+legend.plot.list <- list()
+library(pals)
+
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  sigmoid.plot.list.focal<- list()
+  Param.sigm.country.df <- NULL
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  legend.plot <- ggplot(col.df, aes(y=neigh, x=color.name,color=neigh,fill=neigh)) +
+    geom_bar(stat="identity") +
+    scale_color_manual(values =col.df$color.name)+
+    scale_fill_manual(values =col.df$color.name)+
+    theme_bw() + theme( legend.key.size = unit(1, 'cm'),
+                        legend.position = "bottom") +
+    guides(color=guide_legend(nrow = 2,
+                              direction="horizontal",
+                              byrow = TRUE,
+                              title.hjust = 0.1),
+           fill=guide_legend(nrow = 2,
+                             direction="horizontal",
+                             byrow = TRUE,
+                             title.hjust = 0.1)) 
+  legend.plot.list[[country]] <- get_legend(legend.plot)
+  
+  for(Code.focal in Code.focal.list){ #focal.levels
+    print(paste(Code.focal))
+    test.sigmoid <- Param.sigm.df[[country]] %>%
+      filter(focal ==Code.focal)
+    
+    limits.y <- c(max(round(min(test.sigmoid$sigmoid),digits=1),-1),
+                  min(round(max(test.sigmoid$sigmoid),digits=1),1))
+    
+    sigmoid.plot.list.focal[[Code.focal]] <-  ggplot(test.sigmoid,
+                                                     aes(y=sigmoid,x=density,
+                                                         color=neigh,fill=neigh)) + 
+      stat_smooth( size = 1.5, level = 0.999) +
+      theme_bw() + 
+      scale_x_continuous(breaks = c(0,5,10))+
+      scale_y_continuous(breaks=c(seq(-1,1,0.4))) +
+      scale_color_manual(values =col.df$color.name[which(col.df$neigh %in% test.sigmoid$neigh)])+
+      scale_fill_manual(values =col.df$color.name[which(col.df$neigh %in% test.sigmoid$neigh)])+
+      geom_hline(yintercept=0, color="black") +
+      labs(y="",fill="",color="",
+           title=Code.focal,
+           x=paste0("")) +
+      guides(color=guide_legend(nrow = 1,
+                                direction="horizontal",
+                                byrow = TRUE,
+                                title.hjust = 0.1),
+             fill=guide_legend(nrow = 1,
+                               direction="horizontal",
+                               byrow = TRUE,
+                               title.hjust = 0.1)) + 
+      coord_cartesian(ylim=limits.y) + 
+      theme( legend.key.size = unit(1, 'cm'),
+             legend.position = "bottom",
+             strip.background = element_blank(),
+             panel.grid.minor = element_blank(),
+             panel.grid.major.x = element_blank(),
+             strip.text = element_text(size=12),
+             legend.text=element_text(size=12),
+             legend.title=element_text(size=12),
+             #axis.ticks.x=element_blank(),
+             axis.text.x= element_text(size=9),#element_text(size=12, angle=66, hjust=1),
+             axis.text.y=  element_text(size=12),
+             axis.title.x= element_blank(),#element_text(size=12),
+             axis.title.y= element_blank(),#element_text(size=12),
+             title=element_text(size=12,color=col.df$color.name[which(col.df$neigh ==Code.focal)]))
+    
+  }
+  sigmoid.plot.list[[country]] <-  sigmoid.plot.list.focal
+}
+
+
+AUS.sigmoid.plot <- ggarrange(ggarrange(plotlist =   sigmoid.plot.list[["aus"]],
+                                        #labels=species.spain,
+                                        common.legend = F,
+                                        legend="none"),
+                              legend.plot.list[["aus"]],
+                              nrow=2,
+                              heights=c(2,0.15),
+                              common.legend = F)
+
+ggsave(AUS.sigmoid.plot,
        heigh=40,
        units = "cm",
        file=paste0(home.dic,"figures/AUS.sigmoid.plot.pdf"))
 
-ggsave(ggarrange(plotlist = sigmoid.plot.list[["spain"]],
-                 #labels=species.spain,
-                 common.legend = T, ncol=1,
-                 legend="bottom"),
-       width=21,
-        heigh=40,
-        units = "cm",
-        file=paste0(home.dic,"figures/Spain.sigmoid.plot.pdf"))
+SPAIN.sigmoid.plot <- ggarrange(ggarrange(plotlist =   sigmoid.plot.list[["spain"]],
+                                          #labels=species.spain,
+                                          common.legend = F,
+                                          legend="none"),
+                                legend.plot.list[["spain"]],
+                                nrow=2,
+                                heights=c(2,0.15),
+                                common.legend = F)
+
+ggsave(SPAIN.sigmoid.plot,
+       heigh=40,
+       units = "cm",
+       file=paste0(home.dic,"figures/SPAIN.sigmoid.plot.pdf"))
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

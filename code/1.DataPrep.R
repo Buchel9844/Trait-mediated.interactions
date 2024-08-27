@@ -54,7 +54,7 @@ setwd("~/Documents/Projects/Facilitation_gradient")
 # Main collector Oscar Godoy and Nacho Bartomeus
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 1.1. Read Teasorus ----
-plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
+plant_code_spain <- read.csv( "data/spain_rawdata/plant_code.csv",
                               header = T, stringsAsFactors = F, sep=",",
                               na.strings = c("","NA"))
 
@@ -78,10 +78,12 @@ final.species.list.spain <- c("BEMA","CETE","CHFU",
                         "PO.sp","SASO","SCLA","SPRU")
 
 abundance_spain.summary <- abundance_spain %>%
-  select(individuals,year,species) %>%
-  filter( species %in% final.species.list.spain )%>%
-  rename("count"="individuals")
-
+  rename("code.plant"=species) %>%
+  left_join(plant_code_spain, by="code.plant") %>%
+  filter( code.analysis %in% final.species.list.spain ) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot , mean) %>%
+  mutate(com_id = paste(plot,subplot,sep="_")) %>%
+  spread(code.analysis,individuals)
 
 # regroup POMA and POMO under Polypogon
 # regroup MEEL and MESU under Melilotus ? 
@@ -321,79 +323,13 @@ save(clean.data.spain,
 # 3. Data from Perenjori, WA, Australia----
 # Main collector Trace Martin, Courtney Taylor, Margie Mayfield
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 3.0. Identify most abundance species ----
-load("/Users/lisabuche/Documents/Projects/Perenjori/results/community_id_df.csv.gz")
-abundance_aus <- community_id_df
-
-abundance_aus.summary <- abundance_aus %>%
-  mutate(count=as.numeric(count/scale.weight)) %>%
-  select(count,year,final.code) %>%
-  filter( final.code %in% species.list.to.keep.aus) %>%
-  rename("species"="final.code")
-
-
-abundance_aus_plot <- ggplot() +
-  stat_summary(data=abundance_aus.summary,
-               aes(x=as.character(year), y = count,
-                   group=as.factor(final.code),
-                   color=as.factor(final.code)),
-               fun.y = mean,
-               fun.ymin = function(x) mean(x) - sd(x), 
-               fun.ymax = function(x) mean(x) + sd(x), 
-               geom = "pointrange",size=2) +
-  stat_summary(data=abundance_aus.summary,
-               aes(x=as.character(year), y = count,
-                   group=as.factor(final.code),
-                   color=as.factor(final.code)),
-               fun.y = mean,
-               geom = "line",size=1) +
-  scale_x_discrete("year",limits=c("2010","2011","2012-2013","2014","2015","2016",
-                                   "2017","2018","2019","2020","2021","2022")) +
-  labs(color="species",y="Mean number of \nindividuals in 1meter squarred plot",
-       title="Density over time of annual plants in Perenjory region") +
-  coord_cartesian( xlim = NULL, ylim = c(0,200),expand = TRUE, default = FALSE, clip = "on") +
-  #scale_color_manual(values=safe_colorblind_palette) +
-  theme_bw() +
-  theme( legend.key.size = unit(1, 'cm'),
-         legend.position = "bottom",
-         strip.background = element_blank(),
-         panel.grid.minor = element_blank(),
-         panel.grid.major.x = element_blank(),
-         strip.text = element_text(size=28),
-         legend.text=element_text(size=20),
-         legend.title=element_text(size=20),
-         #axis.ticks.x=element_blank(),
-         axis.text.x= element_text(size=20, angle=66, hjust=1),
-         axis.text.y= element_text(size=20),
-         axis.title.x= element_text(size=24),
-         axis.title.y= element_text(size=24),
-         title=element_text(size=16))
-
-
-library(plotly)
-plotly::ggplotly(abundance_aus_plot)
-
-species.list.to.keep.aus <- c("ARCA","AUEL",'BRPE',"CHPS","GOBE","GOPU","GORO",
-                              "HYGL","LARO","MEDI","MIMY","PEAI",
-                              "PLDE","POAR","POCA","POGN","POLE","PTGA",
-                              "STPA","TRCY","TROR","VECY","WAAC")
-
-abundance_aus.summary.year <- abundance_aus %>%
-  mutate(count=as.numeric((count/scale.weight)*0.25)) %>%
-  select(count,year,final.code) %>%
-  filter( final.code %in% species.list.to.keep.aus) %>%
-  aggregate(count~ year + final.code, mean) %>%
-  spread(final.code,count)
-
-view(abundance_aus.summary.year)
-# only keep the species that have maximum of two years without abundance data
-final.species.list.aus <- c("ARCA",'BRPE',"CHPS","GOBE","GORO",
-                            "PEAI","PLDE","POAR","POCA","POLE","PTGA",
-                            "STPA","TRCY","TROR","VECY","WAAC")
-#---- 3.1. Wainwright 2014 preparation ----
 plant_code_aus <- read.csv("data/aus_rawdata/plant_code_aus.csv",
                            header = T, stringsAsFactors = F, sep=",",
                            na.strings = c("","NA"))
+
+species.list.to.keep.aus <- levels(as.factor(plant_code_aus$final.code))
+
+#---- 3.1. Wainwright 2014 preparation ----
 
 Wainwright2014.seed <-  read.csv("data/aus_rawdata/Wainwright2014_seed_aus.csv" )
 nrow(Wainwright2014.seed)
@@ -441,7 +377,7 @@ table(Wainwright2014$focal)
 
 #---- 3.2. Martyn 2016 preparation----
 Martyn2016 <-  read.csv("data/aus_rawdata/Martyn2016_aus.csv" )
-Martyn2016<- Martyn2016 %>%
+Martyn2016 <- Martyn2016 %>%
   select(-"focal.ID") %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
   select(plot,seed,focal,code,count) %>%
@@ -452,10 +388,10 @@ Martyn2016<- Martyn2016 %>%
   aggregate(count ~ plot + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
   mutate( year=2016)%>%
-  mutate(plot=as.character(plot))%>%
+  mutate(plot=as.character(plot)) %>%
   select(any_of(c("plot","focal","year","seed",final.species.list.aus)))
 
-
+levels(as.factor(Martyn2016$focal))
 #str(Martyn2016)
 #table(Martyn2016$focal)
 #head(Martyn2016)
@@ -531,7 +467,7 @@ Taylor2023_seed <- read.csv("data/aus_rawdata/Taylor2023_seed_aus.csv",
                                header = T,stringsAsFactors = F, sep=",",
                                na.strings=c("","NA"))
 view(Taylor2023_seed ) 
-view(Taylor2023)
+
 Taylor2023 <- Taylor2023_com %>% 
   rename("focal" ="SPECIES" ) %>%
   left_join(Taylor2023_seed,relationship = "many-to-many") %>%
@@ -546,9 +482,7 @@ Taylor2023 <- Taylor2023_com %>%
                                "species","final.code")], 
              by=c("name"),
              relationship = "many-to-many") %>%
-  filter(plot,focal,final.code,seed) %>%
- # unique()
-  #aggregate(count ~ plot + focal + final.code + seed,sum) %>%
+  aggregate(count ~ plot + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
   left_join(plant_code_aus[,c("code","final.code")] %>%
                rename("focal" ="code" ) %>%
@@ -581,7 +515,13 @@ summary_table_aus <- bind_rows(as.data.frame(table(Martyn2016$focal)) %>%
     ) %>%
   rename("focal"="Var1") %>%
   mutate(focal = case_when(focal=="VERO"~"GORO",
-                           T~focal))
+                           focal=="POGN"~"POAR",
+                           focal=="VECY"~"GOCY",
+                           T~focal)) %>%
+  filter(focal %in% final.species.list.aus)  %>%
+  spread(focal, Freq) 
+view(summary_table_aus)
+
 
 ggplot(summary_table_aus[which(summary_table_aus$Freq>50),],
        aes(y=Freq,x=year,color=focal,fill=focal)) +
@@ -590,6 +530,73 @@ ggplot(summary_table_aus[which(summary_table_aus$Freq>50),],
             position=position_dodge(width=1),
            #vjust=0.3,
             angle=90)
+
+#---- 3.0. Identify most abundance species ----
+load("/Users/lisabuche/Documents/Projects/Perenjori/results/community_id_df.csv.gz")
+abundance_aus <- community_id_df
+
+abundance_aus.summary <- abundance_aus %>%
+  mutate(count=as.numeric(count/scale.weight)) %>%
+  select(count,year,final.code) %>%
+  filter( final.code %in% species.list.to.keep.aus) %>%
+  rename("species"="final.code")
+
+abundance_aus_plot <- ggplot() +
+  stat_summary(data=abundance_aus.summary,
+               aes(x=as.character(year), y = count,
+                   group=as.factor(species),
+                   color=as.factor(species)),
+               fun.y = mean,
+               fun.ymin = function(x) mean(x) - sd(x), 
+               fun.ymax = function(x) mean(x) + sd(x), 
+               geom = "pointrange",size=2) +
+  stat_summary(data=abundance_aus.summary,
+               aes(x=as.character(year), y = count,
+                   group=as.factor(species),
+                   color=as.factor(species)),
+               fun.y = mean,
+               geom = "line",size=1) +
+  scale_x_discrete("year",limits=c("2010","2011","2012-2013","2014","2015","2016",
+                                   "2017","2018","2019","2020","2021","2022")) +
+  labs(color="species",y="Mean number of \nindividuals in 1meter squarred plot",
+       title="Density over time of annual plants in Perenjory region") +
+  coord_cartesian( xlim = NULL, ylim = c(0,200),expand = TRUE, default = FALSE, clip = "on") +
+  #scale_color_manual(values=safe_colorblind_palette) +
+  theme_bw() +
+  theme( legend.key.size = unit(1, 'cm'),
+         legend.position = "bottom",
+         strip.background = element_blank(),
+         panel.grid.minor = element_blank(),
+         panel.grid.major.x = element_blank(),
+         strip.text = element_text(size=28),
+         legend.text=element_text(size=20),
+         legend.title=element_text(size=20),
+         #axis.ticks.x=element_blank(),
+         axis.text.x= element_text(size=20, angle=66, hjust=1),
+         axis.text.y= element_text(size=20),
+         axis.title.x= element_text(size=24),
+         axis.title.y= element_text(size=24),
+         title=element_text(size=16))
+
+
+library(plotly)
+plotly::ggplotly(abundance_aus_plot)
+
+abundance_aus.summary.year <- abundance_aus %>%
+  mutate(count=as.numeric((count/scale.weight)*0.25)) %>%
+  select(count,year,final.code) %>%
+  filter( final.code %in% species.list.to.keep.aus) %>%
+  aggregate(count~ year + final.code, mean) %>%
+  spread(final.code,count)
+
+view(abundance_aus.summary.year)
+view(summary_table_aus)
+#Zac, do you think it is possible that in perenjori, people have been mistaking Goodenia pusilliflora for GOCY? cause GOPU is present before 2020 and not after - but trace collected more than 100 data point and fecundity on it - which is weird bc
+# only keep the one that have more than 100 data obs as focal in summary_table_aus
+# only keep the species that have maximum of two years without abundance data
+final.species.list.aus <- c("ARCA","GOBE","GOPU","GORO","HYGL",
+                            "LARO","MEDI","MIMY","PEAI","PLDE","POAR",
+                            "POLE","PTGA","TRCY","TROR","WAAC")
 
 #---- 3.7. Merge ----
 competition_aus <- bind_rows(Martyn2016,Wainwright2014,
