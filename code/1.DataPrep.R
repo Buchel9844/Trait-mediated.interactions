@@ -542,7 +542,7 @@ abundance_aus.summary <- abundance_aus %>%
   rename("species"="final.code")
 
 abundance_aus_plot <- ggplot() +
-  stat_summary(data=abundance_aus.summary,
+   stat_summary(data=abundance_aus.summary,
                aes(x=as.character(year), y = count,
                    group=as.factor(species),
                    color=as.factor(species)),

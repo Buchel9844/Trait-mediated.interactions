@@ -32,12 +32,12 @@ project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 2. Import envi data  ----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Good reference to understand drought index: https://nhess.copernicus.org/articles/23/3543/2023/
 #---- SPAIN ----
 # https://www.juntadeandalucia.es/agriculturaypesca/ifapa/riaweb/web/estacion/41/20#his
 # SE20ETo mm/dia
 # SE20ETo mm
-env_spain <- read.csv("data/spain_rawdata/env_spain.csv",sep=",")
-head(env_spain)
+
 env_spain <-  read.csv("data/spain_rawdata/env_spain.csv",sep=",") %>%
   separate("FECHA", sep="/", into=c("day","month","year")) %>%
   filter(year >= 2005 & year <= 2023 ) %>%
@@ -66,7 +66,7 @@ line_spain_env <- ggplot(env_spain) +
                             "2015","2016","2017","2018",
                             "2019","2020","2021",
                             "2022","2023","2024")) +
-  labs(title="Montly Precipitation (grey) and ETo (black)",x="year",
+  labs(title="Montly Precipitation (grey) and ETo (black)",x="",
        y="mm/month",
        fill="conditions") +
   theme_bw()+
@@ -96,7 +96,8 @@ library(scPDSI)
 
 P <- aggregate(Se20Precip ~ month +year, env_spain,sum)[,"Se20Precip"]
 PE <- aggregate(Se20ETo  ~ month + year, env_spain,sum)[,"Se20ETo"]
-sc_pdsi <- pdsi(P, PE, start = 2005,end=2023)
+sc_pdsi <- pdsi(P, PE, start = 2005,end=2023,sc=F,AWC = 50)
+plot(sc_pdsi)
 length(sc_pdsi$X)
 
 spain_env_pdsi <- data.frame(spain_pdsi = as.numeric(sc_pdsi$X),
@@ -210,7 +211,7 @@ plot_spain_env_pdsi <- ggarrange( plotlist =spain_env_plot,
           legend="bottom")
 plot_spain_env_pdsi
 ggsave(plot_spain_env_pdsi,
-       "figures/plot_spain_env_pdsi.pdf")
+       file ="figures/plot_spain_env_pdsi.pdf")
 
 #---- AUS ----
 #http://www.bom.gov.au/watl/eto/tables/wa/daily.shtml
@@ -221,7 +222,27 @@ station_aus <- c("Bowgada", "Five.Gums", "High.Fields", "Latham", "Carnamah", "W
 env_prec_aus <- read.csv("data/aus_rawdata/monthly_rainfall.csv",sep=",")
 
 head(env_prec_aus)
-
+env_prec_aus <- read.csv("data/aus_rawdata/Perenjori_monthly_prec.csv",sep=",")  %>%
+  mutate(station="Perenjori") %>%
+  bind_rows(read.csv("data/aus_rawdata/Latham_monthly_prec.csv",sep=",")%>%
+              mutate(station="Latham")) %>%
+  gather(Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec,
+         key="month",value="prec") %>%
+  mutate(month = case_when(month=="Jan"~1,
+                           month=="Feb"~2,
+                           month=="Mar"~3,
+                           month=="Apr"~4,
+                           month=="May"~5,
+                           month=="Jun"~6,
+                           month=="Jul"~7,
+                           month=="Aug"~8,
+                           month=="Sep"~9,
+                           month=="Oct"~10,
+                           month=="Nov"~11,
+                           month=="Dec"~12)) %>%
+  mutate(prec=as.numeric(prec)) %>%
+  aggregate(prec ~ month + year, function(x){mean(x,na.rm=T)})
+view(env_prec_aus)
 # and ETo via TERN :
 # https://tern-landscapes.earthengine.app/view/cmrset-landsat-v22 for all stations
 env_ETo_aus <- read.csv("data/aus_rawdata/ETo_aus.csv",sep=",") %>%
@@ -239,14 +260,13 @@ env_ETo_aus <- read.csv("data/aus_rawdata/ETo_aus.csv",sep=",") %>%
                            month=="Dec"~12))
 env_ETo_aus$sumETo <- rowMeans(env_ETo_aus[,station_aus])
 head(env_ETo_aus)
-
 # merge prec and ETo data set
-env_aus <- left_join(env_ETo_aus,env_prec_aus) %>%
+env_aus <- left_join(env_ETo_aus,env_prec_aus, by=c("month", "year")) %>%
   filter(year >= 2004 & year < 2024 ) %>%
   mutate(year.month = factor(paste0(year,sep="_",month),
                              levels=paste0(year,sep="_",month)))
 
-
+view(env_aus)
 line_aus_env <- ggplot(env_aus) +
   geom_line(aes(y=sumETo,x=factor(year.month),group=1),
            color="black",size=2) +
@@ -283,13 +303,29 @@ line_aus_env <- ggplot(env_aus) +
          axis.title.y= element_text(size=20),
          title=element_text(size=16))
 line_aus_env
+# compute SDI
+#https://cran.rstudio.com/web/packages/drought/drought.pdf
+install.packages("drought")
+library(drought)
+X= env_aus[,"prec"] # 10-year monthly data
+Yc <- ACCU(X,ts=6) # Compute the 6 month accumulated series
+fit1 <- SDI(X,ts=6) # Get the standardized drought index (or SPI)
+z = matrix(t(fit1$SDI),ncol=1)
+Res <- RunDS(z, -1)# Get drought duration and severity based on threshold SPI=-1
+Y = env_aus[,"sumETo"] # 10-year monthly data
+fit2<-MSDI(X,Y,ts=6) # Compute the 6 month Multivariate Standardized Drought Index (MSDI)
+fit2$MSDI #Get the empirical MSDI
 
 #compute PDSI
 P_aus <- env_aus[,"prec"]
-PE_aus <- env_aus[,"sumETo"]
+PE_aus <-  env_aus[,"sumETo"]
+# if sc= F then  p = 0.897 and q = 1/3 according to Palmer (1965) 
+# we don't have enough data for the pdsi to calibrate correctly 
+sc_pdsi_aus <- pdsi(P=P_aus, PE=PE_aus, AWC = 50,
+                    start = 2004,sc = F)
+plot(sc_pdsi_aus, index = "PHDI")
+plot(sc_pdsi_aus, index = "WPLM")
 
-sc_pdsi_aus <- pdsi(P_aus, PE_aus, start = 2004,end=2023, sc = TRUE)
-plot()
 length(sc_pdsi_aus$X)
 
 aus_env_pdsi <- data.frame(aus_pdsi = as.numeric(sc_pdsi_aus$X),
@@ -411,8 +447,8 @@ plot_aus_env_pdsi <- ggarrange( plotlist =aus_env_plot,
                                  common.legend = T,
                                  legend="bottom")
 plot_aus_env_pdsi
-ggsave(plot_spain_env_pdsi,
-       "figures/plot_aus_env_pdsi.pdf")
+ggsave(plot_aus_env_pdsi,
+       file="figures/plot_aus_env_pdsi.pdf")
 
 
 

@@ -3,22 +3,20 @@
 
 data{
   int<lower = 1> N; // Number of observations within each year
-  int<lower = 1> S; // Number of plant species (same across years for consistency)
+  int<lower = 1> S; // Number of plant species (same acroseed_s years for consistency)
   
-  matrix[N,S] SpAbundance;  // Abundance of the species in each observation
+  matrix[N,S] SpAbundance;  // Fecundity of the focal species in each observation
   real<lower=0>  growth_ratio[N];  // Fecundity of the focal species in each observation
+  real<lower=0> lambda_mean_obs;
+  
   int<lower = 1> year[N]; // Indicator variable for the year each observations
   int<lower = 1> Y; // number of years
- 
+  
+
   real<lower=0> g_mean; // germination
   real<lower=0> g_sd; // germination
   real<lower=0> seed_s_mean; // seed survival
   real<lower=0> seed_s_sd; // seed survival
-  real<lower=0> lambda_mean;
-  real<lower=0> lambda_sd;
-  
-  real PDSI_mean[N];
-  real PDSI_sd[N];
 
   matrix[1,S] alpha_initial_mean;
   matrix[1,S] alpha_slope_mean;
@@ -32,10 +30,10 @@ data{
 }
 
 parameters{
-  
+  real<lower=1> lambda_mean[1];
+  real<lower=0> lambda_sd[Y];
   real<lower=1> g[1];
   real<lower=1> seed_s[1];
-  real PDSI[N];
   
   real<lower=-1,upper=1> alpha_initial[S];
 
@@ -48,11 +46,6 @@ parameters{
   vector<lower=0>[1] disp_dev; // species-specific dispersion deviation parameter,
   // defined for the negative binomial distribution used to reflect seed production (perform)
   // disp_dev = 1/sqrt(phi)
-  real beta1[1];
-  real beta2[1];
-  real beta3[1];
-  real<lower = 0> beta4[1];
-  real<lower = 0> lambda_init[1];
   
 }
 
@@ -64,14 +57,14 @@ transformed parameters{
   vector[N] interaction_effects;
   
   // loop parameters
-  vector<lower = 0>[N] lambda_ei;
+  vector[N] lambda_ei;
   matrix[N,S] alpha_value;
   
 
  // implement the biological model
   for(n in 1:N){
-  lambda_ei[n] = lambda_init[1] + beta1[1]*PDSI[n] + beta2[1]*(PDSI[n])^2 + beta3[1]*(PDSI[n])^3 + beta4[1]*(PDSI[n])^4;
-  for(s in 1:S){
+    lambda_ei[n] = lambda_mean[1] + lambda_sd[year[n]];
+    for(s in 1:S){
     alpha_value[n,s] = alpha_initial[s] + (c[s] * (1 - exp( alpha_slope[s] * (SpAbundance[n,s]-N_opt[s]))))/(1+exp(alpha_slope[s] * (SpAbundance[n,s]-N_opt[s])));
     }
     
@@ -90,22 +83,20 @@ model{
   disp_dev ~ normal(0,1);
   g ~ normal(g_mean, g_sd);  
   seed_s ~ normal(seed_s_mean, seed_s_sd); 
-  beta1  ~ normal(0,1);
-  beta2  ~ normal(0,1);
-  beta3  ~ normal(0,1);
-  beta4  ~ normal(0,1);
-  lambda_init ~ normal(1,1);
+  lambda_mean ~ normal(0,10);
+  for(y in 1:Y){
+    lambda_sd[y] ~ normal(0,1);
+  }
   
   for(n in 1:N){
-  PDSI ~ normal(PDSI_mean[n],PDSI_sd[n]);
-  growth_ratio[n] ~  lognormal((1 - g[1])*seed_s[1] + g[1]*lambda_ei[n]*exp(interaction_effects[n]),disp_dev);
+  growth_ratio[n] ~ normal((1 - g[1])*seed_s[1] + g[1]*lambda_ei[n]*exp(interaction_effects[n]),disp_dev);
   }
 }
 
 generated quantities{
-  vector<lower = -10,upper=10>[N] GR;
+  vector[N] GR;
  for(n in 1:N){
-    GR[n] = lognormal_lpdf(growth_ratio[n]|((1 - g[1])*seed_s[1] + g[1]*lambda_ei[n]*exp(interaction_effects[n])),disp_dev);
+    GR[n] = normal_lpdf(growth_ratio[n]|((1 - g[1])*seed_s[1] + g[1]*lambda_ei[n]*exp(interaction_effects[n])),disp_dev);
               }
 }
 

@@ -43,9 +43,7 @@ country.list <- c("aus","spain")
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 
-
 #---- 2.1 Alpha----
-
 
 source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 
