@@ -6,11 +6,11 @@
 
 #---- 1.1. Import packages ----
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
+library(cli)
 library(rstan)
 #install.packages("HDInterval")
 library("HDInterval")
 #install.packages("tidyverse")
-library(cli)
 library(tidyverse)
 #install.packages("dplyr")
 library(dplyr)
@@ -43,13 +43,15 @@ country.list <- c("aus","spain")
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 
+
 #---- 2.1 Alpha----
+
 
 source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 
 list_alpha_mean <- list()
 list_alpha_sd <- list()
-country.list="spain"
+
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   for(Code.focal in Code.focal.list){ #focal.levels
@@ -84,50 +86,40 @@ for(country in country.list){
 
 
 #---- 3. Extraction of realised intrinsic growth rate ----
-country.list="spain"
-
+#country ="spain"
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   abundance_short_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
   sgerm.df <- get(paste0("clean.data.",country))[[paste0("seed_germination_",country)]]
   ssurv.df <- get(paste0("clean.data.",country))[[paste0("seed_survival_",country)]]
+  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
+    group_by(year) %>% 
+    mutate(PDSI.mean = mean(get(paste0(country,"_pdsi")), na.rm = T),
+           PDSI.sd = sd(get(paste0(country,"_pdsi")),na.rm = T)) %>%
+    select(year,PDSI.mean,PDSI.sd) %>%
+    unique() %>%
+    ungroup() %>%
+    as.data.frame()
+  #Code.focal="LEMA"
   for(Code.focal in Code.focal.list){ #focal.levels
-    year.levels =  levels(as.factor(abundance_short_df$year))
-    year.int = nlevels(as.factor(abundance_short_df$year))
-    com_id =  levels(as.factor(abundance_short_df$com_id))
-    
-    growth.ratio.df <- NULL
-    for(y in 1: year.int){
-      for(i in  com_id){
-        if(y ==7) next
-        growth.ratio.df <- bind_rows(growth.ratio.df,
-                                     data.frame(country=country,
-                                                focal = Code.focal,
-                                                year = as.integer(year.levels[y]),
-                                                com_id=i,
-                                                growth.ratio=  abundance_short_df[which( abundance_short_df$year== as.integer(year.levels[y+1]) &
-                                                                                           abundance_short_df$com_id ==i),"LEMA"] / 
-                                                  abundance_short_df[which( abundance_short_df$year== as.integer(year.levels[y]) &
-                                                                              abundance_short_df$com_id ==i),"LEMA"]))
-      }
+    abundance_list <- list()
+    for( y in levels(as.factor(abundance_short_df$year))){
+      abundance_list[[y]] <- abundance_short_df  %>%
+        filter(year==y) %>%
+        select(all_of(Code.focal.list)) %>%
+        replace(is.na(.), 0) %>%
+        mutate_if(is.character,as.numeric)
     }
     
-    abundance.GR.df.sp <-  abundance_short_df %>%
-      select(-c("plot","subplot")) %>% 
-      left_join(growth.ratio.df,by=c("year", 'com_id')) %>%
-      filter(!is.na(growth.ratio) & !is.nan(growth.ratio) & !is.infinite(growth.ratio)) %>%
-      filter(!growth.ratio==0)
-    
-    
-    view(abundance.GR.df.sp)
-    DataVec <- list(N= nrow(abundance.GR.df.sp),
+    view(abundance_list[[4]])
+    DataVec <- list(N= nrow(abundance_short_df),
                     S= length(Code.focal.list),
-                    SpAbundance = abundance.GR.df.sp %>%
-                      select(all_of(Code.focal.list)),
-                    growth_ratio = abundance.GR.df.sp$growth.ratio ,
-                    lambda_mean_obs = mean(abundance.GR.df.sp$growth.ratio),
-                    year =  as.integer(factor(abundance.GR.df.sp$year,unique(abundance.GR.df.sp$year))),
-                    Y= nlevels(as.factor(abundance.GR.df.sp$year)),
+                    SpAbundance = abundance_list,
+                    focal_pos = c(names(SpAbundance) == Code.focal)*1, 
+                    numb_year= nlevels(as.factor(abundance_short_df$year)),
+                    numb_plot= nlevels(as.factor(abundance_short_df$com_id)),
+                    PDSI_mean = abundance_short_df$PDSI.mean,
+                    PDSI_sd = abundance_short_df$PDSI.sd,
                     g_mean = sgerm.df$g.mean[which(sgerm.df$code.analysis == Code.focal)],
                     g_sd = sgerm.df$g.sd[which(sgerm.df$code.analysis == Code.focal)],
                     seed_s_mean = ssurv.df$s.mean[which(ssurv.df$code.analysis == Code.focal)],
@@ -141,10 +133,10 @@ for(country in country.list){
                     c_sd = list_alpha_sd[[paste0(country,"_",Code.focal)]]["c",],
                     N_opt_sd = list_alpha_sd[[paste0(country,"_",Code.focal)]]["N_opt",]
     )
-    list.init <- function(...)list(N_opt= array(as.numeric(sapply(abundance.GR.df.sp%>%
+    list.init <- function(...)list(N_opt= array(as.numeric(sapply(abundance_short_df%>%
                                                                     select(all_of(Code.focal.list)),median),
                                                            dim = DataVec$S)),
-                                   lambda_mean= array(as.numeric( mean(abundance.GR.df.sp$growth.ratio),
+                                   lambda_init= array(as.numeric( mean(abundance_short_df$growth.ratio),
                                                                   dim = 1))
     ) 
     
@@ -153,11 +145,12 @@ for(country in country.list){
                          #fit= PrelimFit, 
                          data = DataVec,
                          init ="random", # all initial values are 0 
+                         #init=list.init,
                          control=list(max_treedepth=15),
-                         warmup = 500,
-                         iter = 1000, 
+                         warmup = 50,
+                         iter = 100, 
                          init_r = 2,
-                         chains = 4,
+                         chains = 1,
                          seed= 1616) 
     
     save(file= paste0(project.dic,"results/Inv.Modelfit_",country,"_",Code.focal,".rds"),
@@ -189,9 +182,15 @@ for(country in country.list){
     
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
-    stan_post_pred_check(Inv.ModelfitPosteriors,"GR",
-                         abundance.GR.df.sp$growth.ratio)
-    hist(log(abundance.GR.df.sp$growth.ratio), breaks=150)
+    stan_post_pred_check_norm(Inv.ModelfitPosteriors,"GR",
+                              log(abundance_short_df$growth.ratio))
+    
+    hist(log(abundance_short_df$growth.ratio), breaks=150) # normally distributed so log normal is good prob distrib
+    hist(abundance_short_df$growth.ratio, breaks=150) 
+    hist(Inv.ModelfitPosteriors$GR, breaks=150)
+    median(Inv.ModelfitPosteriors$GR)
+    min(Inv.ModelfitPosteriors$GR)
+    max(Inv.ModelfitPosteriors$GR)
     # N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
     hist(summary(Inv.Modelfit)$summary[,"Rhat"],
          main = paste("Inversed Fit: Histogram of Rhat for",
@@ -201,8 +200,8 @@ for(country in country.list){
                       Code.focal," and ",country))
     
     # plot the corresponding graphs
-    param <- c("lambda_mean","lambda_sd",
-               "N_opt","disp_dev")
+    param <- c("beta",'lambda_init',
+               "N_opt","disp_dev","g","seed_s","interaction_effects[1]")
     
     trace <- stan_trace(Inv.Modelfit, pars=param,
                         inc_warmup = TRUE)
@@ -220,16 +219,24 @@ for(country in country.list){
     dev.off()
     
     #---- 3.3. Extract Estimate----
-    
-    df_lambda_mean <- Inv.ModelfitPosteriors$lambda_mean %>% 
+    IntGR_list <- list(DataVec  = DataVec,
+    )
+    df_lambda_mean <- Inv.ModelfitPosteriors$lambda_ei %>% 
       as.data.frame() %>%
-      setNames(Code.focal)
+      colMeans() 
     
-    df_lambda_sd <- Inv.ModelfitPosteriors$lambda_sd %>% 
+    df_pdsi <- Inv.ModelfitPosteriors$PDSI %>% 
       as.data.frame() %>%
-      setNames(levels(as.factor(abundance.GR.df.sp$year)))
+      colMeans()
     
-    write.csv(bind_cols(df_lambda_mean,df_lambda_sd),
-              file=paste0(home.dic,"results/IntGR_",country,"_",Code.focal,".csv"))
+    
+    df_test <- data.frame(PDSI=df_pdsi,lambda=df_lambda_mean)
+    
+    ggplot(df_test,aes(x=PDSI,y=lambda)) + geom_smooth()
+    
+    save(IntGR_list,
+         file=paste0(home.dic,"results/IntGR_",country,"_",Code.focal,".csv"))
+    
   }
 }
+
