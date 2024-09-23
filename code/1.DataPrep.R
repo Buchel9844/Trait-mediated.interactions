@@ -54,7 +54,7 @@ setwd("~/Documents/Projects/Facilitation_gradient")
 # Main collector Oscar Godoy and Nacho Bartomeus
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 1.1. Read Teasorus ----
-plant_code_spain <- read.csv( "data/spain_rawdata/plant_code.csv",
+plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
                               header = T, stringsAsFactors = F, sep=",",
                               na.strings = c("","NA"))
 
@@ -81,7 +81,7 @@ abundance_spain.summary <- abundance_spain %>%
   rename("code.plant"=species) %>%
   left_join(plant_code_spain, by="code.plant") %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
-  aggregate(individuals ~ code.analysis + year + plot + subplot , mean) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot , max) %>%
   mutate(com_id = paste(plot,subplot,sep="_")) %>%
   spread(code.analysis,individuals)
 
@@ -93,6 +93,39 @@ species.list.to.rare <- c("COSQ","ACHI","ANAR","FRPU","LYTR","MEEL",
 
 # PLCO and SCLA missing 2018
 # PUPA has good data
+abundance.plot <- abundance_spain %>%
+  rename("code.plant"=species) %>%
+  left_join(plant_code_spain, by="code.plant") %>%
+  filter( code.analysis %in% final.species.list.spain ) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot , max) %>%
+  mutate(com_id = paste(plot,subplot,sep="_")) %>%
+  ggplot(aes(y=individuals,x=as.character(year),
+             fill=as.factor(code.analysis),
+             group=as.factor(code.analysis),
+             color=as.factor(code.analysis))) +
+  stat_summary(fun.y = mean,
+               fun.ymin = function(x) mean(x) - sd(x), 
+               fun.ymax = function(x) mean(x) + sd(x), 
+               geom = "pointrange",size=2) +
+  stat_summary(fun.y = mean,
+               geom = "line",size=1) +
+  theme_bw() +
+  scale_y_log10()+
+  scale_color_manual(values=unname(kelly())) +
+  scale_fill_manual(values=unname(kelly())) +
+  labs(y="number of individual per meter squarre", 
+       x="year",fill="species",color="species",
+       title="Number of individuals of each focal for abundance observations in spain") 
+abundance.plot
+
+ggsave(paste0("figures/supp/abundance.spain.pdf"),
+       dpi="retina",
+       width = 21,
+       height = 16,
+       units = c("cm"),
+       abundance.plot)
+
+
 
 #---- 2.3. Import competition data -----
 competition.spain <- read.csv("data/spain_rawdata/competition.csv")
