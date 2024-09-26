@@ -125,7 +125,13 @@ ggsave(paste0("figures/supp/abundance.spain.pdf"),
        units = c("cm"),
        abundance.plot)
 
-
+str(abundance_spain.summary)
+abundance_spain.summary %>%
+  #filter()%>%
+  ggplot(aes(y=CHFU, x=SCLA)) +
+  geom_point() +
+  geom_smooth() +
+  coord_cartesian(xlim=c(0,100),ylim=c(0,100))
 
 #---- 2.3. Import competition data -----
 competition.spain <- read.csv("data/spain_rawdata/competition.csv")

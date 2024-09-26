@@ -2,12 +2,16 @@
 // 	following the stan implementation demonstrated on https://betanalpha.github.io/aseed_sets/case_studies/bayeseed_sparse_regreseed_sion.html
 
 data{
+  int<lower = 1> N; // Number of observation total
   int<lower = 1> S; // Number of plant species (same across years for consistency)
-  int focal_pos[S]; //position of intra in SpAbundance dataset 
+  int focal_pos; //position of intra in SpAbundance dataset 
   int<lower = 1> numb_year; // number of years
   int<lower = 1> numb_plot; // number of plot observation within each year
  
-  array[7] matrix[324,S] SpAbundance;  // Abundance of the species in each observation - array[shelves] matrix[row,col], to call an element follows [shelves,row,colum]
+  matrix[N,S] SpAbundance;  // Abundance of the species in each observation 
+  int obs_spI[N]; //vector of obs for focal
+  int year[N];  // year vector for each obs
+  int plot[N];  //plot vector for each obs
 
   real<lower=0> g_mean; // germination
   real<lower=0> g_sd; // germination
@@ -27,13 +31,10 @@ data{
   matrix[1,S] N_opt_sd;
   
 }
-transformed data{
-  array[numb_year] matrix[numb_plot,1] obs_spI = SpAbundance[,,focal_pos]; // get the abundance for species I (specific column), all rows and all shelves
-  print(obs_spI[1,1]); // call first year, first observation
-}
+
 parameters{
   
-  real<lower=0> g[numb_year];
+  real<lower=0> g[1];
   real<lower=0> seed_s[1];
   real PDSI[numb_year];
 
@@ -57,32 +58,33 @@ transformed parameters{
   // Declare objects neceseed_sary for the rest of the model, including: a vector of expected fecundity values (F_hat),
   //a matrix of the species specific alpha values for each species and plot (nnteraction_effects), and a matrix
   //of the the alpha*N values for each species.
-  matrix[numb_year,numb_plot] interaction_effects;
+  vector[N] interaction_effects;
   
   vector<lower = 0>[numb_year] lambda_ei; // loop parameter
-  matrix[numb_year,numb_plot] seedtotal; // estimated number of seed per year and plot
-
+  vector[N] seedtotal; // estimated number of seed per year and plot
+  vector[S] alpha_value;
  // implement the biological model
-    for(y in 1:(numb_year-1)){
-     for(p in 1:numb_plot){
-    lambda_ei[y] = lambda_init[1] + beta[1]*PDSI[y];
-    print(p);
-    print(y);
-    vector[S] alpha_value;
+    for(n in 1:N){
+
+    lambda_ei[year[n]] = lambda_init[1] + beta[1]*PDSI_mean[year[n]];
+    
+    //print("plot",plot[n]);
+    
+    //print("year",year[n]);
     
     for(s in 1:S){
-    alpha_value[s] = alpha_initial[s] + (c[s] * (1 - exp( alpha_slope[s] * (SpAbundance[p,s,y]-N_opt[s]))))/(1+exp(alpha_slope[s] * (SpAbundance[p,s,y]-N_opt[s])));
+    alpha_value[s] = alpha_initial[s] + (c[s] * (1 - exp( alpha_slope[s] * (SpAbundance[n,s]-N_opt[s]))))/(1+exp(alpha_slope[s] * (SpAbundance[n,s]-N_opt[s])));
     }
-    print(SpAbundance[y,p]);
-   interaction_effects[y,p] = sum(alpha_value * SpAbundance[y,p]); //Abundance_n[y,p] call the matrix of year y, and row p
+   
+   interaction_effects[n] = sum(alpha_value * SpAbundance[n,]); //Abundance_n[y,p] call the matrix of year y, and row p
   
-    seedtotal[y+1,p] = (1-g[y])*seed_s[1]*obs_spI[y,1,p]./g[y] + obs_spI[y,1,p]*lambda_ei[y]*exp(interaction_effects[y,p]);
-   }
-  }
+    seedtotal[n] = (1-g[1])*seed_s[1]*obs_spI[n]./g[1] + obs_spI[n]*lambda_ei[year[n]]*exp(interaction_effects[n]);
+    //print(seedtotal[n]);
+    }
 }
 
 model{
-  matrix[numb_year,numb_plot] stems_spI; // estimated number of stem per year and plot
+  vector[N] stems_spI; // estimated number of stem per year and plot
 
   for(s in 1:S){
   N_opt[s] ~ normal(N_opt_mean[1,s], N_opt_sd[1,s]);
@@ -95,17 +97,25 @@ model{
   seed_s ~ normal(seed_s_mean, seed_s_sd); 
   beta  ~ normal(0,1);
   lambda_init ~ normal(0,1);
-  
-  for(y in 1:numb_year){
-    for(p in 1:numb_plot){
-      
-    g[y] ~ normal(g_mean, g_sd);  
-    PDSI[y] ~ normal(PDSI_mean[y],PDSI_sd[y]); // draw a value of PDSI proper to that year
+  g ~ normal(g_mean, g_sd);  
 
-  stems_spI[y,p] = seedtotal[y,p]*g[y]; // get the number of stem for the year y and plot p for species I 
+   for(n in 1:N){
+  //PDSI[year[n]] ~ normal(PDSI_mean[year[n]],PDSI_sd[year[n]]); // draw a value of PDSI proper to that year
+
+  stems_spI[n] = seedtotal[n]*g[1]; // get the number of stem for the year y and plot p for species I 
   // the probability distribtuion of species I for year y follows a poisson distribution include all observation across plots
-  print(stems_spI[y,p]);
-  //obs_spI[y,p] ~ poisson(stems_spI[y,p]); // draw a value of observed species I for that year 
-    }
+  //print(stems_spI[n]);
+  if(stems_spI[n] > 0)
+  obs_spI[n] ~ poisson(stems_spI[n]); // draw a value of observed species I for that year 
+  }
+}
+
+generated quantities{
+  vector[N] stems_spI; // estimated number of stem per year and plot
+  vector[N] pred_spI;
+  for(n in 1:N){
+    stems_spI[n] = seedtotal[n]*g[1];
+  if(stems_spI[n] <= 0) break ;
+    pred_spI[n] = poisson_lpmf(obs_spI[n]|stems_spI[n]); // draw a value of observed species I for that year 
   }
 }

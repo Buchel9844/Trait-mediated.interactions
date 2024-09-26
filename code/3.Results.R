@@ -27,6 +27,7 @@ library(ggthemes)
 library(grid)
 library(ggridges)
 library(cowplot)
+library(pals)
 setwd("/home/lbuche/Eco_Bayesian/chapt3")
 home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
@@ -54,15 +55,8 @@ for(country in country.list){
   }
 }
 
-# environemtnal data
-spain_env_pdsi<- read.csv(paste0(home.dic,"results/spain_env_pdsi.csv"))
-
-spain_env_pdsi_med <- spain_env_pdsi %>%
-  dplyr::filter(month >3 & month < 8) %>%
-  aggregate(spain_pdsi ~ year, median) 
-
-year.levels <- names(parameter$df_lambda_sd)
-
+save(Parameters,
+     file=paste0(home.dic,"results/Parameters_alpha.RData"))
 
 #---- 2.1 Lambda ----
 color.year <- data.frame(year=c("2015","2016","2017","2018","2019","2020","2021"),
@@ -243,7 +237,7 @@ safe_colorblind_palette <- c("#88CCEE", "#CC6677", "#DDCC77", "#117733", "#33228
 #Code.focal <-"WAAC"
 sigmoid.plot.list <- list()
 legend.plot.list <- list()
-library(pals)
+
 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
@@ -347,336 +341,271 @@ ggsave(SPAIN.sigmoid.plot,
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 3. Quantile and mean effect per year and family ----
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#---- 3. Realised interactions  ----
 
-for(Code.focal in c("LEMA")){ #focal.levels
-  for(country in c("All")){ #year.levels
+source(paste0(home.dic,"code/PopProjection_toolbox.R"))
+test.sigmoid.all  <- NULL
+
+Realised.Int.list <- list()
+country ="spain"
+for(country in "spain"){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  abundance_short_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  Realised.Int.focal<- list()
+  Realised.Int.country.df <- NULL
+  for(Code.focal in Code.focal.list){ #focal.levels
     
-    # load(paste0(home.dic,"results/chapt3/Inclusion",Code.focal,"_",country,".Rdata"))
+    df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
+    
+    year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
+    print(paste0(country,Code.focal))
+    
+    abundance_short_focal_df <-  abundance_short_df %>%
+      select(all_of(c("year",Code.focal.list))) %>%
+      filter(Code.focal > 0) %>%
+      mutate_all(as.numeric) 
+    
+    SpNames <- names(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+    
+    test.sigmoid.all <- NULL
+    test.sigmoid  <- NULL
+    
+    for( neigh in  SpNames){
+      # print(country)
+      
+      seq.abun.neigh <- seq(min(quantile(abundance_short_focal_df[,neigh],probs=c(0.25,0.5,0.75))),
+                            max(quantile(abundance_short_focal_df[,neigh],probs=c(0.25,0.5,0.75))),
+                            1)
+      
+      alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
+                                             neigh]
+      
+      alpha_slope = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
+                                           neigh]
+      
+      alpha_c = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
+                                       neigh]
+      
+      
+      param.neigh <- data.frame(neigh = neigh, 
+                                country = country,
+                                alpha_initial = alpha_initial,
+                                alpha_slope = alpha_slope,
+                                alpha_c=  alpha_c,
+                                N_opt_mean = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh],
+                                focal=Code.focal)
+      
+      for (n in 1:nrow(param.neigh)){
+        #if(n==1){print(n)}
+        df_neigh_n <- data.frame(density=seq.abun.neigh,param.neigh[n,])
+        
+        
+        df_neigh_n[,"sigmoid"] <- alpha_function4(df_neigh_n$alpha_initial,
+                                                  df_neigh_n$alpha_slope,
+                                                  df_neigh_n$alpha_c,
+                                                  df_neigh_n$density,
+                                                  df_neigh_n$N_opt_mean)
+        
+        df_neigh_n[,"realised.effect"] <- exp(df_neigh_n$sigmoid*df_neigh_n$density)
+        
+        test.sigmoid <- bind_rows(test.sigmoid,df_neigh_n)
+        
+      }
+    }
+    
+    write.csv(test.sigmoid,
+              file=paste0("results/Realised.Int.",country,",",Code.focal,".csv"))
+    
+    Realised.Int.country.df <- bind_rows( Realised.Int.country.df,test.sigmoid)
+    
+    save(Realised.Int.country.df,
+         file=paste0(home.dic,"results/Realised.Int.df_",country,".RData"))
+    
   }
+  
+  #sigmoid.plot.list[[country]] <- sigmoid.plot.list.focal
+  Realised.Int.list[[country]] <-  Realised.Int.country.df
+}
+
+save(Realised.Int.list,
+     file=paste0(project.dic,"results/Realised.Int.list.RData"))
+
+load(paste0(project.dic,"results/Realised.Int.list.RData"))
+
+
+#---- 3.1. Visualisation for SUPP ----
+country ="spain"
+for(country in country.list){
+  Box.Plot.Realised.effect <- NULL
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  
+  Box.Plot.Realised.effect <- Realised.Int.list[[country]] %>%
+    mutate(intra.bi = case_when(focal==neigh ~ "INTRA",
+                                T~"INTER")) %>%
+    ggplot(aes(y=realised.effect,x=as.factor(neigh),
+               color=as.factor(neigh),fill=intra.bi)) + 
+    geom_hline(yintercept = 1, color="black",size=1) +
+    geom_boxplot() +
+    facet_wrap(.~focal,ncol=3) +
+    labs(y="Effect on intrinsic performance",
+         x= "Interacting species",
+         color="",
+         fill="") +
+    coord_cartesian(ylim=c(0,3),
+                    expand = FALSE) + 
+    theme_bw() +
+    scale_color_manual(values =col.df$color.name)+
+    scale_fill_manual(values =c("white","black"))+
+    theme_bw() + theme( legend.key.size = unit(1, 'cm'),
+                        legend.position = "bottom") +
+    guides(color=guide_legend(nrow = 3,
+                              direction="horizontal",
+                              byrow = TRUE,
+                              title.hjust = 0.1),
+           fill=guide_legend(nrow = 2,
+                             direction="horizontal",
+                             byrow = TRUE,
+                             title.hjust = 0.1)) +
+    theme( legend.key.size = unit(1, 'cm'),
+           legend.position = "bottom",
+           legend.title = element_text(size=12,color="black"),
+           strip.background = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.grid.major.x = element_blank(),
+           strip.text = element_text(size=12),
+           legend.text=element_text(size=12),
+           #axis.ticks.x=element_blank(),
+           axis.text.x= element_blank(),#element_text(size=12, angle=66, hjust=1),
+           axis.text.y=  element_text(size=12),
+           axis.title.x= element_blank(),
+           axis.title.y= element_text(size=12))
+  Box.Plot.Realised.effect
+  ggsave(Box.Plot.Realised.effect,
+         heigh=25,
+         width=20,
+         units = "cm",
+         file=paste0(home.dic,"figures/","Boxplot.Realised.effect_",country,".pdf"))
 }
 
 
-
-range.spmatrix <- function(SpMatrix,year.veclevels){
-  SpMatrix.out <- NULL
-  SpMatrix.year <- as.data.frame(SpMatrix) %>%
-    mutate(year = as.numeric(year.veclevels)) 
-  for(n in levels(as.factor(year.veclevels))){
-    SpMatrix.n <- SpMatrix.year %>%
-      dplyr::filter(year == n) %>%
-      summary() %>%
-      as.data.frame() %>%
-      select(!"Var1") %>%
-      rename("neigh"=Var2) %>%
-      separate(Freq, sep=":", c("param","value")) %>%
-      mutate_if(is.character, str_trim) %>%
-      mutate_if(is.factor, str_trim) %>%
-      spread(param, value) %>%
-      mutate(year=n)
-    
-    SpMatrix.out <- bind_rows( SpMatrix.out, SpMatrix.n)
-  }
-  return(SpMatrix.out)
-}
+#---- 3.2. Network visualasition----
+library(igraph)
+library(statnet)
+library(intergraph)
+library(ggraph)
 
 
-SpMatrix.out <- range.spmatrix(SpMatrix,year.veclevels) 
-
-
-range.effect <- NULL
-for( n in levels(as.factor(test.sigmoid$neigh))){
-  for( y in levels(as.factor(SpMatrix.out$year))){
-    print(paste(n," ",y))
-    test.sigmoid.n <- test.sigmoid %>% 
-      dplyr::filter( neigh == n  & year == y & density==0) %>%
-      select(!"density") %>%
-      unique()
-    
-    SpMatrix.out.n <- SpMatrix.out %>% 
-      mutate(neigh = as.character(neigh)) %>%
-      dplyr::filter( neigh == n  & year == y)  %>%
-      select("Min.","1st Qu.", "Mean","Median","3rd Qu.","Max.") %>%
-      gather("range", "density") %>%
-      mutate(range = c("Min","1stQu","Mean","Median","3rdQu","Max"))
-    
-    range.name <- SpMatrix.out.n$range[1:length(unique(SpMatrix.out.n$density))]
-    
-    range.out <- alpha_function4(rep(test.sigmoid.n$alpha_initial,each=nrow(SpMatrix.out.n)),
-                                 rep(test.sigmoid.n$alpha_slope, each=nrow(SpMatrix.out.n)),
-                                 rep(test.sigmoid.n$alpha_c, each=nrow(SpMatrix.out.n)),
-                                 rep(as.numeric(SpMatrix.out.n$density),
-                                     times=nrow(test.sigmoid.n)),
-                                 rep(test.sigmoid.n$N_opt_mean, each=nrow(SpMatrix.out.n)))
-    
-    range.n.y <-  data.frame(effect.raw = range.out,
-                             density = rep(as.numeric(SpMatrix.out.n$density),
-                                           times=nrow(test.sigmoid.n)),
-                             range = rep(SpMatrix.out.n$range,
-                                         times=nrow(test.sigmoid.n))) %>%
-      aggregate(effect.raw ~ density + range,  function(x) c(median = median(x), 
-                                                             sd = sd(x))) %>%
-      mutate(effect.raw.median = .[[3]][,1],
-             effect.raw.sd= .[[3]][,2]) %>%
-      select(density,range ,effect.raw.median,effect.raw.sd) %>%
-      mutate(effect.on.lambda.median = effect.raw.median * density ,
-             effect.on.lambda.sd = effect.raw.sd * density,
-             neigh=n,
-             year=y)
-    
-    range.effect <-  bind_rows( range.effect, range.n.y )
-  }
-}
-
-range.effect.wider <- pivot_wider(data = range.effect, 
-                                  id_cols = c(neigh,year), 
-                                  names_from = range, 
-                                  values_from = c("effect.raw.median", "effect.raw.sd",
-                                                  "effect.on.lambda.median",
-                                                  "effect.on.lambda.sd")) %>%
-  as.data.frame()  %>%
-  mutate(year=as.numeric(year)) %>%
-  left_join(spain_env_pdsi_med, by="year")
-
-# add envi data 
-spain_env_pdsi_med <- spain_env_pdsi %>%
-  dplyr::filter(month >3 & month < 8) %>%
-  aggregate(spain_pdsi ~ year, median) 
-
-range.boxplot <- range.effect %>%
-  mutate(year=as.numeric(year)) %>%
-  left_join(spain_env_pdsi_med, by="year") %>%
-  ggplot(aes( x=spain_pdsi,
-              y=effect.on.lambda.median,
-              group=as.factor(year),
-              color=as.factor(year))) +
-  geom_boxplot() +
-  labs(y="Effect on LEMA intrinsic growth rate",
-       color="year",
-       x="PDSI")  +
-  facet_wrap(.~neigh,scale="free") +
-  scale_color_manual(values=safe_colorblind_palette) +
-  theme_bw() 
-range.boxplot
-ggplotly(range.boxplot)   
-ggsave(range.boxplot,
-       file="figures/range.boxplot.pdf")
-
-
-range.pointplot <- range.effect.wider %>%
-  ggplot(aes( x=spain_pdsi,group=as.factor(year),
-              color=as.factor(year))) +
-  #geom_point(aes(y=effect.on.lambda.median_3rdQu),size=4,
-  #           position=position_dodge(width=0.5)) +
-  # geom_point(aes(y=effect.on.lambda.median_Median),size=4,
-  #           shape=17,
-  #          position=position_dodge(width=0.5)) +
-  geom_pointrange(aes(y=exp(effect.on.lambda.median_Median),
-                      ymax=exp(effect.on.lambda.median_3rdQu),
-                      ymin=exp(effect.on.lambda.median_1stQu)),
-                  alpha=1, 
-                  size=1,
-                  position=position_dodge(width=0.5)) +
-  geom_pointrange(aes(y=exp(effect.on.lambda.median_Mean),
-                      ymax=exp(effect.on.lambda.median_Max),
-                      ymin=exp(effect.on.lambda.median_Min)),
-                  alpha=0.5, 
-                  size=1,
-                  shape=1,
-                  position=position_dodge(width=0.5)) +
-  scale_color_manual(values=safe_colorblind_palette) +
-  theme_bw() + 
-  facet_wrap(.~neigh,scale="free") +
-  geom_hline(yintercept=1, color="black") +
-  labs(y="Effect on LEMA intrinsic growth rate",
-       color="year",
-       x="PDSI") +
-  theme( legend.key.size = unit(1, 'cm'),
-         legend.position = "bottom",
-         strip.background = element_blank(),
-         panel.grid.minor = element_blank(),
-         panel.grid.major.x = element_blank(),
-         strip.text = element_text(size=20),
-         legend.text=element_text(size=20),
-         legend.title=element_text(size=20),
-         #axis.ticks.x=element_blank(),
-         axis.text.x= element_text(size=20, angle=66, hjust=1),
-         axis.text.y= element_text(size=20),
-         axis.title.x= element_text(size=22),
-         axis.title.y= element_text(size=22),
-         title=element_text(size=16))
-range.pointplot
-ggplotly(range.pointplot)   
-ggsave(range.pointplot,
-       file="figures/range.pointplot.pdf")
-
-
-range.plot <- range.effect.wider %>%
-  ggplot(aes( x=spain_pdsi, color=neigh)) +
-  #geom_point(aes(y=effect.on.lambda.median_3rdQu),size=4,
-  #           position=position_dodge(width=0.5)) +
-  # geom_point(aes(y=effect.on.lambda.median_Median),size=4,
-  #           shape=17,
-  #          position=position_dodge(width=0.5)) +
-  geom_pointrange(aes(y=exp(effect.on.lambda.median_Median),
-                      ymax=exp(effect.on.lambda.median_3rdQu),
-                      ymin=exp(effect.on.lambda.median_1stQu)),
-                  alpha=0.9, 
-                  size=1,
-                  position=position_dodge(width=0.5)) +
-  scale_color_manual(values=safe_colorblind_palette) +
-  theme_bw() + 
-  geom_hline(yintercept=1, color="black") +
-  labs(y="Effect on LEMA intrinsic growth rate\n 
-       based on mean and max abundances observed",
-       x="PDSI",
-       color="neighbours'\n identity") +
-  theme( legend.key.size = unit(1, 'cm'),
-         legend.position = "bottom",
-         strip.background = element_blank(),
-         panel.grid.minor = element_blank(),
-         panel.grid.major.x = element_blank(),
-         strip.text = element_text(size=28),
-         legend.text=element_text(size=20),
-         legend.title=element_text(size=20),
-         #axis.ticks.x=element_blank(),
-         axis.text.x= element_text(size=20, angle=66, hjust=1),
-         axis.text.y= element_text(size=20),
-         axis.title.x= element_text(size=22),
-         axis.title.y= element_text(size=22),
-         title=element_text(size=16))
-range.plot
-ggplotly(range.plot) 
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 4. Model of interaction according to PDSI and neighbourhood ----
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-SpMatrix.year <- as.data.frame(SpMatrix) %>%
-  mutate(year = as.numeric(year.veclevels)) 
-
-
-interaction.effect <- NULL
-for( n in levels(as.factor(test.sigmoid$neigh))){
-  for( y in levels(as.factor(SpMatrix.out$year))){
-    print(paste(n," ",y))
-    test.sigmoid.n <- test.sigmoid %>% 
-      dplyr::filter( neigh == n  & year == y & density==0) %>%
-      select(!"density") %>%
-      unique()
-    
-    SpMatrix.year.n <- SpMatrix.year %>% 
-      dplyr::select(all_of(n),year) %>%
-      dplyr::filter( year == as.numeric(y)) 
-    
-    
-    interaction.effect.out <- alpha_function4(rep(test.sigmoid.n$alpha_initial,each=nrow(SpMatrix.year.n)),
-                                              rep(test.sigmoid.n$alpha_slope, each=nrow(SpMatrix.year.n)),
-                                              rep(test.sigmoid.n$alpha_c, each=nrow(SpMatrix.year.n)),
-                                              rep(as.numeric(SpMatrix.year.n[,n]),
-                                                  times=nrow(test.sigmoid.n)),
-                                              rep(test.sigmoid.n$N_opt_mean, each=nrow(SpMatrix.year.n)))
-    
-    interaction.effect.n.y <-  data.frame(effect.raw =  interaction.effect.out,
-                                          density = rep(as.numeric(SpMatrix.year.n[,n]),
-                                                        times=nrow(test.sigmoid.n)))  %>%
-      mutate(effect.on.lambda = effect.raw * density,
-             neigh=n,
-             year=y)
-    
-    interaction.effect <-  bind_rows(interaction.effect , interaction.effect.n.y )
-  }
-}
-
-ggplot(interaction.effect, aes(x = exp(effect.on.lambda))) +
-  geom_histogram(colour = "#8B5A00", fill = "#CD8500") +
-  theme_bw() 
-
-spain_env_pdsi<- read.csv("results/spain_env_pdsi.csv")
-
-spain_env_pdsi_med <- spain_env_pdsi %>%
-  dplyr::filter(month >3 & month < 8) %>%
-  aggregate(spain_pdsi ~ year, median) 
-
-interaction.effect.env <- interaction.effect %>%
-  mutate(year=as.numeric(year)) %>%
-  left_join(spain_env_pdsi_med, by="year") %>%
-  mutate(density=scale(density))
-
-head(interaction.effect.env)
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 3. Abundance across time ----
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-abundance_spain <- read.csv(paste0("data/abundance_spain.csv"),
-                            header = T,stringsAsFactors = F, sep=",",
-                            na.strings=c("","NA"))
-
-plant_code_spain <- read.csv(paste0( "data/plant_code_spain.csv"),
-                             header = T, stringsAsFactors = F, sep=",",
-                             na.strings = c("","NA"))
-
-abundance_spain_short <- abundance_spain %>%
-  rename("code.plant"=species) %>%
-  left_join(plant_code_spain, by="code.plant") 
-
-
-colorBlindGrey8   <- c("#999999", "#E69F00", "#56B4E9", "#009E73", 
-                       "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-scales::show_col(colorBlindGrey8)
-
-safe_colorblind_palette <- c("#88CCEE", "#CC6677", "#DDCC77", 
-                             "#117733", "#332288", "#AA4499", 
-                             "#44AA99", "#999933", "#D55E00",
-                             "#882255", "#661100", "#6699CC", 
-                             "#888888","#009E73","#0072B2","#E69F00")
-scales::show_col(safe_colorblind_palette)
-
-abundance_spain_plot <- abundance_spain %>%
-  rename("code.plant"=species) %>%
-  left_join(plant_code_spain, by="code.plant") %>%
-  ggplot(aes(x=as.character(year), y = individuals,
-             group=as.factor(code.analysis),
-             color=as.factor(code.analysis))) + 
-  stat_summary(fun = mean,
-               fun.min = function(x) quantile(x,0.025), 
-               fun.max = function(x) quantile(x,0.975), 
-               geom = "pointrange",size=2) +
-  stat_summary(fun = mean,
-               geom = "line",size=1) +
-  labs(color="Groups",
-       y="Averaged number of individuals \n in 1meter squarred plot (log10)",
-       x="year",
-       title="Density over time of annual plants in Caracoles") +
-  #coord_cartesian( xlim = NULL, ylim = c(0,500),expand = TRUE, default = FALSE, clip = "on") +
-  scale_color_manual(values=safe_colorblind_palette) +
-  scale_y_log10() +
-  #scale_y_continuous(limits=c(0,10)) +
+plot.legend <- ggplot(data.frame(x=rep(c(1,2,3,4),
+                                       times=50),
+                                 y=1:100),
+                      aes(as.factor(x),
+                          y,fill=x)) +
+  geom_point() +
+  geom_line(aes(linewidth=as.factor(x))) + 
+  scale_linewidth_discrete("Median effect on intrinsic performance",
+                           labels=c("< 10%","10%-50%",
+                                    "50%-100%",">100%")) +
+  scale_fill_gradientn("Ratio of facilitation and competitive effect",
+                       colours = colours,
+                       breaks=c(1,51,101),
+                       labels=c("100% \nFacilitative",
+                                "50/50",
+                                "100% \nCompetitive"),
+                       limits=c(1,101)) +
+  guides(fill= guide_colourbar(title.position="top", title.hjust = 0.5),
+         linewidth = guide_legend(title.position="top", 
+                                  title.hjust = 0.5,
+                                  nrow=2)) +
   theme_bw() +
-  guides(fill=guide_legend(nrow = 1,
-                           direction="horizontal",
-                           byrow = TRUE,
-                           title.hjust = 0.1)) +
-  theme( legend.key.size = unit(1, 'cm'),
-         legend.position = "bottom",
-         strip.background = element_blank(),
-         panel.grid.minor = element_blank(),
-         panel.grid.major.x = element_blank(),
-         strip.text = element_text(size=28),
-         legend.text=element_text(size=20),
-         legend.title=element_text(size=20),
-         #axis.ticks.x=element_blank(),
-         axis.text.x= element_text(size=20, angle=66, hjust=1),
-         axis.text.y= element_text(size=20),
-         axis.title.x= element_text(size=24),
-         axis.title.y= element_text(size=24),
-         title=element_text(size=16))
-abundance_spain_plot
-plotly::ggplotly(abundance_spain_plot)
-library(plotly)
-#figures/abundance_spain_plot.pdf
+  theme(legend.key.size = unit(1.5, 'cm'),
+        legend.position = "bottom",
+        legend.title = )
+plot.legend 
 
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  
+  ratio.mat <-   Realised.Int.list[[country]]  %>%
+    aggregate(realised.effect ~ focal + neigh, function(x) length(which(x<1))/length(x)) %>%
+    spread(neigh,realised.effect) %>%
+    select(-focal)%>%
+    as.matrix()
+  
+  strength.mat <- Realised.Int.list[[country]]  %>%
+    aggregate(realised.effect ~ focal + neigh, function(x) abs(median(x)-1)) %>%
+    spread(neigh,realised.effect) %>%
+    select(-focal) %>%
+    as.matrix()
+  
+  alphamat.pos <- unname(abs(round(strength.mat,2)))
+  g <- igraph::graph_from_adjacency_matrix(alphamat.pos  > 0)
+  # Line width
+  lwd.mat <-   as.numeric(round(strength.mat[alphamat.pos  > 0],2))
+  E(g)$weight <- as.numeric(strength.mat[alphamat.pos  > 0])
+  widths <- lwd.mat
+  widths[lwd.mat <=0.1] <- 0.5
+  widths[lwd.mat >0.1 & lwd.mat <=0.5] <- 1
+  widths[lwd.mat >0.5 & lwd.mat <=1] <- 5
+  widths[lwd.mat >1 & lwd.mat <= max(lwd.mat)] <- 10
+  
+  # to oriented the edge of the loop 
+  edgeloopAngles <- numeric(0)
+  b <- 1
+  M <- dim(strength.mat)[1]
+  m <- 0
+  
+  for(row in 1:nrow(alphamat.pos)) {
+    for(col in 1:ncol(alphamat.pos)) {
+      if (row == col) {
+        m <- m+1
+      }
+      if (alphamat.pos[row,col] > 0) {
+        edgeloopAngles[[b]] <- 0
+        
+        if (row == col) {
+          edgeloopAngles[[b]] <- (2.2 * pi * (M - m) / M)
+        }
+        b <- b+1
+      }
+    }
+  }
+  
+  # Colour edge
+  col.vec <- round(as.numeric(ratio.mat[alphamat.pos  > 0]),2) * 100 + 1
+  colours  <- wes_palette("Zissou1", 101, type = "continuous")
+  wes_palette("Zissou1")
+  E(g)$color <- colours[col.vec] 
+  
+  par(mar=c(0,0,0,0)+1)
+  plot(g,
+       layout=layout_in_circle,
+       margin=c(0.18,0,0.2,0),
+       vertex.label = Code.focal.list,
+       vertex.label.family="Helvetica",   
+       vertex.size = 30,
+       vertex.label.color = "black",
+       vertex.color = "transparent",
+       vertex.frame.color = "black",
+       edge.curved = TRUE,
+       edge.width = widths,
+       edge.arrow.size = widths ,
+       edge.loop.angle = edgeloopAngles)
+  
+  net.country[[country]] <- recordPlot()
+  
+  ggsave(Box.Plot.Realised.effect,
+         heigh=40,
+         units = "cm",
+         file=paste0(home.dic,"figures/","Boxplot.Realised.effect_",country,".pdf"))
+}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+plot_grid(net.country[[country]],
+          get_legend(plot.legend),
+          ncol = 1,
+          rel_heights =c(1,0.2),
+          labels = 'AUTO',
+          hjust = 0, vjust = 1)
