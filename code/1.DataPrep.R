@@ -353,9 +353,7 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
 
 #---- 2.5. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
-  rename("focal"="focal.analysis") %>%
-  mutate_at(final.species.list.spain,./15, na.rm = TRUE)
-
+  rename("focal"="focal.analysis") 
 
 clean.data.spain = list(species_spain = final.species.list.spain,
                       competition_spain =competition.spain_long,
@@ -707,8 +705,7 @@ ggplot(summary_table_aus[which(summary_table_aus$year=="Total"),]%>%
 #---- 3.8. Merge ----
 competition_aus <- bind_rows(Martyn2016,Wainwright2014,Wainwright2015,
                              Pastore2017,Taylor2023,
-                             Sevenello2022) %>%
-  mutate_at(vars(final.species.list.aus), ~./scale) # scale to have neigh per cm
+                             Sevenello2022) 
 
 
 head(competition_aus)
