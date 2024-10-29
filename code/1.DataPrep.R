@@ -620,7 +620,7 @@ Sevenello2022 <- Sevenello2022_com %>%
 #table(Sevenello2022$focal)
 
 
-#---- 3.6. Taylor 2023 preparation----
+#---- 3.6. Taylor 2023 preparation----p
 load("data/aus_rawdata/Taylor2023_com_aus.RData")
 Taylor2023_com <- bind_rows(neighbourhoods[["BOCL"]] %>% as.data.frame(),
                             neighbourhoods[["BOOP"]] %>% as.data.frame(),
@@ -712,10 +712,19 @@ head(competition_aus)
 str(competition_aus)
 names(competition_aus)
 
+#----3.9. Seed survival and germination----
+View(plant_code_aus)
+seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedgermss_aus.csv"),
+                                   header = T,stringsAsFactors = F, sep=",",
+                                   na.strings=c("","NA")) %>%
+  dplyr::select(code.plant,year,species,germination,survival) %>%
+  left_join(plant_code_spain %>%
+              select(code.plant))
 
 # ---- 4. Save data AUS ----
-clean.data.aus = list(species_aus = final.species.list.aus,
+clean.data.aus = list(seed_germination_aus=seed_germination_aus,
+                      species_aus = final.species.list.aus,
                       competition_aus =competition_aus,
-                      abundance_aus.summary=abundance_aus.clean )
+                      abundance_aus.summary=abundance_aus.clean)
 save(clean.data.aus,
      file="data/clean.data.aus.RData")
