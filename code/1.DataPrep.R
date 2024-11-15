@@ -61,12 +61,13 @@ plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
 
 #---- 2.2. Identify most abundance species ----
  
-abundance_spain <- read.csv("data/spain_rawdata/abundance_spain.csv",
+abundance_spain <- read.csv("data/spain_rawdata/abundance.csv",
                             header = T,stringsAsFactors = F, sep=",",
                             na.strings=c("","NA"))
 
 abundance_spain.summary <- abundance_spain %>%
-  aggregate(individuals ~ year + species, sum)
+  aggregate(individuals ~ year + species, sum) %>%
+  spread(species,individuals)
 
 species.list.to.keep <- c("BEMA","CETE","CHFU",
                           "CHMI","HOMA","LEMA","MESU","PAIN","PLCO",
@@ -76,12 +77,12 @@ species.list.to.keep <- c("BEMA","CETE","CHFU",
 final.species.list.spain <- c("BEMA","CETE","CHFU",
                         "HOMA","LEMA","ME.sp","PAIN","PLCO",
                         "PO.sp","SASO","SCLA","SPRU")
-
+head(abundance_spain)
 abundance_spain.summary <- abundance_spain %>%
   rename("code.plant"=species) %>%
   left_join(plant_code_spain, by="code.plant") %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
-  aggregate(individuals ~ code.analysis + year + plot + subplot , max) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot , sum) %>%
   mutate(individuals =individuals/100,
          com_id = paste(plot,subplot,sep="_")) %>%
   spread(code.analysis,individuals)
@@ -98,7 +99,7 @@ abundance.plot <- abundance_spain %>%
   rename("code.plant"=species) %>%
   left_join(plant_code_spain, by="code.plant") %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
-  aggregate(individuals ~ code.analysis + year + plot + subplot , max) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot , sum) %>%
   mutate(individuals =individuals/100,
          com_id = paste(plot,subplot,sep="_")) %>%
   ggplot(aes(y=individuals,x=as.character(year),
@@ -117,10 +118,24 @@ abundance.plot <- abundance_spain %>%
   scale_fill_manual(values=unname(kelly())) +
   labs(y="number of individual per centimeter", 
        x="year",fill="species",color="species",
-       title="Number of individuals of each focal for abundance observations in spain") 
+       title="Number of individuals of each focal for abundance observations in spain")  +
+  theme( legend.key.size = unit(1, 'cm'),
+         legend.position = "bottom",
+         strip.background = element_blank(),
+         panel.grid.minor = element_blank(),
+         panel.grid.major.x = element_blank(),
+         strip.text = element_text(size=28),
+         legend.text=element_text(size=20),
+         legend.title=element_text(size=20),
+         #axis.ticks.x=element_blank(),
+         axis.text.x= element_text(size=20, angle=66, hjust=1),
+         axis.text.y= element_text(size=20),
+         axis.title.x= element_text(size=24),
+         axis.title.y= element_text(size=24),
+         title=element_text(size=16))
 abundance.plot
 
-ggsave(paste0("figures/supp/abundance.spain.pdf"),
+ggsave(paste0("figures/abundance.spain.pdf"),
        dpi="retina",
        width = 21,
        height = 16,
@@ -135,6 +150,19 @@ abundance_spain.summary %>%
   geom_smooth() +
   coord_cartesian(xlim=c(0,100),ylim=c(0,100))
 
+
+abundance_spain.summary.df <- abundance_spain %>%
+  rename("code.plant"=species) %>%
+  left_join(plant_code_spain, by="code.plant") %>%
+  filter( code.analysis %in% final.species.list.spain ) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot +species +family+Native.sp, sum) %>%
+  group_by(code.analysis,species,family,Native.sp) %>%
+  summarise(count = n(),
+            mean = mean(individuals, na.rm = TRUE)/4, 
+            sd = sd(individuals, na.rm = TRUE)/4)
+write.csv(abundance_spain.summary.df,
+          "results/abundance_spain.summary.df.csv")
+head(abundance_spain.summary.df)
 #---- 2.3. Import competition data -----
 competition.spain <- read.csv("data/spain_rawdata/competition.csv")
 # maybe can add 2022 and 2023 later
@@ -160,10 +188,10 @@ competition.spain_long <- competition.spain %>%
          value="abundance") %>%
   left_join(plant_code_spain, by="code.plant") %>%
   left_join(plant_code_spain %>%
-              select(code.plant,code.analysis) %>%
+              dplyr::select(code.plant,code.analysis) %>%
               rename(focal="code.plant",focal.analysis="code.analysis"),
             by="focal")  %>%
-  select(day,month,year,plot,subplot,focal.analysis,fruit,seed,code.analysis,
+  dplyr::select(day,month,year,plot,subplot,focal.analysis,fruit,seed,code.analysis,
          abundance) %>%
   aggregate(abundance ~ day + month + year + plot + subplot + focal.analysis +
               fruit + seed + code.analysis, sum) %>%
@@ -194,7 +222,7 @@ numb.seed.spain <- read.csv("data/spain_rawdata/number_seed.csv")
 str(numb.seed.spain)
 numb.seed.spain <- numb.seed.spain %>%
   left_join(plant_code_spain %>%
-              select(code.plant,code.analysis) %>%
+              dplyr::select(code.plant,code.analysis) %>%
               rename(focal="code.plant",focal.analysis="code.analysis"),
             by="focal") %>%
   mutate(fruits.panicle = ifelse(is.na(fruits.panicle),
@@ -314,16 +342,16 @@ seed_germination_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.c
                           tidyr::gather(any_of(plant_code_spain$code.plant),
                                         key="focal.code",value="germination")
   ) %>%
-  select(year,focal.code,focal,germination,survival) %>%
+  dplyr::select(year,focal.code,focal,germination,survival) %>%
   rename("code.plant" ="focal.code") %>%
   left_join(plant_code_spain %>%
-              select(code.plant,code.analysis)) %>%
+              dplyr::select(code.plant,code.analysis)) %>%
   mutate(germination = case_when(year ==2015 ~ germination/100,
                                  T ~ germination/50)) %>%
   group_by(code.analysis) %>% 
   mutate(g.mean = mean(germination, na.rm = T),
          g.sd = sd(germination, na.rm = T)) %>%
-  select(code.analysis,g.mean,g.sd) %>%
+  dplyr::select(code.analysis,g.mean,g.sd) %>%
   unique() %>%
   ungroup() %>%
   as.data.frame()
@@ -338,7 +366,7 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
                      na.strings=c("","NA"))  %>%
               tidyr::gather(any_of(plant_code_spain$code.plant),
                             key="focal.code",value="survival")) %>%
-  select(year,focal.code,focal,germination,survival) %>%
+  dplyr::select(year,focal.code,focal,germination,survival) %>%
   rename("code.plant" ="focal.code") %>%
   left_join(plant_code_spain, by="code.plant") %>%
   mutate(survival = case_when(year ==2015 ~ survival/100,
@@ -346,7 +374,7 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
   group_by(code.analysis) %>% 
   mutate(s.mean = mean(survival, na.rm = T),
          s.sd = sd(survival, na.rm = T)) %>%
-  select(code.analysis,s.mean,s.sd) %>%
+  dplyr::select(code.analysis,s.mean,s.sd) %>%
   unique() %>%
   ungroup()%>%
   as.data.frame()
@@ -360,6 +388,7 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       abundance_spain.summary=abundance_spain.summary,
                       seed_germination_spain =seed_germination_spain,
                       seed_survival_spain = seed_survival_spain)
+#clean.data.spain$abundance_spain.summary <- abundance_spain.summary
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
 # 3. Data from Perenjori, WA, Australia----
@@ -376,7 +405,8 @@ abundance_aus <- community_id_df
 
 abundance_aus.summary.year <- abundance_aus %>%
   mutate(count=as.numeric((count/(scale.width))*25)) %>%
-  select(count,year,final.code) %>%
+  filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>%
+  dplyr::select(count,year,final.code) %>%
   filter( final.code %in% species.list.to.keep.aus) %>%
   aggregate(count~ year + final.code, mean) %>%
   spread(final.code,count) %>%
@@ -400,7 +430,8 @@ final.species.list.aus <- c("ARCA","GOBE","GOPU","GORO","HYGL",
 
 abundance_aus.clean <- abundance_aus %>%
   mutate(count=as.numeric(count/(scale.width))) %>%
-  select(count,year,final.code,id.plot,collector,scale.width) %>%
+  filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>% # remove reserve outside Perenjory in 2023
+  dplyr::select(count,year,final.code,id.plot,collector,scale.width) %>%
   filter( final.code %in% final.species.list.aus) %>%
   rename("species"="final.code")
 
@@ -423,13 +454,13 @@ abundance_aus_plot <- ggplot() +
                fun.y = mean,
                geom = "line",size=1) +
   scale_x_discrete("year",limits=c("2010","2011","2012-2013","2014","2015","2016",
-                                   "2017","2018","2019","2020","2021","2022")) +
+                                   "2017","2018","2019","2020","2021","2022","2023")) +
   scale_y_log10()+
   labs(color="species",y="Mean number of \nindividuals per centimeter",
        title="Density over time of annual plants in Perenjory region") +
-  #coord_cartesian( xlim = NULL, ylim = c(0,200),expand = TRUE, default = FALSE, clip = "on") +
   scale_color_manual(values=color.palette) +
   theme_bw() +
+  
   theme( legend.key.size = unit(1, 'cm'),
          legend.position = "bottom",
          strip.background = element_blank(),
@@ -446,10 +477,23 @@ abundance_aus_plot <- ggplot() +
          title=element_text(size=16))
 
 abundance_aus_plot
+
 library(plotly)
 plotly::ggplotly(abundance_aus_plot)
 ggsave(abundance_aus_plot,
        file="figures/abundance_aus_plot.pdf")
+
+abundance_aus.summary.df <- abundance_aus %>%
+  mutate(individuals=as.numeric(count/(scale.width))) %>%
+  filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>% # remove reserve outside Perenjory in 2023
+  filter( final.code %in% final.species.list.aus) %>%
+  group_by(final.code,species_id,family) %>%
+  summarise(count = n(),
+            mean = mean(individuals, na.rm = TRUE)*25, 
+            sd = sd(individuals, na.rm = TRUE)*25)
+head(abundance_aus.summary.df)
+write.csv(abundance_aus.summary.df,
+          "results/abundance_aus.summary.df.csv")
 
 #---- 3.1. Wainwright 2014 preparation ----
 
@@ -489,7 +533,7 @@ Wainwright2014<- Wainwright2014 %>%
   left_join(Wainwright2014.seed, relationship = "many-to-many") %>%
   filter(!is.na(seed)) %>%
   mutate(plot=as.character(plot)) %>%
-  select(any_of(c("plot","focal","year","seed",final.species.list.aus ))) %>%
+  dplyr::select(any_of(c("plot","focal","year","seed",final.species.list.aus ))) %>%
   mutate(scale=25)
 
 
@@ -528,7 +572,7 @@ Wainwright2015 <-  read.csv("data/aus_rawdata/Wainwright2015_comp_aus.csv",sep="
   rename("focal"="final.code.focal",
          "neigh"="final.code.neigh") %>%
   spread(neigh,density) %>%
-  select(any_of(c("plot","focal","year",
+  dplyr::select(any_of(c("plot","focal","year",
                   "seed",final.species.list.aus ))) %>%
   mutate(scale=30)
 
@@ -541,9 +585,9 @@ table(Wainwright2015$focal)
 #---- 3.3. Martyn 2016 preparation----
 Martyn2016 <-  read.csv("data/aus_rawdata/Martyn2016_aus.csv" )
 Martyn2016 <- Martyn2016 %>%
-  select(-"focal.ID") %>%
+  dplyr::select(-"focal.ID") %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
-  select(plot,seed,focal,code,count) %>%
+  dplyr::select(plot,seed,focal,code,count) %>%
   left_join(plant_code_aus[,c("code","genus",
                                "species","final.code")], 
              by=c("code"),
@@ -552,7 +596,7 @@ Martyn2016 <- Martyn2016 %>%
   spread(final.code,count) %>%
   mutate( year=2016)%>%
   mutate(plot=as.character(plot)) %>%
-  select(any_of(c("plot","focal","year","seed",final.species.list.aus ))) %>%
+  dplyr::select(any_of(c("plot","focal","year","seed",final.species.list.aus ))) %>%
   mutate(scale=15)
 
 levels(as.factor(Martyn2016$focal))
@@ -570,7 +614,7 @@ Pastore2017 <- Pastore2017_com %>%
              relationship = "many-to-many") %>%
   filter(!is.na(seed)) %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
-  select(plot,seed,focal,code,count,id.focal) %>%
+  dplyr::select(plot,seed,focal,code,count,id.focal) %>%
   left_join(plant_code_aus[,c("code","genus",
                                "species","final.code")], 
              by=c("code"),
@@ -579,7 +623,7 @@ Pastore2017 <- Pastore2017_com %>%
   spread(final.code,count) %>%
   mutate( year=2017)%>%
   mutate(plot=as.character(plot)) %>%
-  select(any_of(c("plot","focal","year","seed",final.species.list.aus )))%>%
+  dplyr::select(any_of(c("plot","focal","year","seed",final.species.list.aus )))%>%
   mutate(scale=15)
 
 
@@ -602,7 +646,7 @@ Sevenello2022 <- Sevenello2022_com %>%
   dplyr::filter(treatment %in% c("OP")) %>%
   filter(!is.na(seed)) %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
-  select(plot,seed,focal,code,count) %>%
+  dplyr::select(plot,seed,focal,code,count) %>%
   left_join(plant_code_aus[,c("code","genus",
                                "species","final.code")], 
              by=c("code"),
@@ -611,7 +655,7 @@ Sevenello2022 <- Sevenello2022_com %>%
   spread(final.code,count) %>%
   mutate( year=2022)%>%
   mutate(plot=as.character(plot)) %>%
-  select(any_of(c("plot","focal","year","seed",final.species.list.aus )))%>%
+  dplyr::select(any_of(c("plot","focal","year","seed",final.species.list.aus )))%>%
   mutate(scale=15)
 
   
@@ -641,7 +685,7 @@ Taylor2023 <- Taylor2023_com %>%
   filter(!is.na(seed)) %>%
   gather(any_of(c(plant_code_aus$name)[!is.na(c(plant_code_aus$name))]), 
          key="species", value="count") %>%
-  select(plot,seed,code,count,species) %>%
+  dplyr::select(plot,seed,code,count,species) %>%
   rename("focal" ="code",
          "name"="species") %>%
   left_join(plant_code_aus[,c("code","genus","name",
@@ -655,11 +699,11 @@ Taylor2023 <- Taylor2023_com %>%
                rename("final.focal" ="final.code" ), 
              by=c("focal"),
              relationship = "many-to-many") %>%
-  select(-"focal") %>%
+  dplyr::select(-"focal") %>%
   rename("focal" ="final.focal" ) %>%
   mutate( year=2023)%>%
   mutate(plot=as.character(plot)) %>%
-  select(any_of(c("plot","focal","year","seed",final.species.list.aus )))%>%
+  dplyr::select(any_of(c("plot","focal","year","seed",final.species.list.aus )))%>%
   mutate(scale=15)
 
 view((Taylor2023))
@@ -719,7 +763,7 @@ seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedger
                                    na.strings=c("","NA")) %>%
   dplyr::select(code.plant,year,species,germination,survival) %>%
   left_join(plant_code_spain %>%
-              select(code.plant))
+              dplyr::select(code.plant))
 
 # ---- 4. Save data AUS ----
 clean.data.aus = list(seed_germination_aus=seed_germination_aus,

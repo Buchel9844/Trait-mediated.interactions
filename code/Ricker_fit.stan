@@ -6,8 +6,8 @@ data{
   int<lower = 1> S; // Number of plant species (same across years for consistency)
   int<lower = 1> year[N]; // Indicator variable for the year each observations
   int<lower = 1> Y; // number of years
-  int<lower = 1> FMax; //Max fecundity
-
+  real lambda_prior;
+  real N_opt_prior[S];
   int Fecundity[N];  // Fecundity of the focal species in each observation
   matrix[N,S] SpMatrix;  // Matrix of abundances for each species (nncluding abundances of non-focal individuals of the focal species)
   int<lower = 0> Intra[S];  // Indicator boolean variable to identify the focal species (0 for non-focal and 1 for focal). Included for easier calculations
@@ -15,16 +15,16 @@ data{
 }
 
 parameters{
-  real<lower=0> lambda_mean[1];
-  real lambda_sd[Y];
+  vector<lower=0>[1] lambda_mean;
+  vector[Y] lambda_sd;
 
-  real<lower=-1,upper=1> alpha_initial[S];
+  vector<upper =0>[S] c; //stretching parameters
 
-  real<lower=-1,upper=0> alpha_slope[S];
+  vector<lower=-1,upper =0>[S] alpha_slope; // decay - impact of the addition of one individual of j, on the fecundity of i. 
 
-  real<lower=-1,upper=0> c[S];
+  vector[S] alpha_initial; // initial effect of j on i - when Nj is minimal
 
-  real<lower = 0> N_opt_i[S];
+  vector<lower=0>[S] N_opt_i; 
   
   vector<lower=0>[1] disp_dev; // species-specific dispersion deviation parameter,
   // defined for the negative binomial distribution used to reflect seed production (perform)
@@ -49,7 +49,7 @@ transformed parameters{
  // implement the biological model
 
   for(n in 1:N){
-    lambda_ei[n] = (lambda_mean[1] + lambda_sd[year[n]])*FMax;
+    lambda_ei[n] = (lambda_mean[1] + lambda_sd[year[n]]);
 
     for(s in 1:S){
     alpha_value[n,s] = alpha_initial[s] + (c[s]*(1 - exp( alpha_slope[s]*(SpMatrix[n,s]-N_opt_i[s]))))/(1+exp(alpha_slope[s]*(SpMatrix[n,s]-N_opt_i[s])));
@@ -57,19 +57,21 @@ transformed parameters{
     
     interaction_effects[n] = sum(alpha_value[n,] .* SpMatrix[n,]);
      
-    F_hat[n] =  exp(lambda_ei[n] + interaction_effects[n]);
+    F_hat[n] =  lambda_ei[n]*exp(interaction_effects[n]);
    }
 }
 
 model{
   disp_dev ~ cauchy(0, 1);  // safer to place prior on disp_dev than on phi
-  N_opt_i~ normal(0,10); // for definition of neutral density
+  for(s in 1:S){
+  N_opt_i[s]~ normal(N_opt_prior[s],1); // for definition of neutral density
+  }
   
-  alpha_initial ~ normal(0,1);
-  alpha_slope ~ normal(0,1);
-  c ~ normal(0,1);
+  alpha_initial ~ normal(0,0.1);
+  alpha_slope ~ normal(-0.2,0.2);
+  c ~ normal(0,0.1);
 
-  lambda_mean ~ normal(0, 10);
+  lambda_mean ~ normal(lambda_prior, 10);
     
    for(y in 1:Y){
      lambda_sd[y] ~ normal(0, 1);

@@ -1,10 +1,10 @@
-﻿Species,Germination,Viability,Germination.datasource,Viability.datasource
-Arctotheca.calendula,0.048,0.217,Delphia Manietta hons thesis,Delphia Manietta hons thesis
-Aira.cupaniana,0.527,0.99,Wainwright & Erickson unpub data,Wainwright & Erickson unpub data
-Hypochaeris.glabra,0.933,0.985,Wainwright & Erickson unpub data,Wainwright & Erickson unpub data
-Hyalosperma.glutinosum.subsp.glutinosum,0.143,0.214,Delphia Manietta hons thesis,Delphia Manietta hons thesis
-Medicago.minima,0.223,0.778,Delphia Manietta hons thesis,Delphia Manietta hons thesis
-Podolepis.canescens,0.431,0.564,Delphia Manietta hons thesis,Delphia Manietta hons thesis
-Trachymene.cyanopetala,0.258,0.033,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags
-Velleia.rosea,0.372,0.556,Delphia Manietta hons thesis,Delphia Manietta hons thesis
-Waitzia.acuminata,0.09,0.156,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags
+﻿code.plant,species,germination,survival,Germination.datasource,Viability.datasource,year,collector
+ARCA,Arctotheca calendula,0.048,0.217,Delphia Manietta hons thesis,Delphia Manietta hons thesis,2015,Wainwirght
+AICU,Aira cupaniana,0.527,0.99,Wainwright & Erickson unpub data,Wainwright & Erickson unpub data,2015,Wainwirght
+HYGA,Hypochaeris glabra,0.933,0.985,Wainwright & Erickson unpub data,Wainwright & Erickson unpub data,2015,Wainwirght
+HYGL,Hyalosperma.glutinosum.subsp.glutinosum,0.143,0.214,Delphia Manietta hons thesis,Delphia Manietta hons thesis,2015,Wainwirght
+MEMI,Medicago.minima,0.223,0.778,Delphia Manietta hons thesis,Delphia Manietta hons thesis,2015,Wainwirght
+POCA,Podolepis.canescens,0.431,0.564,Delphia Manietta hons thesis,Delphia Manietta hons thesis,2015,Wainwirght
+TRCY,Trachymene.cyanopetala,0.258,0.033,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags,2015,Wainwirght
+GORO,Velleia.rosea,0.372,0.556,Delphia Manietta hons thesis,Delphia Manietta hons thesis,2015,Wainwirght
+WAAC,Waitzia.acuminata,0.09,0.156,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags,Loy Wainwright Mayfield germ/viab 2014 tests on Perenjori buried bags,2015,Wainwirght

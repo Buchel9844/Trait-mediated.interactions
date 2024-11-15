@@ -6,6 +6,7 @@ rm(list = ls())
 
 #---- 1.1. Import packages ----
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
+library(cli)
 library(rstan)
 #install.packages("HDInterval")
 library("HDInterval")
@@ -24,9 +25,9 @@ library(loo)
 library(wesanderson) # for color palette
 library(ggthemes) 
 library(grid)
-setwd("/home/lbuche/Eco_Bayesian/chapt3")
-home.dic <- ""
-project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/"
+#setwd("/home/lbuche/Eco_Bayesian/chapt3")
+home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
+project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -37,25 +38,35 @@ run.fit = 1
 #grouping ="family"
 #year.int = "All"    
 #Code.focal = "LEMA"
-#country ="spain"
+#country ="aus"
 args <- commandArgs(trailingOnly = TRUE)
-country.list <- as.character(args[1]) #c("aus","spain")
-
+#country.list <- as.character(args[1]) #c("aus","spain")
+country.list <- c("spain") #aus
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  for(Code.focal in Code.focal.list){ #focal.levels
+  
+  for(Code.focal in Code.focal.list[which(!Code.focal.list %in% c("BEMA","CETE","CHFU","HOMA"))]){ #focal.levels
     print(paste(country,Code.focal))
     
-    competition_focal_neigh <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] %>%
-      filter(focal == Code.focal) %>%
-      gather(any_of(Code.focal.list),
-             key="code.analysis",value="abundance") %>%
-      aggregate(abundance ~ code.analysis + year, sum) %>%
-      spread(code.analysis, abundance)
-    
+    if(country=="aus"){
+      competition_focal_neigh <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] %>%
+        filter(focal == Code.focal) %>%
+        gather(any_of(Code.focal.list),
+               key="code.analysis",value="abundance") %>%
+        mutate(abundance=abundance/scale*15) %>%
+        aggregate(abundance ~ code.analysis + year , sum) %>%
+        spread(code.analysis, abundance)
+    }else{
+      competition_focal_neigh <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] %>%
+        filter(focal == Code.focal) %>%
+        gather(any_of(Code.focal.list),
+               key="code.analysis",value="abundance") %>%
+        aggregate(abundance ~ code.analysis + year , sum) %>%
+        spread(code.analysis, abundance)
+    }
     
     names.to.keep <- names(competition_focal_neigh)[
       colSums(competition_focal_neigh)>10 & # more than 10 individuals found across all sample in the neighbourhood of the focal
@@ -115,10 +126,10 @@ for(country in country.list){
     #SpMatrix[,which(SpNames ==specific.focal)] <- SpMatrix[,which(SpNames == specific.focal)] - SpMatrix[,"conspecific"]  # remove conspecific obs from focal family
     
     # max fecundity
-    Nmax <- c(SpMatrix[which.max(Fecundity),])
+    N_opt_prior <- c(SpMatrix[which.max(Fecundity),])
     
     # Upper bound intrinsic fecundity
-    FMax <- ceiling(log(median(Fecundity)))
+    #FMax <- max(Fecundity)
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #---- 3. BAYES FIT----
@@ -127,8 +138,8 @@ for(country in country.list){
     
     DataVec <- list(N=N, 
                     S=S,
-                    FMax = FMax,
-                    Nmax=Nmax,
+                    lambda_prior = mean(Fecundity) + sd(Fecundity),
+                    N_opt_prior = N_opt_prior,
                     year= year.vec,
                     Y = nlevels(as.factor(year.vec)),
                     Fecundity = Fecundity,
@@ -148,10 +159,10 @@ for(country in country.list){
     set.seed(1616)
     std.error <- function(x) sd(x)/sqrt(length(x))
     
-    list.init <- function(...)list(#lambda_mean= array(as.numeric(mean(log(Fecundity)), 
-      #                               dim = 1)),
-      N_opt_mean= array(as.numeric(DataVec$Nmax, 
-                                   dim = DataVec$S)))
+    list.init <- function(...)list(lambda_mean= array(DataVec$lambda_prior, 
+                                                      dim = 1),
+                                   N_opt_mean= array(as.numeric(DataVec$Nmax), 
+                                                     dim = DataVec$S))
     
     if(run.fit == 1){
       rstan_options(auto_write = TRUE) 
@@ -161,28 +172,28 @@ for(country in country.list){
                        data = DataVec,
                        init =list.init, # all initial values are 0 
                        control=list(max_treedepth=15),
-                       warmup = 500,
-                       iter = 1000, 
+                       warmup = 1000,
+                       iter = 3000, 
                        init_r = 2,
                        chains = 4,
                        seed= 1616) 
       
-      save(file= paste0(home.dic,"results/Modelfit_",Code.focal,"_",country,".rds"),
+      save(file= paste0(project.dic,"results/Modelfit_",Code.focal,"_",country,".rds"),
            Modelfit)
     }
     
-    load(paste0(home.dic,"results/Modelfit_",Code.focal,"_",country,".rds"))
+    load(paste0(project.dic,"results/Modelfit_",Code.focal,"_",country,".rds"))
     
     ModelfitPosteriors <- rstan::extract(Modelfit)
     
-    save(file= paste0(home.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"),
+    save(file= paste0(project.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"),
          ModelfitPosteriors)
-    load(file= paste0(home.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"))
+    load(file= paste0(project.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"))
     
     
     Modelfit_loo <- rstan::loo(Modelfit,pars ="F_sim")
     
-    save(file= paste0(home.dic,"results/ModelfitLOO",Code.focal,"_",country,".Rdata"),
+    save(file= paste0(project.dic,"results/ModelfitLOO",Code.focal,"_",country,".Rdata"),
          Modelfit_loo)
     
     print("Final Fit done")
@@ -190,17 +201,16 @@ for(country in country.list){
     #---- 3.3. Final fit posterior check and behavior checks---- 
     
     ##### Diagnostic plots and post prediction 
-    pdf(paste0(home.dic,"figures/Modelfit_",Code.focal,"_",country,".pdf"))
+    pdf(paste0(project.dic,"figures/Modelfit_",Code.focal,"_",country,".pdf"))
     # Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
     #source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
-    source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
+    source(paste0(home.dic,"code/stan_modelcheck_rem.R")) # call the functions to check diagnistic plots
     
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
-    stan_post_pred_check(ModelfitPosteriors,"F_hat",Fecundity,
-                         paste0("results/PostFec_Modelfit_",Code.focal,"_",country,".csv.gz"),
-                         limx=max(Fecundity)+100) 
-    
+    stan_post_pred_check_nbin(ModelfitPosteriors,"F_hat",Fecundity,
+                              paste0(project.dic,"results/PostFec_Modelfit_",Code.focal,"_",country,".csv.gz"),
+                              limx=max(Fecundity)+100) 
     
     # N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
     hist(summary(Modelfit)$summary[,"Rhat"],
@@ -261,13 +271,15 @@ for(country in country.list){
       df_alpha_generic_param  <- bind_rows(df_alpha_generic_param , df_parameter_hat_n)
     }
     
-    parameter = list(df_N_opt = df_N_opt, 
+    parameter = list(DataVec=DataVec,
+                     SpNames=SpNames,
+                     df_N_opt = df_N_opt, 
                      df_lambda_mean = df_lambda_mean, 
                      df_lambda_sd = df_lambda_sd,
                      df_alpha_generic_param = df_alpha_generic_param
     )
     
-    save(file= paste0(home.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"),
+    save(file= paste0(project.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"),
          parameter)
     print(paste("all done for ",country,Code.focal))
     
