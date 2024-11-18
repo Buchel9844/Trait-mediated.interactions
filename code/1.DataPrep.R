@@ -78,6 +78,9 @@ final.species.list.spain <- c("BEMA","CETE","CHFU",
                         "HOMA","LEMA","ME.sp","PAIN","PLCO",
                         "PO.sp","SASO","SCLA","SPRU")
 head(abundance_spain)
+zscore.fct <- function(x){
+  (x-mean(x))/var(x)
+}
 abundance_spain.summary <- abundance_spain %>%
   rename("code.plant"=species) %>%
   left_join(plant_code_spain, by="code.plant") %>%
@@ -85,7 +88,9 @@ abundance_spain.summary <- abundance_spain %>%
   aggregate(individuals ~ code.analysis + year + plot + subplot , sum) %>%
   mutate(individuals =individuals/100,
          com_id = paste(plot,subplot,sep="_")) %>%
-  spread(code.analysis,individuals)
+  group_by(year) %>%
+  mutate(count.zscore = zscore.fct(individuals)) %>%
+  ungroup()
 
 # regroup POMA and POMO under Polypogon
 # regroup MEEL and MESU under Melilotus ? 
@@ -388,6 +393,7 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       abundance_spain.summary=abundance_spain.summary,
                       seed_germination_spain =seed_germination_spain,
                       seed_survival_spain = seed_survival_spain)
+#load("data/clean.data.spain.RData")
 #clean.data.spain$abundance_spain.summary <- abundance_spain.summary
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
@@ -422,9 +428,9 @@ names(summary_table_aus)
 #Zac, do you think it is possible that in perenjori, people have been mistaking Goodenia pusilliflora for GOCY? cause GOPU is present before 2020 and not after - but trace collected more than 100 data point and fecundity on it - which is weird bc
 # only keep the one that have more than 100 data obs as focal in summary_table_aus
 # only keep the species that have maximum of two years without abundance data
-final.species.list.aus <- c("ARCA","GOBE","GOPU","GORO","HYGL",
-                            "LARO","MEDI","MIMY","PEAI","PLDE","POAR",
-                            "POLE","PTGA","TRCY","TROR","WAAC")
+final.species.list.aus <- c("ARCA","GOBE","GORO","HYGL",
+                            "LARO","MIMY","PEAI","PLDE",
+                            "POAR", "POLE","TRCY","WAAC")
 
 # Abundance clean data
 
@@ -433,7 +439,10 @@ abundance_aus.clean <- abundance_aus %>%
   filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>% # remove reserve outside Perenjory in 2023
   dplyr::select(count,year,final.code,id.plot,collector,scale.width) %>%
   filter( final.code %in% final.species.list.aus) %>%
-  rename("species"="final.code")
+  rename("species"="final.code") %>%
+  group_by(year) %>%
+  mutate(count.zscore = zscore.fct(count)) %>%
+  ungroup()
 
 library(pals)
 color.palette <- unname(kelly())[1:length(final.species.list.aus)]
@@ -760,15 +769,18 @@ names(competition_aus)
 View(plant_code_aus)
 seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedgermss_aus.csv"),
                                    header = T,stringsAsFactors = F, sep=",",
-                                   na.strings=c("","NA")) %>%
-  dplyr::select(code.plant,year,species,germination,survival) %>%
-  left_join(plant_code_spain %>%
-              dplyr::select(code.plant))
+                                   na.strings=c("","NA")) 
+  #dplyr::select(code.plant,year,species,germination,survival) %>%
+  #left_join(plant_code_aus %>%
+    #          dplyr::select(code.plant))
 
 # ---- 4. Save data AUS ----
 clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       species_aus = final.species.list.aus,
                       competition_aus =competition_aus,
                       abundance_aus.summary=abundance_aus.clean)
+#load("data/clean.data.aus.RData")
+#clean.data.aus$abundance_aus.summary <- abundance_aus.clean
+
 save(clean.data.aus,
      file="data/clean.data.aus.RData")
