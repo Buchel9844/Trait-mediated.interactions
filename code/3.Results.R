@@ -28,6 +28,10 @@ library(grid)
 library(ggridges)
 library(cowplot)
 library(pals)
+library(igraph)
+library(statnet)
+library(intergraph)
+library(ggraph)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
 home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
@@ -46,11 +50,6 @@ for(country in country.list){
   abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
-  if(country=="spain"){
-    abundance_summary <- abundance_summary %>%
-      gather( all_of(Code.focal.list), key="species",value="count")
-  }
-  
   
   year.levels <-levels(as.factor( abundance_summary$year))
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
@@ -58,7 +57,7 @@ for(country in country.list){
   
   abundance_plotlist[[country]] <- ggplot() +
     stat_summary(data=abundance_summary,
-                 aes(x=as.character(year), y = count*widthplot,
+                 aes(x=as.character(year), y = individuals*widthplot,
                      group=as.factor(species),
                      color=as.factor(species)),
                  fun.y = mean,
@@ -66,7 +65,7 @@ for(country in country.list){
                  fun.ymax = function(x) quantile(x,0.95), 
                  geom = "pointrange",size=2) +
     stat_summary(data=abundance_summary,
-                 aes(x=as.character(year), y = count*widthplot,
+                 aes(x=as.character(year), y = individuals*widthplot,
                      group=as.factor(species),
                      color=as.factor(species)),
                  fun.y = mean,
@@ -106,11 +105,6 @@ for(country in country.list){
   abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
-  if(country=="spain"){
-    abundance_summary <- abundance_summary %>%
-      gather( all_of(Code.focal.list), key="species",value="count")
-  }
-  
   
   year.levels <-levels(as.factor( abundance_summary$year))
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
@@ -131,14 +125,14 @@ for(country in country.list){
   abundance_pdsi_plotlist[[country]] <- abundance_summary %>%
     left_join(  env_pdsi ) %>%
     ggplot() +
-    stat_summary(aes(x=exp(PDSI.mean), y = count*widthplot,
+    stat_summary(aes(x=exp(PDSI.mean), y = individuals*widthplot,
                      group=as.factor(species),
                      color=as.factor(species)),
                  fun.y = mean,
                  fun.ymin = function(x) mean(x) - sd(x), 
                  fun.ymax = function(x) mean(x) + sd(x), 
                  geom = "pointrange",size=2) +
-    stat_summary(aes(x=exp(PDSI.mean), y = count*widthplot,
+    stat_summary(aes(x=exp(PDSI.mean), y = individuals*widthplot,
                      group=as.factor(species),
                      color=as.factor(species)),
                  fun.y = mean,
@@ -199,7 +193,7 @@ color.year <- data.frame(year=c("2015","2016","2017","2018","2019","2020","2021"
                          col.value=colorblind_pal()(8)[2:8])
 plot.lambda <- list()
 env_pdsi_med_list <- list()
-for(country in country.list){
+for(country in "aus"){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
   env_pdsi_med_list[[country]] <- read.csv(paste0(home.dic,"results/",
@@ -269,7 +263,7 @@ plot.lambda[["TRCY"]]
 #figures/PEAI_lambda.pdf
 length(Code.focal.list )
 length(plot.lambda)
-plot.lambda.all <- ggarrange(plotlist=plot.lambda[1:12],
+plot.lambda.all <- ggarrange(plotlist=plot.lambda[13:24],
                              common.legend = T,
                              legend = "bottom")
 plot.lambda.all
@@ -514,15 +508,20 @@ source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 test.sigmoid.all  <- NULL
 
 Realised.Int.list <- list()
-
+widthplot = 15
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
   if(country  =="aus"){
     abundance_df <-  abundance_df %>%
-      aggregate(count ~ year + species + id.plot +collector + scale.width, sum) %>%
-      spread(species, count)  %>%
+      aggregate(individuals ~ year + species + id.plot +collector + scale.width, sum) %>% 
+      mutate(individuals = individuals *widthplot) %>%
+      spread(species, individuals)  %>%
       dplyr::select(all_of(c("year",Code.focal.list))) 
+  }else{
+    abundance_df <-  abundance_df %>%
+      mutate(individuals = individuals*widthplot) %>%
+      spread(species, individuals)
   }
   Realised.Int.focal<- list()
   Realised.Int.country.df <- NULL
@@ -589,12 +588,12 @@ for(country in country.list){
     }
     
     write.csv(test.sigmoid,
-              file=paste0("results/Realised.Int.",country,",",Code.focal,".csv"))
+              file=paste0(project.dic,"results/Realised.Int.",country,",",Code.focal,".csv"))
     
     Realised.Int.country.df <- bind_rows( Realised.Int.country.df,test.sigmoid)
     
     save(Realised.Int.country.df,
-         file=paste0(proejct.dic,"results/Realised.Int.df_",country,".RData"))
+         file=paste0(project.dic,"results/Realised.Int.df_",country,".RData"))
     
   }
   
@@ -616,6 +615,14 @@ for(country in country.list){
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
   
+  #dummy.axes <- data.frame(focal = Code.focal.list, 
+  #low=rep(0.9, length(Code.focal.list)),
+  #up=rep(1.1, length(Code.focal.list)))
+  #if(country=="aus"){
+  #dummy.axes[dummy.axes$focal=="GORO",c("low","up")] <- c(0.8,1.2)
+  #dummy.axes[dummy.axes$focal=="TRCY",c("low","up")] <- c(0.95,1.05)
+  #}
+  
   Box.Plot.Realised.effect <- Realised.Int.list[[country]] %>%
     mutate(intra.bi = case_when(focal==neigh ~ "INTRA",
                                 T~"INTER")) %>%
@@ -623,13 +630,13 @@ for(country in country.list){
                color=as.factor(neigh),fill=intra.bi)) + 
     geom_hline(yintercept = 1, color="black",size=1) +
     geom_boxplot() +
-    facet_wrap(.~focal,ncol=3,scale="free") +
+    facet_wrap(.~focal,ncol=4,scale="free") +
     labs(y="Effect on intrinsic performance",
          x= "Interacting species",
          color="",
          fill="") +
-    #coord_cartesian(ylim=c(0.75,1.25),
-    #               expand = FALSE) + 
+    coord_cartesian(ylim=c(0.95,1.05),
+                    expand = FALSE) + 
     theme_bw() +
     scale_color_manual(values =col.df$color.name)+
     scale_fill_manual(values =c("white","black"))+
@@ -659,29 +666,28 @@ for(country in country.list){
   Box.Plot.Realised.effect
   ggsave(Box.Plot.Realised.effect,
          heigh=25,
-         width=20,
+         width=30,
          units = "cm",
          file=paste0(home.dic,"figures/","Boxplot.Realised.effect_",country,".pdf"))
 }
 
 
 #---- 3.3. Network visualasition----
-library(igraph)
-library(statnet)
-library(intergraph)
-library(ggraph)
 colours  <- wes_palette("Zissou1", 101, type = "continuous")
 
-plot.legend <- ggplot(data.frame(x=rep(c(1,2,3,4),
+plot.legend <- ggplot(data.frame(x=rep(c(1,2,3,4,5),
                                        times=50),
-                                 y=1:100),
+                                 y=1:250),
                       aes(as.factor(x),
                           y,fill=x)) +
   geom_point() +
-  geom_line(aes(linewidth=as.factor(x))) + 
-  scale_linewidth_discrete("Median effect on intrinsic performance",
-                           labels=c("< 1%","1%-5%",
-                                    "5%-10%",">10%")) +
+  geom_line(aes(linewidth=as.factor(x), alpha=as.factor(x))) + 
+  scale_linewidth_manual("Median effect on intrinsic performance",
+                         values=c(0.5,1,1.5,2,3),
+                         labels=c("< 5%","5%-10%","10%-25%","25%-50%",">50%")) +
+  scale_alpha_manual("Median effect on intrinsic performance",
+                     values=c(0.2,0.4,0.6,0.8,1),
+                     labels=c("< 5%","5%-10%","10%-25%","25%-50%",">50%")) +
   scale_fill_gradientn("Ratio of facilitation and competitive effect",
                        colours = colours,
                        breaks=c(1,51,101),
@@ -699,8 +705,8 @@ plot.legend <- ggplot(data.frame(x=rep(c(1,2,3,4),
 plot.legend 
 
 net.country <- list()
-# country = "aus"
-species.focal = "GORO"
+# country = "spain"
+#species.focal = "GORO"
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
@@ -708,38 +714,347 @@ for(country in country.list){
   
   ratio.mat <-   Realised.Int.list[[country]]  %>%
     aggregate(realised.effect ~ focal + neigh, function(x) length(which(x<1))/length(x)) %>% # percentage of negative interaction
-    #mutate(realised.effect = case_when(focal ==species.focal|neigh==species.focal ~ realised.effect,
-    #                                 T~0)) %>%
     spread(neigh,realised.effect) %>%
     dplyr::select(-focal) %>%
     as.matrix()
   
   strength.mat <- Realised.Int.list[[country]]  %>%
-    aggregate(realised.effect ~ focal + neigh, function(x) abs(mean(x)-1)) %>%
-    # mutate(realised.effect = case_when(focal ==species.focal|neigh==species.focal ~ realised.effect,
-    #                                  T~0))%>%
+    aggregate(realised.effect ~ focal + neigh, function(x) abs(median(x)-1)) %>%
     spread(neigh,realised.effect) %>%
     dplyr::select(-focal) %>%
-    as.matrix() %>%
-    t()# for the network to have row has emitor and columns as receiver
+    as.matrix()
+  # for the network to have row has emitor and columns as receiver
   
+  plot.network.gradient.int(ratio.mat,strength.mat,country)
+  net.country[[country]] <- recordPlot()
+  
+  
+}
+
+
+plot_grid(
+  plot_grid(net.country$spain,net.country$aus,
+            nrow = 1,labels=c("Spain","Aus")),
+  get_legend(plot.legend),
+  ncol = 1,
+  rel_heights =c(1,0.2),
+  labels = '')
+
+ggsave( plot_grid(net.country[[country]],
+                  get_legend(plot.legend),
+                  ncol = 1,
+                  rel_heights =c(1,0.2),
+                  labels = "",
+                  hjust = 0, vjust = 1),
+        file=paste0(home.dic,"figures/Network.Realised.effect_",country,".pdf")) 
+
+# figures/Network.Realised.effect_aus.pdf")
+
+library(qgraph)
+plotwebfun<-function(web,metaweb=NULL,colmat,
+                     layout = "circle", curveDefault = 0.4,
+                     wtimes=200,vertex.size=8,edge.arrow.size=1,
+                     minimum,theme,parallelAngleDefault,edge.width,
+                     labels,curveAll){
+  web<- t(web)
+  if(!is.null(metaweb)){
+    spcode<-sapply(colnames(web),
+                   function(x)which(colnames(metaweb)==x))#could be useful
+  }
+  qgraph(web,color = "white", layout = layout,
+         curveDefault = curveDefault, minimum=minimum,
+         edge.width=edge.width,
+         theme=theme,
+         parallelAngleDefault=parallelAngleDefault,
+         weighted=T,
+         labels=labels,curveAll=curveAll)
+}
+plotwebfun( strength.mat, colmat=ratio.mat,
+            minimum = 0,edge.width=2,
+            parallelAngleDefault=pi/10,theme="Hollywood",
+            labels= colnames(strength.mat),curveAll=F)
+
+#---- 3.4. Table sum up ----
+str(Realised.Int.list)
+sum.up.df <- NULL
+for(country in country.list){
+  
+  sum.up.df.n <- Realised.Int.list[[country]] %>%
+    summarize(mean.effect = (mean(realised.effect)-1)*100,
+              median.effect = (median(realised.effect)-1)*100,
+              var.effect = (var(realised.effect))*100,
+              max.positive.effect = (max(realised.effect)-1)*100,
+              max.negative.effect = (min(realised.effect)-1)*100,
+              count.neutre = count(realised.effect ==1),
+              count.positive = count(realised.effect >1),
+              count.negative = count(realised.effect <1),
+              count.total = count(realised.effect>0)) %>%
+    mutate(proportion.positive =(count.positive/count.total) * 100,
+           proportion.negative =(count.negative/count.total)* 100,
+           proportion.neutre =(count.neutre/count.total)* 100,
+           country = country,
+           effect ="both",
+           species = "All")
+  
+  
+  sum.up.neigh.df.n <- Realised.Int.list[[country]] %>%
+    group_by(neigh) %>%
+    summarize(mean.effect = (mean(realised.effect)-1)*100,
+              median.effect = (median(realised.effect)-1)*100,
+              var.effect = (var(realised.effect))*100,
+              max.positive.effect = (max(realised.effect)-1)*100,
+              max.negative.effect = (min(realised.effect)-1)*100,
+              count.neutre = count(realised.effect ==1),
+              count.positive = count(realised.effect >1),
+              count.negative = count(realised.effect <1),
+              count.total = count(realised.effect>0)) %>%
+    mutate(proportion.positive =(count.positive/count.total) * 100,
+           proportion.negative =(count.negative/count.total)* 100,
+           proportion.neutre =(count.neutre/count.total)* 100,
+           country = country,
+           effect ="given")%>%
+    rename(species = "neigh")
+  
+  sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
+    group_by(focal) %>%
+    summarize(mean.effect = (mean(realised.effect)-1)*100,
+              median.effect = (median(realised.effect)-1)*100,
+              var.effect = (var(realised.effect))*100,
+              max.positive.effect = (max(realised.effect)-1)*100,
+              max.negative.effect = (min(realised.effect)-1)*100,
+              count.neutre = count(realised.effect ==1),
+              count.positive = count(realised.effect >1),
+              count.negative = count(realised.effect <1),
+              count.total = count(realised.effect>0)) %>%
+    mutate(proportion.positive =(count.positive/count.total) * 100,
+           proportion.negative =(count.negative/count.total)* 100,
+           proportion.neutre =(count.neutre/count.total)* 100,
+           country = country,
+           effect ="received") %>%
+    rename(species = "focal")
+  
+  
+  write.csv(bind_rows(sum.up.df.n,sum.up.focal.df.n,sum.up.neigh.df.n),
+            file=paste0(home.dic,"results/Sum.up.species",country,".csv"))
+  
+}
+
+
+sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
+  aggregate(realised.effect ~ focal, median)
+
+#---- 4. Realised interactions based on time  ----
+
+source(paste0(home.dic,"code/PopProjection_toolbox.R"))
+test.sigmoid.all  <- NULL
+Realised.Int.Year.list <- list()
+widthplot = 15
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  if(country  =="aus"){
+    abundance_df <-  abundance_df %>%
+      aggregate(individuals ~ year + species + id.plot +collector + scale.width, sum) %>% 
+      mutate(individuals = individuals *widthplot) %>%
+      spread(species, individuals)  %>%
+      dplyr::select(all_of(c("year",Code.focal.list))) 
+  }else{
+    abundance_df <-  abundance_df %>%
+      mutate(individuals = individuals*widthplot) %>%
+      spread(species, individuals)
+  }
+  Realised.Int.Year.focal<- list()
+  Realised.Int.Year.country.df <- NULL
+  for(Code.focal in Code.focal.list){ #focal.levels
+    
+    df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
+    
+    print(paste0(country,Code.focal))
+    
+    abundance_short_focal_df <-  abundance_df %>%
+      filter(Code.focal > 0 | !is.na(Code.focal)) %>%
+      mutate_at(Code.focal.list,as.numeric) 
+    year.levels <- levels(as.factor(abundance_short_focal_df$year))
+    
+    SpNames <- names(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+    
+    test.sigmoid.all <- NULL
+    test.sigmoid  <- NULL
+    for( y in year.levels){
+      for( neigh.sp in  SpNames){
+        print(paste(neigh.sp,y))
+        
+        neigh.abundance <- abundance_short_focal_df %>%
+          filter(year ==y) %>%
+          dplyr::select(neigh.sp) %>%
+          filter(!is.na(get(neigh.sp)))
+        if(nrow(neigh.abundance)==0) next
+        
+        seq.abun.neigh <- seq(min(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), na.rm = T)),
+                              max(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), na.rm = T)),
+                              (max(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), na.rm = T))-min(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), na.rm = T)))/100)
+        
+        param.neigh <- data.frame(neigh = neigh.sp, 
+                                  country = country,
+                                  alpha_initial = median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
+                                                                                neigh.sp]),
+                                  alpha_slope =  median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
+                                                                               neigh.sp]),
+                                  alpha_c=  median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
+                                                                          neigh.sp]),
+                                  N_opt_mean =median(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh.sp]),
+                                  focal=Code.focal)
+        
+        for (n in 1:nrow(param.neigh)){
+          #if(n==1){print(n)}
+          df_neigh_n <- data.frame(density=seq.abun.neigh,param.neigh[n,])
+          
+          
+          df_neigh_n[,"sigmoid"] <- alpha_function4(df_neigh_n$alpha_initial,
+                                                    df_neigh_n$alpha_slope,
+                                                    df_neigh_n$alpha_c,
+                                                    df_neigh_n$density,
+                                                    df_neigh_n$N_opt_mean)
+          
+          df_neigh_n[,"realised.effect"] <- exp(df_neigh_n$sigmoid*df_neigh_n$density)
+          df_neigh_n$year <- as.numeric(y)
+          
+          test.sigmoid <- bind_rows(test.sigmoid,df_neigh_n)
+          
+        }
+      }
+    }
+    
+    write.csv(test.sigmoid,
+              file=paste0("results/Realised.Int.Year",country,",",Code.focal,".csv"))
+    
+    Realised.Int.Year.country.df <- bind_rows(Realised.Int.Year.country.df,test.sigmoid)
+    
+    save(Realised.Int.Year.country.df,
+         file=paste0(project.dic,"results/Realised.Int.Year.df_",country,".RData"))
+    
+  }
+  
+  #sigmoid.plot.list[[country]] <- sigmoid.plot.list.focal
+  Realised.Int.Year.list[[country]] <-  Realised.Int.Year.country.df
+}
+
+save(Realised.Int.Year.list,
+     file=paste0(project.dic,"results/Realised.Int.Year.list.RData"))
+
+
+#---- 4.1 Network based on time  ----
+
+
+
+# country = "spain"
+#species.focal = "GORO"
+load(paste0(project.dic,"results/Realised.Int.Year.list.RData"))
+net.country.year <- list()
+for(country in country.list){
+  net.country.year.country <- list()
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  year.levels <- levels(as.factor(abundance_df$year))
+  
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  for(y in year.levels){
+    ratio.mat <-Realised.Int.Year.list[[country]]  %>%
+      filter(year ==y) %>%
+      aggregate(realised.effect ~ focal + neigh,
+                function(x) length(which(x<1))/length(x)) %>% # percentage of negative interaction
+      spread(neigh,realised.effect) %>%
+      dplyr::select(-focal) %>%
+      as.matrix()
+    
+    strength.mat <- Realised.Int.Year.list[[country]]  %>%
+      filter(year ==y ) %>%
+      aggregate(realised.effect ~ focal + neigh, function(x) abs(median(x)-1)) %>%
+      spread(neigh,realised.effect) %>%
+      dplyr::select(-focal) %>%
+      as.matrix() # for the network to have row has emitor and columns as receiver
+    if(!dim(strength.mat)[1]==dim(strength.mat)[2]){
+      df.all.comb <- expand.grid(Code.focal.list,Code.focal.list) %>%
+        rename("focal"="Var1") %>%
+        rename("neigh"="Var2")
+      
+      ratio.mat <-Realised.Int.Year.list[[country]]  %>%
+        filter(year ==y) %>%
+        aggregate(realised.effect ~ focal + neigh,
+                  function(x) length(which(x<1))/length(x)) %>% # percentage of negative interaction
+        right_join(df.all.comb) %>%
+        spread(neigh,realised.effect) %>%
+        dplyr::select(-focal) %>%
+        as.matrix()
+      
+      strength.mat <- Realised.Int.Year.list[[country]]  %>%
+        filter(year ==y ) %>%
+        aggregate(realised.effect ~ focal + neigh, function(x) abs(median(x)-1)) %>%
+        right_join(df.all.comb) %>%
+        spread(neigh,realised.effect) %>%
+        dplyr::select(-focal) %>%
+        as.matrix() %>%
+        t()# for the network to have row has emitor and columns as receiver
+    }
+    plot.network.gradient.int(ratio.mat,strength.mat,y)
+    net.country.year.country[[y]] <- recordPlot()
+    ggsave( plot_grid(net.country.year.country[[y]]),
+            file=paste0(home.dic,"figures/Network.",country,"_",y,".pdf"))
+  }
+  net.country.year[[country]] <-  net.country.year.country
+}
+
+net.country.year$aus[1]
+net.country.year$aus[2]
+net.country.year$aus[3]
+net.country.year$aus[4]
+net.country.year$aus[5]
+net.country.year$aus[6]
+net.country.year$aus[10]
+plot_grid(net.country.year$aus[1:10],
+          labels=c("2010","2011" ,"2014", "2015", "2016" ,
+                   "2017", "2018","2020","2022" ,"2023"),
+          nrow = 2)
+net.country.year$spain[1]
+net.country.year$spain[2]
+net.country.year$spain[3]
+net.country.year$spain[4]
+net.country.year$spain[5]
+net.country.year$spain[6]
+net.country.year$spain[7]
+net.country.year$spain[8]
+net.country.year$spain[9]
+plot_grid(net.country.year$spain[[1:9]],
+          labels=2015:2023,
+          nrow = 3)
+
+
+rm(ratio.mat)
+rm(strength.mat)
+plot.network.gradient.int <- function(ratio.mat,strength.mat,y){
   alphamat.pos <- unname(abs(round(strength.mat,2))) %>%
     replace(is.na(.),0)
-  g <- igraph::graph_from_adjacency_matrix(alphamat.pos  > 0)
+  g <- igraph::graph_from_adjacency_matrix(t(alphamat.pos)  > 0,
+                                           weighted=T, mode="directed")
   # Line width
   lwd.mat <-   as.numeric(round(strength.mat[alphamat.pos  > 0],2))
   E(g)$weight <- as.numeric(strength.mat[alphamat.pos  > 0])
-  widths <- lwd.mat
-  widths[lwd.mat <=0.01] <- 3 #1
-  widths[lwd.mat >0.01 & lwd.mat <=0.05] <- 7 #3
-  widths[lwd.mat >0.05 & lwd.mat <=0.1] <- 9#7
-  widths[lwd.mat >0.1 ] <- 9
+  width.edge <- lwd.mat
+  width.edge[lwd.mat <=0.05] <- 1 #1
+  width.edge[lwd.mat >0.05 & lwd.mat <=0.1] <- 2 #3
+  width.edge[lwd.mat >0.1 & lwd.mat <=0.25] <- 3#7
+  width.edge[lwd.mat >0.25 & lwd.mat <=0.5] <- 5#7
+  width.edge[lwd.mat >0.5 ] <- 7
+  width.edge[lwd.mat <=0.01] <- 0.5 #1
   
   width.arrow <- lwd.mat
-  width.arrow[lwd.mat <=0.01] <- 2#0.3
-  width.arrow[lwd.mat >0.01 & lwd.mat <=0.05] <- 2#1
-  width.arrow[lwd.mat >0.05 & lwd.mat <=0.1] <- 4
-  width.arrow[lwd.mat >0.1] <- 5
+  width.arrow[lwd.mat <=0.05] <- 0.3#0.3
+  width.arrow[lwd.mat >0.05 & lwd.mat <=0.1] <- 0.6#1
+  width.arrow[lwd.mat >0.1 & lwd.mat <=0.25] <- 1
+  width.arrow[lwd.mat >0.25 & lwd.mat <=0.5] <- 1.5
+  width.arrow[lwd.mat >0.5] <- 2
+  
   
   #width.arrow[lwd.mat <=summary(lwd.mat)["1st Qu."]] <- 0.2
   #width.arrow[lwd.mat >summary(lwd.mat)["1st Qu."] & lwd.mat <=summary(lwd.mat)["Median"]] <- 0.5
@@ -751,9 +1066,8 @@ for(country in country.list){
   b <- 1
   M <- dim(strength.mat)[1]
   m <- 0
-  
-  for(row in 1:nrow(alphamat.pos)) {
-    for(col in 1:ncol(alphamat.pos)) {
+  for(col in 1:ncol(alphamat.pos)) {
+    for(row in 1:nrow(alphamat.pos)) {
       if (row == col) {
         m <- m+1
       }
@@ -761,7 +1075,7 @@ for(country in country.list){
         edgeloopAngles[[b]] <- 0
         
         if (row == col) {
-          edgeloopAngles[[b]] <- (3.2 * pi * (M - m) / M)
+          edgeloopAngles[[b]] <- (2.2 * pi * (M - m) / M)
         }
         b <- b+1
       }
@@ -769,56 +1083,44 @@ for(country in country.list){
   }
   
   # Colour edge
-  col.vec <- round(as.numeric(ratio.mat[t(alphamat.pos)  > 0]),3) * 1000 + 1 
+  library(grDevices)
+  col.vec <- round(as.numeric(ratio.mat[alphamat.pos  > 0]),3) * 1000 + 1 
   colours  <- wes_palette("Zissou1", 1001, type = "continuous")
-  #wes_palette("Zissou1")
-  E(g)$color <- colours[col.vec] 
-  #library(scales)
-  #show_col(  colours[1] )
-  #col.vec <- round(as.numeric(ratio.mat[t(alphamat.pos)  > 0]),3)
-  #col.vec[col.vec>0.5] <- 1
-  #col.vec[col.vec<=0.5] <- 2
-  #colours  <- wes_palette("Zissou1", 1001, type = "continuous")
-  #colours  <- c(colours[1000],colours[1])
-  #E(g)$color <- colours[col.vec] 
+  col.mat <-  colours[col.vec] 
+  alpha.edge <-  lwd.mat
+  alpha.edge[lwd.mat <=0.05] <-0.2
+  alpha.edge[lwd.mat >0.05 & lwd.mat <=0.1] <- 0.4 #1
+  alpha.edge[lwd.mat >0.1 & lwd.mat <=0.25] <- 0.6 #3
+  alpha.edge[lwd.mat >0.25 & lwd.mat <=0.5] <- 0.8 #3
+  alpha.edge[lwd.mat >0.5 ] <- 1
   
+  col.mat[alpha.edge==0.2] <- adjustcolor( col.mat[alpha.edge==0.2],
+                                           0.2)
+  col.mat[alpha.edge==0.4] <- adjustcolor( col.mat[alpha.edge==0.4],
+                                           0.4)
+  col.mat[alpha.edge==0.6] <- adjustcolor( col.mat[alpha.edge==0.6],
+                                           0.6)
+  col.mat[alpha.edge==0.8] <- adjustcolor( col.mat[alpha.edge==0.8],
+                                           0.8)
+  col.mat[alpha.edge==1] <- adjustcolor( col.mat[alpha.edge==1],
+                                         1)
+  E(g)$color <- col.mat
   
-  par(mar=c(0,0,0,0)+1)
+  # plot the network
+  par(mar=c(0,0,0,0))
   plot(g,
        layout=layout_in_circle, #layout_nicely, 
-       edge.curved=-.3,
-       margin=c(0.18,0,0.2,0),
+       edge.curved=-.15,
+       #margin=c(0.5,-0.8,0.1,-1),
+       margin=c(0.2,0.2,0.2,0.2),
        vertex.label = Code.focal.list,
        vertex.label.family="Helvetica",   
        vertex.size = 30,
        vertex.label.color = "black",
        vertex.color = "transparent",
        vertex.frame.color = "black",
-       edge.width = widths,
-       edge.arrow.width =  width.arrow,
+       edge.width = width.edge,
+       edge.arrow.width =  1.5,#width.arrow,
        edge.loop.angle = edgeloopAngles)
-  
-  net.country[[country]] <- recordPlot()
-  
-  #ggsave( last_plot() ,
-  #       heigh=40,
-  #      units = "cm",
-  #     file=paste0(home.dic,"figures/","Network.Realised.effect_",country,".pdf"))
+  title(y, line = -2)
 }
-
-plot_grid(net.country[[country]],
-          get_legend(plot.legend),
-          ncol = 1,
-          rel_heights =c(1,0.2),
-          labels = 'AUTO',
-          hjust = 0, vjust = 1)
-
-ggsave( plot_grid(net.country[[country]],
-                  get_legend(plot.legend),
-                  ncol = 1,
-                  rel_heights =c(1,0.2),
-                  labels = 'AUTO',
-                  hjust = 0, vjust = 1),
-        file=paste0(home.dic,"figures/","Network.Realised.effect_",country,".pdf")) 
-
-# figures/Network.Realised.effect_aus.pdf")

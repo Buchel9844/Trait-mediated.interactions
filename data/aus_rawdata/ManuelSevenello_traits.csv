@@ -1,0 +1,13 @@
+species,final.code,type,Growth form,Life Form,flower.size,flower.colour,plant.height,flowers.per.plant,family,pollination.synd,native,height,seed dry mass,flower.size.numb,notes
+Arctotheca calendula,ARCA,forb,Annual herb,Decumbent,large,yellow,medium,many,Asteraceae,self.animal,no,0.182,1.12,4.5,
+Goodenia berardiana,GOBE,forb,Annual herb,Erect,small,yellow,medium,many,Goodeniaceae,self.animal,yes,0.246,2.13,1.35,
+Goodenia rosea,GORO,forb,Annual herb,Erect,large,white,short,many,Goodeniaceae,self.animal,yes,0.26,2.73,2.25,
+Hyalosperma glutinosum,HYGL,forb,Annual herb,Erect,small,yellow,medium,few,Asteraceae,self.animal,yes,0.128,0.3,0.5,tocheck
+Lawrencella rosea,LARO,forb,Annual herb,Erec,large,blue,medium,few,Asteraceae,self.animal,yes,0.3,1.6,1.75,
+Millotia myosotidifolia,MIMY,forb,Annual herb,Erect,small,yellow,medium,many,Asteraceae,self.animal,yes,0.0883,0.112,0.3,tocheck
+Pentameris airoides,PEAI,non.forb,Annual grass,Caespitose,reduced,green,high,non,Poaceae,wind,no,0.129,0.0504,0.035,reference
+Plantago debilis,PLDE,forb,Perennial herb,Caespitose,small,white,medium,many,Plantaginaceae,wind,yes,0.105,0.326,0.02,reference
+Podolepis aristata,POAR,forb,Annual herb,Erect,large,yellow,high,many,Asteraceae,self.animal,yes,0.5,,3.5,
+Podolepis lessonii,POLE,forb,Annual herb,Erect,small,yellow,medium,few,Asteraceae,self.animal,yes,0.25,0.0888,1,tocheck
+Trachymene cyanopetala,TRCY,forb,Annual herb,Erect,small,blue,short,many,Araliaceae,self.animal,yes,0.124,1.94,0.03,reference
+Waitzia acuminata,WAAC,forb,Annual herb,Erect,large,yellow,high,few,Asteraceae,self.animal,yes,0.342,0.234,0.85,
