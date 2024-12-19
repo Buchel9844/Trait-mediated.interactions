@@ -435,6 +435,12 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
   plot(hc)
   plant_traits_spain <- plant_traits_spain %>%
     mutate( coord.slow.to.fast =spain.traits$global.pca$ind$coord[,"Dim.1"])
+
+# ---- 4.4. Gather trait mat ----
+  trait.dist_spain.df <- as.data.frame(as.matrix(spain.traits.dist)) %>%
+    rownames_to_column(var="focal") %>%
+    gather(any_of(final.species.list.spain),
+           key="neigh",value="dist")
   
 #---- 4. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
@@ -445,10 +451,11 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       abundance_spain.summary=abundance_spain.summary,
                       seed_germination_spain =seed_germination_spain,
                       seed_survival_spain = seed_survival_spain,
-                      plant_traits =plant_traits_spain )
+                      plant_traits =plant_traits_spain,
+                      trait.dist_spain.df = trait.dist_spain.df)
 #load("data/clean.data.spain.RData")
 #clean.data.spain$plant_traits <- plant_traits_spain
-
+# clean.data.spain$trait.dist_spain.df  <- trait.dist_spain.df 
 #clean.data.spain$abundance_spain.summary <- abundance_spain.summary
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
@@ -961,6 +968,12 @@ plant_traits_aus <- aus_traits_df %>%
                 srl,
                 root.biomass,
                 root.volume.less.than.0.5mm.diameter.mm3)  %>%
+  
+  rename("root.volume"="root.volume.less.than.0.5mm.diameter.mm3",
+         "sla"="sla.mm2.mg",
+         "root.length"="total.root.length.cm",
+         "width.longest"="width.longest.mm",
+         "height"="height.mm") %>%
   #dplyr::filter(!final.code %in% c("ARCA","PEAI")) %>%
   column_to_rownames("final.code")
 
@@ -992,8 +1005,9 @@ aus.traits.dist <- vegdist(plant_traits_aus %>% scale() %>%
 hc <- hclust(aus.traits.dist ,
              method = "average", members = NULL) 
 plot(hc)
+
 plant_traits_aus <- plant_traits_aus%>%
-  mutate( coord.slow.to.fast =aus.traits$global.pca$ind$coord[,"Dim.1"])
+  mutate( coord.slow.to.fast =aus.traits$global.pca$ind$coord[,"Dim.1"]) 
 
 
 #----4.2.Category based on reproduction strategy----
@@ -1200,7 +1214,11 @@ trait.dist_aus.df <- as.data.frame(as.matrix(plant_pol.traits_aus.dist)) %>%
   left_join(as.data.frame(as.matrix(plant_abovetraits_aus.dist)) %>%
               rownames_to_column(var="focal") %>%
               gather(all_of(final.species.list.aus),
-                     key="neigh",value="above.traits"))
+                     key="neigh",value="above.traits")) %>%
+  left_join(as.data.frame(as.matrix(aus.traits.dist)) %>%
+  rownames_to_column(var="focal") %>%
+  gather(all_of(final.species.list.aus),
+         key="neigh",value="dist"))
 
 # ---- 5. Save data AUS ----
 clean.data.aus = list(seed_germination_aus=seed_germination_aus,

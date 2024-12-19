@@ -57,6 +57,7 @@ load(paste0(project.dic,"results/Realised.Int.list.RData"))
 # realised interactions for each year
 load(paste0(project.dic,"results/Realised.Int.Year.list.RData")) 
 
+load(paste0(project.dic,"results/Realised.Int.Obs.list.RData")) 
 # PDSI
 env_pdsi_aus <- read.csv(paste0(home.dic,"results/aus_env_pdsi.csv")) 
 env_pdsi_spain <- read.csv(paste0(home.dic,"results/spain_env_pdsi.csv")) 
@@ -169,6 +170,7 @@ load(paste0(project.dic,
 sum.up.time.df <- NULL
 Ratio.Year.list <- NULL
 Ratio.Year.Plot <- NULL
+country ="aus"
 for(country in country.list){
   
   sum.up.df.n <- Realised.Int.Obs.list[[country]] %>%

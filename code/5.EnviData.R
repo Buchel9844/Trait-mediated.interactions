@@ -104,8 +104,10 @@ spain_env_pdsi <- data.frame(spain_pdsi = as.numeric(sc_pdsi$X),
            year=rep(c(2005:2023),each=12),
            month= rep(c(1:12),times=19)) %>%
   mutate(year.month = factor(paste0(year,sep="_",month),
-                             levels=paste0(year,sep="_",month)))
-
+                             levels=paste0(year,sep="_",month))) %>%
+  left_join(env_spain) %>%
+  rename("prec"="Se20Precip")
+view(spain_env_pdsi)
 write_csv(spain_env_pdsi,
           "results/spain_env_pdsi.csv")
 
@@ -266,7 +268,7 @@ env_aus <- left_join(env_ETo_aus,env_prec_aus, by=c("month", "year")) %>%
   mutate(year.month = factor(paste0(year,sep="_",month),
                              levels=paste0(year,sep="_",month)))
 
-view(env_aus)
+head(env_aus)
 line_aus_env <- ggplot(env_aus) +
   geom_line(aes(y=sumETo,x=factor(year.month),group=1),
            color="black",size=2) +
@@ -332,7 +334,10 @@ aus_env_pdsi <- data.frame(aus_pdsi = as.numeric(sc_pdsi_aus$X),
                              year=rep(c(2004:2023),each=12),
                              month= rep(c(1:12),times=20)) %>%
   mutate(year.month = factor(paste0(year,sep="_",month),
-                             levels=paste0(year,sep="_",month)))
+                             levels=paste0(year,sep="_",month))) %>%
+  left_join(env_aus %>%
+              dplyr::select(month,year,sumETo,prec)%>%
+              aggregate(.~ year + month,sum))
 
 write_csv(aus_env_pdsi,
           "results/aus_env_pdsi.csv")

@@ -41,14 +41,14 @@ run.fit = 1
 #country ="aus"
 args <- commandArgs(trailingOnly = TRUE)
 #country.list <- as.character(args[1]) #c("aus","spain")
-country.list <- c("spain") #aus
+country.list <- c("spain","aus") #aus
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
-  for(Code.focal in Code.focal.list[which(!Code.focal.list %in% c("BEMA","CETE","CHFU","HOMA"))]){ #focal.levels
+  for(Code.focal in Code.focal.list){ #focal.levels
     print(paste(country,Code.focal))
     
     if(country=="aus"){
@@ -69,8 +69,8 @@ for(country in country.list){
     }
     
     names.to.keep <- names(competition_focal_neigh)[
-      colSums(competition_focal_neigh)>10 & # more than 10 individuals found across all sample in the neighbourhood of the focal
-        !is.na(colSums(competition_focal_neigh)) 
+      colSums(competition_focal_neigh,na.rm=T)>0 & # more than 10 individuals found across all sample in the neighbourhood of the focal
+        !is.na(colSums(competition_focal_neigh,na.rm=T)) 
       & names(competition_focal_neigh) %in% Code.focal.list] 
     
     # filter not working so doing it that hard way 
@@ -138,7 +138,9 @@ for(country in country.list){
     
     DataVec <- list(N=N, 
                     S=S,
-                    lambda_prior = mean(Fecundity) + sd(Fecundity),
+                    lambda_prior = quantile(Fecundity,c(0.75)),
+                    lambda_prior_sd = quantile(Fecundity,c(0.5))-quantile(Fecundity,c(0.25)),
+                    lambda_upper = 2*max(Fecundity),
                     N_opt_prior = N_opt_prior,
                     year= year.vec,
                     Y = nlevels(as.factor(year.vec)),
@@ -278,6 +280,7 @@ for(country in country.list){
                      df_lambda_sd = df_lambda_sd,
                      df_alpha_generic_param = df_alpha_generic_param
     )
+    
     
     save(file= paste0(project.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"),
          parameter)
