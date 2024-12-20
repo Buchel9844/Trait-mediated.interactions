@@ -398,15 +398,25 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
             by="code.plant") %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
   dplyr::select(-c(code.plant,species)) %>%
-  gather(c("heigh","CS","LeafArea","SLA","LAI","DR",
+  gather(c("heigh","CS","LeafArea","SLA","LAI","DR","SRL",
           "TDMr","SRA","C.N","C13","N15"),key="trait",value="value") %>%
   aggregate(value ~ trait + code.analysis, mean) %>%
-  dplyr::filter(!trait %in% c("LeafArea","LAI","DR","C.N","SRL")) %>%
+  #dplyr::filter(!trait %in% c("LeafArea","LAI","DR","C.N","SRL")) %>%
   spread(trait,value) %>%
   left_join(numb.seed.spain %>%
               aggregate(total.seeds ~ focal.analysis, function(x)mean(x,na.rm=T)) %>%
               rename("code.analysis"="focal.analysis")) %>%
-  column_to_rownames("code.analysis")
+  column_to_rownames("code.analysis") %>%
+  rename("Ratio leafs" ="C.N",
+         "Water use efficiency"="C13",
+         "Canopy shape"="CS",
+         "Root diameter"="DR",
+         "Stem length"="heigh",
+         "Leaf/root area index"="LAI",
+         "Leaf area"="LeafArea",
+         "Leaf nitrogen cc"="N15",
+         "Root mass density"="TDMr",
+         "Mean fecundity"="total.seeds") 
   head(plant_traits_spain )
 
   spain.traits <- MFA(plant_traits_spain, 
@@ -455,7 +465,7 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       trait.dist_spain.df = trait.dist_spain.df)
 #load("data/clean.data.spain.RData")
 #clean.data.spain$plant_traits <- plant_traits_spain
-# clean.data.spain$trait.dist_spain.df  <- trait.dist_spain.df 
+## clean.data.spain$trait.dist_spain.df  <- trait.dist_spain.df 
 #clean.data.spain$abundance_spain.summary <- abundance_spain.summary
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
@@ -969,11 +979,18 @@ plant_traits_aus <- aus_traits_df %>%
                 root.biomass,
                 root.volume.less.than.0.5mm.diameter.mm3)  %>%
   
-  rename("root.volume"="root.volume.less.than.0.5mm.diameter.mm3",
-         "sla"="sla.mm2.mg",
-         "root.length"="total.root.length.cm",
-         "width.longest"="width.longest.mm",
-         "height"="height.mm") %>%
+  rename("Root volume"="root.volume.less.than.0.5mm.diameter.mm3",
+         "SLA"="sla.mm2.mg",
+         "SRL"="srl",
+         "Root length"="total.root.length.cm",
+         "Canopy width"="width.longest.mm",
+         "Canopy width 90deg"="width.90.from.longest.mm",
+         "Stem height"="height.mm",
+         "Seed mass"= "mean.seed.mass.mg",
+         "Root tips"="number.of.root.tips",
+         "Root biomass"="root.biomass",
+         "Flower width"="flower.size.numb" ,
+         "Mean fecundity" ="Fecundity") %>%
   #dplyr::filter(!final.code %in% c("ARCA","PEAI")) %>%
   column_to_rownames("final.code")
 

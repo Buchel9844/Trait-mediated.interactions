@@ -33,10 +33,15 @@ library(statnet)
 library(intergraph)
 library(ggraph)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
-home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
+project.dic <- ""
+home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
+
 #---- 0.1. Import results----
+load(file=paste0(home.dic,"data/clean.data.aus.RData"))
+load(file=paste0(home.dic,"data/clean.data.spain.RData"))
+country.list <- c("aus","spain")
 # parameter from models
 load(paste0(home.dic,"results/Parameters_alpha.RData")) 
 # Raw sigmoid
@@ -60,15 +65,974 @@ env_pdsi_aus <- read.csv(paste0(home.dic,"results/aus_env_pdsi.csv"))
 env_pdsi_spain <- read.csv(paste0(home.dic,"results/spain_env_pdsi.csv")) 
 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
-#---- 1.Looking at Fac for answers---
+#---- 1.Looking at Interactions for answers---
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+#---- 1.1. Make data df ----
+country = "spain"
+Cool.trait.df <- list()
+for( country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  year.levels <-levels(as.factor(Realised.Int.Year.list[[country]]$year))
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  Focal.group.df <- Realised.Int.Obs.list[[country]] %>%
+    dplyr::filter(!neigh ==focal) %>%
+    aggregate(sigmoid ~ focal, function(x) length(which(x<0))/length(x)) %>%
+    mutate(focal.org = case_when(sigmoid < 0.30 ~ "Receives Fac",
+                                 sigmoid > 0.70 ~ "Receives Comp",
+                               T ~ "Receives both"))%>%
+    rename("sigmoid.focal" = "sigmoid")
+  
+  Neigh.group.df <- Realised.Int.Obs.list[[country]] %>%
+    #dplyr::filter(realised.effect<10) %>%
+    dplyr::filter(!neigh ==focal) %>%
+    aggregate(sigmoid ~ neigh, function(x) length(which(x<0))/length(x)) %>%
+    mutate(neigh.org = case_when(sigmoid < 0.30 ~ "Gives Fac",
+                                 sigmoid > 0.70 ~ "Gives Comp",
+                                 T ~ "Gives both")) %>%
+    rename("sigmoid.neigh" = "sigmoid")
+  if(country=="aus"){
+    Neigh.group.df <-Neigh.group.df %>%
+      mutate(neigh.org = case_when( sigmoid.neigh < 0.25 ~ "Gives Fac",
+                                    sigmoid.neigh > 0.50 ~ "Gives Comp",
+                                   T ~ "Gives both"))
+    
+    Focal.group.df <-   Focal.group.df %>%
+      mutate(focal.org = case_when( sigmoid.focal< 0.25 ~ "Receives Fac",
+                                    sigmoid.focal > 0.50 ~ "Receives Comp",
+                                 T ~ "Receives both"))
+  }
+    
+trait.df <- get(paste0("clean.data.",country))[["plant_traits"]]
+library(vegan)
+specific.trait.dist  <- NULL
+for( i in names(trait.df)){
+  #if( i =="coord.slow.to.fast") next
+  if(country=="spain"){Code.focal.list <- Code.focal.list[!Code.focal.list == "PAIN"] }
+  specific.trait.dist.n <- outer(trait.df[,i], trait.df[,i], '-') %>%
+    as.data.frame() %>%
+    gather(.,key="neigh",value="trait.dist") %>%
+    mutate(trait.dist=scale(trait.dist),
+           trait=i,
+           neigh= rep(Code.focal.list,each=length(Code.focal.list)),
+           focal= rep(Code.focal.list,times=length(Code.focal.list)))
+  # specific.trait.dist.n <- as.data.frame(as.matrix(vegdist(trait.df %>% dplyr::select(i) %>% 
+  #                                                       scale() %>% as.data.frame(),
+  #                                                  na.rm = T,method="euclidean",diag=T))) %>%
+  
+  specific.trait.dist <- bind_rows(specific.trait.dist,specific.trait.dist.n)
+}
+if(country=="aus"){
+specific.trait.dist <- specific.trait.dist %>%
+  mutate(category.traits = case_when(trait %in% c("SRL","Root length","Root tips","Root biomass","Root volume","coord.slow.to.fast") ~ "1.BelowGround",
+                                     trait %in% c("SLA","Stem height","Canopy width","Canopy width 90deg") ~ "2.Aboveground",
+                                     trait %in% c("Flower width","Mean fecundity","Seed mass")~ "3.Reproduction"))
+}
+if(country=="spain"){
+  specific.trait.dist <- specific.trait.dist %>%
+    mutate(category.traits = case_when(trait %in% c("SRL","SRA","Root mass density","Root diameter","Leaf/root area index","coord.slow.to.fast") ~ "1.BelowGround",
+                                       trait %in% c("SLA","Water use efficiency","Canopy shape","Stem length","Ratio leafs","Leaf area",
+                                                    "Leaf nitrogen cc") ~ "2.Aboveground",
+                                       trait %in% c("Mean fecundity") ~ "3.Reproduction"))
+}
+trait.dist.df <- Realised.Int.list[[country]] %>%
+  dplyr::filter(!neigh ==focal) %>%
+  group_by(neigh,focal) %>%
+  summarise(Sigm.Q5= median(sigmoid),
+            Sigm.neg= length(sigmoid[sigmoid<0]),
+            Sigm.total = length(sigmoid)#,# high mean high competition
+  ) %>%
+  ungroup() %>%
+  mutate(Sigm.ratio= Sigm.neg/Sigm.total) %>% 
+  left_join(specific.trait.dist %>% 
+              left_join(Focal.group.df%>% dplyr::select(focal, focal.org,sigmoid.focal), multiple="all") %>%
+              left_join(Neigh.group.df %>% dplyr::select(neigh, neigh.org,sigmoid.neigh), multiple="all"),
+            relationship ="many-to-many")
+if(country=="spain"){
+  trait.dist.df <- trait.dist.df%>% dplyr::filter(!focal=="PAIN") %>%
+    dplyr::filter(!neigh=="PAIN") 
+}
+sum.trait.dist.focal.df <- trait.dist.df %>%
+  group_by(focal.org,trait) %>%
+  summarise(median.trait.dist=median(trait.dist,na.rm=T),
+            Q10.trait.dist=quantile(trait.dist,c(0.10),na.rm=T),
+            Q90.trait.dist=quantile(trait.dist,c(0.90),na.rm=T),
+            median.sigmoid=median(Sigm.Q5,na.rm=T),
+            Q10.sigmoid=quantile(Sigm.Q5,c(0.10),na.rm=T),
+            Q90.sigmoid=quantile(Sigm.Q5,c(0.90),na.rm=T))%>%
+  ungroup()
+sum.trait.dist.neigh.df <- trait.dist.df %>%
+  group_by(neigh.org,trait) %>%
+  summarise(median.trait.dist=median(trait.dist,na.rm=T),
+            Q10.trait.dist=quantile(trait.dist,c(0.10),na.rm=T),
+            Q90.trait.dist=quantile(trait.dist,c(0.90),na.rm=T),
+            median.sigmoid=median(Sigm.Q5,na.rm=T),
+            Q10.sigmoid=quantile(Sigm.Q5,c(0.10),na.rm=T),
+            Q90.sigmoid=quantile(Sigm.Q5,c(0.90),na.rm=T))
+
+Cool.trait.df[[country]] <- list(
+  trait.dist.df=trait.dist.df,
+  sum.trait.dist.focal.df=sum.trait.dist.focal.df,
+  sum.trait.dist.neigh.df=sum.trait.dist.neigh.df,
+  specific.trait.dist=specific.trait.dist)
+}
+
+#---- 1.2. Detailed plot of dist and median interaction ----
+Cool.detailed.trait.plotlist <- list()
+for( country in country.list){
+  
+Cool.detailed.trait.plotlist[[paste0(country,"_focal")]] <- ggplot() +
+  geom_point(data=Cool.trait.df[[country]]$trait.dist.df,
+             aes(y=trait.dist,
+                 x=Sigm.Q5,
+                 group=as.factor(focal.org),
+                 fill=Sigm.ratio,
+                 color=as.factor(focal.org)),
+             shape=21,
+             size=1,
+             alpha=0.2) + 
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df,
+                  aes(y=median.trait.dist,
+                      x=median.sigmoid,
+                      xmin=Q10.sigmoid,
+                      xmax=Q90.sigmoid,
+                      color=as.factor(focal.org)),
+                  shape=15,
+                  size=1) + 
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df,
+                  aes(y=median.trait.dist,
+                      x=median.sigmoid,
+                      ymin=Q10.trait.dist,
+                      ymax=Q90.trait.dist,
+                      color=as.factor(focal.org)),
+                  shape=15,
+                  size=1) +
+  facet_wrap(.~trait,scale="free") + 
+  labs(y="Focal trait value - Neigh trait value",
+       x="Median sigmoid value given by Neigh")+
+  scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                             101, 
+                                             type = "continuous"))+
+  scale_color_manual(values = c("#EBCC2A","#F21A00","#3B9AB2"))+
+  theme_bw() 
+
+
+
+Cool.detailed.trait.plotlist[[paste0(country,"_neigh")]]  <- ggplot() +
+  geom_point(data=Cool.trait.df[[country]]$trait.dist.df,
+             aes(y=trait.dist,
+                 x=Sigm.Q5,
+                group=as.factor(neigh.org),
+                fill=Sigm.ratio,
+                color=as.factor(neigh.org)),
+                shape=21,
+                size=1,
+                alpha=0.2) + 
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df,
+                    aes(y=median.trait.dist,
+                        x=median.sigmoid,
+                        xmin=Q10.sigmoid,
+                        xmax=Q90.sigmoid,
+                        color=as.factor(neigh.org)),
+                    shape=15,
+                    size=1) + 
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df,
+                  aes(y=median.trait.dist,
+                      x=median.sigmoid,
+                      ymin=Q10.trait.dist,
+                      ymax=Q90.trait.dist,
+                      color=as.factor(neigh.org)),
+                  shape=15,
+                  size=1) +
+  facet_wrap(.~trait,scale="free") + 
+  labs(y="Focal trait value - Neigh trait value",
+       x="Median sigmoid value given by Neigh")+
+  scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                             101, 
+                                             type = "continuous"))+
+  scale_color_manual(values = c("#EBCC2A","#F21A00","#3B9AB2"))+
+  theme_bw() 
+}
+
+Cool.detailed.trait.plotlist[[paste0("spain_focal")]]
+Cool.detailed.trait.plotlist[[paste0("spain_neigh")]]
+Cool.detailed.trait.plotlist[[paste0("aus_focal")]]
+Cool.detailed.trait.plotlist[[paste0("aus_neigh")]]
+
+#---- 1.3. Stat Test ----
+Test.trait.df <- list()
+for( country in country.list){
+ trait.dist.df <- Cool.trait.df[[country]]$trait.dist.df
+ Test.neigh.trait.df <- NULL
+ Test.focal.trait.df <- NULL
+  for( trait.i in levels(as.factor(trait.dist.df$trait))){
+    if( trait.i =="coord.slow.to.fast") next
+    for( i in levels(as.factor(trait.dist.df$focal.org))){
+      trait.dist.df.i <-  trait.dist.df %>%
+          dplyr::filter(trait==trait.i) %>%
+          dplyr::filter(!focal.org==i )  %>%
+        dplyr::select(trait,focal.org,trait.dist)
+        #https://www.r-bloggers.com/2020/06/wilcoxon-test-in-r-how-to-compare-2-groups-under-the-non-normality-assumption-2/
+  test <- wilcox.test(trait.dist.df.i$trait.dist ~ trait.dist.df.i$focal.org,
+                    paired = F) # I am not sure if they should be paired or not 
+  Test.focal.trait.df.n <- data.frame(trait=trait.i,
+                                      focal.org.1 = levels(as.factor(trait.dist.df.i$focal.org))[1],
+                                      focal.org.2= levels(as.factor(trait.dist.df.i$focal.org))[2],
+                                      p.value = test$p.value,
+                                      stat= test$statistic
+                                      )
+  Test.focal.trait.df <- bind_rows(Test.focal.trait.df,Test.focal.trait.df.n)
+    }
+    
+  for( i in levels(as.factor(trait.dist.df$neigh.org))){
+      trait.dist.df.i <-  trait.dist.df %>%
+        dplyr::filter(trait==trait.i) %>%
+        dplyr::filter(!neigh.org==i )  %>%
+        dplyr::select(trait,neigh.org,trait.dist)
+      
+      test <- wilcox.test(trait.dist.df.i$trait.dist ~ trait.dist.df.i$neigh.org,
+                          paired = F) # I am not sure if they should be paired or not 
+      Test.neigh.trait.df.n <- data.frame(trait=trait.i,
+                                          neigh.org.1 = levels(as.factor(trait.dist.df.i$neigh.org))[1],
+                                          neigh.org.2= levels(as.factor(trait.dist.df.i$neigh.org))[2],
+                                          p.value = test$p.value,
+                                          stat= test$statistic)
+      Test.neigh.trait.df <- bind_rows(Test.neigh.trait.df,Test.neigh.trait.df.n)
+      }
+  }
+ Test.trait.df[[country]] <- list( Test.focal.trait.df= Test.focal.trait.df,
+                                   Test.neigh.trait.df=Test.neigh.trait.df)
+}
+#---- 1.4. Summary plot with dist - rect ----
+Cool.rect.trait.plotlist <- list()
+country="aus"
+for( country in country.list){
+  Test.focal.trait.df <- Test.trait.df[[country]]$Test.focal.trait.df %>%
+    dplyr::filter(p.value< 0.05) 
+  trait.dist.df <-  Cool.trait.df[[country]]$trait.dist.df 
+  sum.trait.dist.focal.df<- Cool.trait.df[[country]]$sum.trait.dist.focal.df
+  specific.trait.dist <- Cool.trait.df[[country]]$specific.trait.dist 
+Focal_sum <- ggplot()+
+  geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+                   mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))) %>%
+                   mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+             aes(x=trait.dist,  
+                 y=trait,
+                 fill=sigmoid.focal,
+                 color=focal.org),
+             position = position_dodge(width = 0.7),
+             shape=21,size=2,alpha=0.2) +
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df %>%
+                    mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))),
+                  position = position_dodge(width = 0.7),
+                  aes(x=median.trait.dist,
+                      y=trait,
+                      xmin=Q10.trait.dist,
+                      xmax=Q90.trait.dist,
+                      color=as.factor(focal.org)),
+                  shape=16,
+                  size=1) +
+  scale_y_discrete(expand=c(0.1,0.1))+
+  annotate("text", x = 2, y=0.2, 
+           label = "Focal has higher \n trait value than neigh",
+           size=4) + 
+  geom_segment(aes(x = 1.5, y = 0.2, xend = 2.5, yend = 0.2),
+               arrow = arrow(length = unit(0.2, "cm")))+
+  annotate("text", x = -2, y=0.2, 
+           label = "Focal has lower \n trait value than neigh",
+           size=4) + 
+  geom_segment(aes(x = -1.5, y = 0.2, xend = -2.5, yend = 0.2),
+               arrow = arrow(length = unit(0.2, "cm")))+
+  labs(x="Focal trait value - Neigh trait value",
+       y="trait",
+       color="Species grouping based on received interactions")+
+  scale_color_manual(values = c("#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+  scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                          101, 
+                                          type = "continuous"))+
+  theme_bw()  +
+  guides(color = guide_legend(title.position = "top")) + 
+  theme(legend.position="bottom",
+        axis.text.y=element_text(face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.focal.df$trait)) %in% levels(as.factor(Test.focal.trait.df$trait)),
+                                             "bold","plain")))
+
+Test.neigh.trait.df <- Test.trait.df[[country]]$Test.neigh.trait.df %>%
+  dplyr::filter(p.value< 0.05) 
+
+Neigh_sum <- ggplot()+
+  geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+                mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp")))%>%
+                mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+             aes(x=-trait.dist, # reverse the distance to values on the right mean higher value of the trait  
+                 y=trait,
+                 fill= sigmoid.neigh,
+                 color=as.factor(neigh.org)),
+             position = position_dodge(width = 0.7),
+             shape=21,size=2,alpha=0.2) +
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df %>%
+                    mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp"))), # "Gives both"
+                  position = position_dodge(width = 0.7),
+                  aes(x=-median.trait.dist,
+                      y=trait,
+                      xmin=-Q10.trait.dist,
+                      xmax=-Q90.trait.dist,
+                      color=as.factor(neigh.org)),
+                  shape=15,
+                  size=1) +
+  scale_y_discrete(expand=c(0.1,0.1))+
+  annotate("text", x = 2, y=0.2, 
+           label = "Neigh has higher \n trait value than focal",
+           size=4) + 
+  geom_segment(aes(x = 1.5, y = 0.2, xend = 2.5, yend = 0.2),
+               arrow = arrow(length = unit(0.2, "cm")))+
+  annotate("text", x = -2, y=0.2, 
+           label = "Neigh has lower \n trait value than focal",
+           size=4) + 
+  geom_segment(aes(x = -1.5, y = 0.2, xend = -2.5, yend = 0.2),
+               arrow = arrow(length = unit(0.2, "cm")))+
+  labs(x="Focal trait value - Neigh trait value",
+       y="trait",
+       color="Species grouping based on given interactions")+
+  scale_fill_gradientn(colours= wes_palette("Zissou1", 
+                                          101, 
+                                          type = "continuous"))+
+  scale_color_manual(values = c( "#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+  theme_bw() +
+  guides(color = guide_legend(title.position = "top")) + 
+  theme(legend.position="bottom",
+        axis.text.y=element_text(face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.neigh.df$trait)) %in% levels(as.factor(Test.neigh.trait.df$trait)),
+                                             "bold","plain")))
+
+
+
+Cool.rect.trait.plotlist[[paste0(country,"_sum")]] <-
+  ggarrange(Focal_sum,Neigh_sum,
+            nrow=1,
+            common.legend = F)
+}
+Cool.rect.trait.plotlist[["aus_sum"]] 
+Cool.rect.trait.plotlist[["spain_sum"]] 
+#---- 1.5. Summary plot with dist - circ ----
+Cool.circ.trait.plotlist <- list()
+country="aus"
+addline_format <- function(x,...){
+  gsub('\\s','\n',x)
+}
+for( country in country.list){
+   Test.focal.trait.df <- Test.trait.df[[country]]$Test.focal.trait.df %>%
+    dplyr::filter(p.value< 0.05)
+  trait.dist.df <-  Cool.trait.df[[country]]$trait.dist.df 
+  sum.trait.dist.focal.df<- Cool.trait.df[[country]]$sum.trait.dist.focal.df
+  specific.trait.dist <- Cool.trait.df[[country]]$specific.trait.dist 
+  
+Focal_sum_circ <- ggplot()+
+  geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+               mutate(focal = factor(focal, levels= Focal.group.df$focal[order(Focal.group.df$sigmoid)]))%>%
+               mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))) %>%
+               mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+              aes(y=trait.dist,  
+                 x=trait,
+                 fill=sigmoid.focal,
+                 color=focal.org),
+             position = position_dodge(width = 0.7),
+             shape=21,size=2,alpha=0.2) +
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df %>%
+                    mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))), # "Receives both",
+                  position = position_dodge(width = 0.7),
+                  aes(y=median.trait.dist,
+                      x=trait,
+                      ymin=Q10.trait.dist,
+                      ymax=Q90.trait.dist,
+                      color=as.factor(focal.org)),
+                  shape=16,
+                  size=1) +
+  geom_hline(yintercept=0,color="black") +
+  annotate("text",x =3.4, y = 1, label = "Higher trait value",
+           angle = 14,color = "gray12",size = 3.5)+ # spain: 14, aus: 6
+  geom_segment(aes(x = 3.5, y = 0, xend = 3.5, yend = 2),
+                arrow = arrow(length = unit(0.5, "cm")))+
+  annotate("text",x =3.6, y = -1, label = "Lower trait value",
+           angle = 14,color = "gray12",size = 3.5)+
+  geom_segment(aes(x = 3.5, y = 0, xend = 3.5, yend = -2),
+               arrow = arrow(length = unit(0.5, "cm")))+
+  scale_y_continuous(breaks=c(0)) + 
+  scale_x_discrete(labels=addline_format(unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))) +
+  labs(fill="Percentage of Comp given",
+       color="Species grouping based on given interactions")+
+  scale_fill_gradientn(colours= wes_palette("Zissou1", 
+                                            101, 
+                                            type = "continuous"))+
+  scale_color_manual(values = c( "#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+  coord_polar() +
+  guides(color = guide_legend(title.position = "top"),
+         fill = guide_legend(title.position = "top")) + 
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        # Use gray text for the region names
+        axis.text.x = element_text(color = "gray12", size = 12,
+                                   face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.focal.df$trait)) %in% levels(as.factor(Test.focal.trait.df$trait)),
+                                                "bold","plain")),
+        panel.background = element_rect(fill = "white", color = "white"),
+        panel.border = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+Focal_sum_circ 
+
+Test.neigh.trait.df  <- Test.trait.df[[country]]$Test.neigh.trait.df %>%
+  dplyr::filter(p.value< 0.05)  
+  
+Neigh_sum_circ <- ggplot()+
+  geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+               #mutate(neigh= factor(neigh, levels= Neigh.group.df$neigh[order(Neigh.group.df$sigmoid)])) %>%
+               mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp"))) %>%
+               mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+              aes(y=-trait.dist,
+                 x=trait,
+                 fill= sigmoid.neigh,
+                 color=as.factor(neigh.org)),
+             position = position_dodge(width = 0.7),
+             shape=21,size=2,alpha=0.2) +
+  geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df %>%
+                    mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp"))), # "Gives both"
+                  position = position_dodge(width = 0.7),
+                  aes(y=-median.trait.dist,
+                      x=trait,
+                      ymin=-Q10.trait.dist,
+                      ymax=-Q90.trait.dist,
+                      color=as.factor(neigh.org)),
+                  shape=15,
+                  size=1) +
+  geom_hline(yintercept=0,color="black") +
+  scale_y_continuous(breaks=c(0)) + 
+  scale_x_discrete(labels=addline_format(unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))) +
+   labs(fill="Percentage of Comp given",
+        color="Species grouping based on given interactions")+
+  scale_fill_gradientn(colours= wes_palette("Zissou1", 
+                                            101, 
+                                            type = "continuous"))+
+  scale_color_manual(values = c( "#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+  coord_polar() +
+  guides(color = guide_legend(title.position = "top"),
+        fill = guide_legend(title.position = "top")) + 
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        # Use gray text for the region names
+        panel.background = element_rect(fill = "white", color = "white"),
+        panel.border = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.text.x=element_text(color = "gray12", size = 12,
+                                 face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.neigh.df$trait)) %in% levels(as.factor(Test.neigh.trait.df$trait)),
+                                             "bold","plain")))
+Neigh_sum_circ
+
+Cool.circ.trait.plotlist[[paste0(country,"_circ")]] <-
+  ggarrange(Focal_sum_circ,Neigh_sum_circ,
+            nrow=1,
+            common.legend = F, labels=c("a. Species as receiver","b. Species as impactor"))
+}
+
+Cool.circ.trait.plotlist[[paste0("spain_circ")]] # figures/Cool.circ.trait.spain.pdf
+Cool.circ.trait.plotlist[[paste0("aus_circ")]] # figures/Cool.circ.trait.aus.pdf
 
 
 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
-#---- 2.Traits Graph related- Looking at traits for answers---
+#---- 2.Looking at Interactions across time for answers---
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
-#---- 2.1 With different grouping of functional group ----
+#---- 2.1. Make data df ----
+country = "spain"
+Cool.trait.df <- list()
+for( country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  year.levels <-levels(as.factor(Realised.Int.Year.list[[country]]$year))
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  Focal.group.df <- Realised.Int.Obs.list[[country]] %>%
+    dplyr::filter(!neigh ==focal) %>%
+    aggregate(sigmoid ~ focal + year, function(x) length(which(x<0))/length(x)) %>%
+    mutate(focal.org = case_when(sigmoid < 0.30 ~ "Receives Fac",
+                                 sigmoid > 0.70 ~ "Receives Comp",
+                                 T ~ "Receives both"))%>%
+    rename("sigmoid.focal" = "sigmoid") %>%
+    mutate(year=as.integer(year)) %>%
+    left_join(env_pdsi%>% mutate(year=as.integer(year)) )
+  
+
+  ggplot(Focal.group.df,aes(y=sigmoid.focal, x=Precip.extrem)) + geom_point()+
+    geom_smooth(method="lm",se=F)
+  
+  Neigh.group.df <- Realised.Int.Obs.list[[country]] %>%
+    #dplyr::filter(realised.effect<10) %>%
+    dplyr::filter(!neigh ==focal) %>%
+    aggregate(sigmoid ~ neigh + year, function(x) length(which(x<0))/length(x)) %>%
+    mutate(neigh.org = case_when(sigmoid < 0.30 ~ "Gives Fac",
+                                 sigmoid > 0.70 ~ "Gives Comp",
+                                 T ~ "Gives both")) %>%
+    rename("sigmoid.neigh" = "sigmoid")%>%
+    mutate(year=as.integer(year)) %>%
+    left_join(env_pdsi%>% mutate(year=as.integer(year)) )
+  
+  ggplot(Neigh.group.df,aes(y=sigmoid.neigh, x=Precip.extrem)) + geom_point()+
+    geom_smooth(method="lm",se=F)
+  
+  if(country=="aus"){
+    Neigh.group.df <-Neigh.group.df %>%
+      mutate(neigh.org = case_when( sigmoid.neigh < 0.25 ~ "Gives Fac",
+                                    sigmoid.neigh > 0.50 ~ "Gives Comp",
+                                    T ~ "Gives both"))
+    
+    Focal.group.df <-   Focal.group.df %>%
+      mutate(focal.org = case_when( sigmoid.focal< 0.25 ~ "Receives Fac",
+                                    sigmoid.focal > 0.50 ~ "Receives Comp",
+                                    T ~ "Receives both"))
+  }
+  
+  trait.df <- get(paste0("clean.data.",country))[["plant_traits"]]
+  library(vegan)
+  specific.trait.dist  <- NULL
+  for( i in names(trait.df)){
+    #if( i =="coord.slow.to.fast") next
+    if(country=="spain"){Code.focal.list <- Code.focal.list[!Code.focal.list == "PAIN"] }
+    specific.trait.dist.n <- outer(trait.df[,i], trait.df[,i], '-') %>%
+      as.data.frame() %>%
+      gather(.,key="neigh",value="trait.dist") %>%
+      mutate(trait.dist=scale(trait.dist),
+             trait=i,
+             neigh= rep(Code.focal.list,each=length(Code.focal.list)),
+             focal= rep(Code.focal.list,times=length(Code.focal.list)))
+    # specific.trait.dist.n <- as.data.frame(as.matrix(vegdist(trait.df %>% dplyr::select(i) %>% 
+    #                                                       scale() %>% as.data.frame(),
+    #                                                  na.rm = T,method="euclidean",diag=T))) %>%
+    
+    specific.trait.dist <- bind_rows(specific.trait.dist,specific.trait.dist.n)
+  }
+  if(country=="aus"){
+    specific.trait.dist <- specific.trait.dist %>%
+      mutate(category.traits = case_when(trait %in% c("SRL","Root length","Root tips","Root biomass","Root volume","coord.slow.to.fast") ~ "1.BelowGround",
+                                         trait %in% c("SLA","Stem height","Canopy width","Canopy width 90deg") ~ "2.Aboveground",
+                                         trait %in% c("Flower width","Mean fecundity","Seed mass")~ "3.Reproduction"))
+  }
+  if(country=="spain"){
+    specific.trait.dist <- specific.trait.dist %>%
+      mutate(category.traits = case_when(trait %in% c("SRL","SRA","Root mass density","Root diameter","Leaf/root area index","coord.slow.to.fast") ~ "1.BelowGround",
+                                         trait %in% c("SLA","Water use efficiency","Canopy shape","Stem length","Ratio leafs","Leaf area",
+                                                      "Leaf nitrogen cc") ~ "2.Aboveground",
+                                         trait %in% c("Mean fecundity") ~ "3.Reproduction"))
+  }
+  trait.dist.df <- Realised.Int.list[[country]] %>%
+    dplyr::filter(!neigh ==focal) %>%
+    group_by(neigh,focal) %>%
+    summarise(Sigm.Q5= median(sigmoid),
+              Sigm.neg= length(sigmoid[sigmoid<0]),
+              Sigm.total = length(sigmoid)#,# high mean high competition
+    ) %>%
+    ungroup() %>%
+    mutate(Sigm.ratio= Sigm.neg/Sigm.total) %>% 
+    left_join(specific.trait.dist %>% 
+                left_join(Focal.group.df%>% dplyr::select(focal, focal.org,sigmoid.focal), multiple="all") %>%
+                left_join(Neigh.group.df %>% dplyr::select(neigh, neigh.org,sigmoid.neigh), multiple="all"),
+              relationship ="many-to-many")
+  if(country=="spain"){
+    trait.dist.df <- trait.dist.df%>% dplyr::filter(!focal=="PAIN") %>%
+      dplyr::filter(!neigh=="PAIN") 
+  }
+  sum.trait.dist.focal.df <- trait.dist.df %>%
+    group_by(focal.org,trait) %>%
+    summarise(median.trait.dist=median(trait.dist,na.rm=T),
+              Q10.trait.dist=quantile(trait.dist,c(0.10),na.rm=T),
+              Q90.trait.dist=quantile(trait.dist,c(0.90),na.rm=T),
+              median.sigmoid=median(Sigm.Q5,na.rm=T),
+              Q10.sigmoid=quantile(Sigm.Q5,c(0.10),na.rm=T),
+              Q90.sigmoid=quantile(Sigm.Q5,c(0.90),na.rm=T))%>%
+    ungroup()
+  sum.trait.dist.neigh.df <- trait.dist.df %>%
+    group_by(neigh.org,trait) %>%
+    summarise(median.trait.dist=median(trait.dist,na.rm=T),
+              Q10.trait.dist=quantile(trait.dist,c(0.10),na.rm=T),
+              Q90.trait.dist=quantile(trait.dist,c(0.90),na.rm=T),
+              median.sigmoid=median(Sigm.Q5,na.rm=T),
+              Q10.sigmoid=quantile(Sigm.Q5,c(0.10),na.rm=T),
+              Q90.sigmoid=quantile(Sigm.Q5,c(0.90),na.rm=T))
+  
+  Cool.trait.df[[country]] <- list(
+    trait.dist.df=trait.dist.df,
+    sum.trait.dist.focal.df=sum.trait.dist.focal.df,
+    sum.trait.dist.neigh.df=sum.trait.dist.neigh.df,
+    specific.trait.dist=specific.trait.dist)
+}
+
+#---- 2.2. Detailed plot of dist and median interaction ----
+Cool.detailed.trait.plotlist <- list()
+for( country in country.list){
+  
+  Cool.detailed.trait.plotlist[[paste0(country,"_focal")]] <- ggplot() +
+    geom_point(data=Cool.trait.df[[country]]$trait.dist.df,
+               aes(y=trait.dist,
+                   x=Sigm.Q5,
+                   group=as.factor(focal.org),
+                   fill=Sigm.ratio,
+                   color=as.factor(focal.org)),
+               shape=21,
+               size=1,
+               alpha=0.2) + 
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df,
+                    aes(y=median.trait.dist,
+                        x=median.sigmoid,
+                        xmin=Q10.sigmoid,
+                        xmax=Q90.sigmoid,
+                        color=as.factor(focal.org)),
+                    shape=15,
+                    size=1) + 
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df,
+                    aes(y=median.trait.dist,
+                        x=median.sigmoid,
+                        ymin=Q10.trait.dist,
+                        ymax=Q90.trait.dist,
+                        color=as.factor(focal.org)),
+                    shape=15,
+                    size=1) +
+    facet_wrap(.~trait,scale="free") + 
+    labs(y="Focal trait value - Neigh trait value",
+         x="Median sigmoid value given by Neigh")+
+    scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                               101, 
+                                               type = "continuous"))+
+    scale_color_manual(values = c("#EBCC2A","#F21A00","#3B9AB2"))+
+    theme_bw() 
+  
+  
+  
+  Cool.detailed.trait.plotlist[[paste0(country,"_neigh")]]  <- ggplot() +
+    geom_point(data=Cool.trait.df[[country]]$trait.dist.df,
+               aes(y=trait.dist,
+                   x=Sigm.Q5,
+                   group=as.factor(neigh.org),
+                   fill=Sigm.ratio,
+                   color=as.factor(neigh.org)),
+               shape=21,
+               size=1,
+               alpha=0.2) + 
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df,
+                    aes(y=median.trait.dist,
+                        x=median.sigmoid,
+                        xmin=Q10.sigmoid,
+                        xmax=Q90.sigmoid,
+                        color=as.factor(neigh.org)),
+                    shape=15,
+                    size=1) + 
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df,
+                    aes(y=median.trait.dist,
+                        x=median.sigmoid,
+                        ymin=Q10.trait.dist,
+                        ymax=Q90.trait.dist,
+                        color=as.factor(neigh.org)),
+                    shape=15,
+                    size=1) +
+    facet_wrap(.~trait,scale="free") + 
+    labs(y="Focal trait value - Neigh trait value",
+         x="Median sigmoid value given by Neigh")+
+    scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                               101, 
+                                               type = "continuous"))+
+    scale_color_manual(values = c("#EBCC2A","#F21A00","#3B9AB2"))+
+    theme_bw() 
+}
+
+Cool.detailed.trait.plotlist[[paste0("spain_focal")]]
+Cool.detailed.trait.plotlist[[paste0("spain_neigh")]]
+Cool.detailed.trait.plotlist[[paste0("aus_focal")]]
+Cool.detailed.trait.plotlist[[paste0("aus_neigh")]]
+
+#---- 2.3. Stat Test ----
+Test.trait.df <- list()
+for( country in country.list){
+  trait.dist.df <- Cool.trait.df[[country]]$trait.dist.df
+  Test.neigh.trait.df <- NULL
+  Test.focal.trait.df <- NULL
+  for( trait.i in levels(as.factor(trait.dist.df$trait))){
+    if( trait.i =="coord.slow.to.fast") next
+    for( i in levels(as.factor(trait.dist.df$focal.org))){
+      trait.dist.df.i <-  trait.dist.df %>%
+        dplyr::filter(trait==trait.i) %>%
+        dplyr::filter(!focal.org==i )  %>%
+        dplyr::select(trait,focal.org,trait.dist)
+      #https://www.r-bloggers.com/2020/06/wilcoxon-test-in-r-how-to-compare-2-groups-under-the-non-normality-assumption-2/
+      test <- wilcox.test(trait.dist.df.i$trait.dist ~ trait.dist.df.i$focal.org,
+                          paired = F) # I am not sure if they should be paired or not 
+      Test.focal.trait.df.n <- data.frame(trait=trait.i,
+                                          focal.org.1 = levels(as.factor(trait.dist.df.i$focal.org))[1],
+                                          focal.org.2= levels(as.factor(trait.dist.df.i$focal.org))[2],
+                                          p.value = test$p.value,
+                                          stat= test$statistic
+      )
+      Test.focal.trait.df <- bind_rows(Test.focal.trait.df,Test.focal.trait.df.n)
+    }
+    
+    for( i in levels(as.factor(trait.dist.df$neigh.org))){
+      trait.dist.df.i <-  trait.dist.df %>%
+        dplyr::filter(trait==trait.i) %>%
+        dplyr::filter(!neigh.org==i )  %>%
+        dplyr::select(trait,neigh.org,trait.dist)
+      
+      test <- wilcox.test(trait.dist.df.i$trait.dist ~ trait.dist.df.i$neigh.org,
+                          paired = F) # I am not sure if they should be paired or not 
+      Test.neigh.trait.df.n <- data.frame(trait=trait.i,
+                                          neigh.org.1 = levels(as.factor(trait.dist.df.i$neigh.org))[1],
+                                          neigh.org.2= levels(as.factor(trait.dist.df.i$neigh.org))[2],
+                                          p.value = test$p.value,
+                                          stat= test$statistic)
+      Test.neigh.trait.df <- bind_rows(Test.neigh.trait.df,Test.neigh.trait.df.n)
+    }
+  }
+  Test.trait.df[[country]] <- list( Test.focal.trait.df= Test.focal.trait.df,
+                                    Test.neigh.trait.df=Test.neigh.trait.df)
+}
+#---- 2.4. Summary plot with dist - rect ----
+Cool.rect.trait.plotlist <- list()
+country="aus"
+for( country in country.list){
+  Test.focal.trait.df <- Test.trait.df[[country]]$Test.focal.trait.df %>%
+    dplyr::filter(p.value< 0.05) 
+  trait.dist.df <-  Cool.trait.df[[country]]$trait.dist.df 
+  sum.trait.dist.focal.df<- Cool.trait.df[[country]]$sum.trait.dist.focal.df
+  specific.trait.dist <- Cool.trait.df[[country]]$specific.trait.dist 
+  Focal_sum <- ggplot()+
+    geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+                 mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))) %>%
+                 mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+               aes(x=trait.dist,  
+                   y=trait,
+                   fill=sigmoid.focal,
+                   color=focal.org),
+               position = position_dodge(width = 0.7),
+               shape=21,size=2,alpha=0.2) +
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df %>%
+                      mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))),
+                    position = position_dodge(width = 0.7),
+                    aes(x=median.trait.dist,
+                        y=trait,
+                        xmin=Q10.trait.dist,
+                        xmax=Q90.trait.dist,
+                        color=as.factor(focal.org)),
+                    shape=16,
+                    size=1) +
+    scale_y_discrete(expand=c(0.1,0.1))+
+    annotate("text", x = 2, y=0.2, 
+             label = "Focal has higher \n trait value than neigh",
+             size=4) + 
+    geom_segment(aes(x = 1.5, y = 0.2, xend = 2.5, yend = 0.2),
+                 arrow = arrow(length = unit(0.2, "cm")))+
+    annotate("text", x = -2, y=0.2, 
+             label = "Focal has lower \n trait value than neigh",
+             size=4) + 
+    geom_segment(aes(x = -1.5, y = 0.2, xend = -2.5, yend = 0.2),
+                 arrow = arrow(length = unit(0.2, "cm")))+
+    labs(x="Focal trait value - Neigh trait value",
+         y="trait",
+         color="Species grouping based on received interactions")+
+    scale_color_manual(values = c("#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+    scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                               101, 
+                                               type = "continuous"))+
+    theme_bw()  +
+    guides(color = guide_legend(title.position = "top")) + 
+    theme(legend.position="bottom",
+          axis.text.y=element_text(face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.focal.df$trait)) %in% levels(as.factor(Test.focal.trait.df$trait)),
+                                               "bold","plain")))
+  
+  Test.neigh.trait.df <- Test.trait.df[[country]]$Test.neigh.trait.df %>%
+    dplyr::filter(p.value< 0.05) 
+  
+  Neigh_sum <- ggplot()+
+    geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+                 mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp")))%>%
+                 mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+               aes(x=-trait.dist, # reverse the distance to values on the right mean higher value of the trait  
+                   y=trait,
+                   fill= sigmoid.neigh,
+                   color=as.factor(neigh.org)),
+               position = position_dodge(width = 0.7),
+               shape=21,size=2,alpha=0.2) +
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df %>%
+                      mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp"))), # "Gives both"
+                    position = position_dodge(width = 0.7),
+                    aes(x=-median.trait.dist,
+                        y=trait,
+                        xmin=-Q10.trait.dist,
+                        xmax=-Q90.trait.dist,
+                        color=as.factor(neigh.org)),
+                    shape=15,
+                    size=1) +
+    scale_y_discrete(expand=c(0.1,0.1))+
+    annotate("text", x = 2, y=0.2, 
+             label = "Neigh has higher \n trait value than focal",
+             size=4) + 
+    geom_segment(aes(x = 1.5, y = 0.2, xend = 2.5, yend = 0.2),
+                 arrow = arrow(length = unit(0.2, "cm")))+
+    annotate("text", x = -2, y=0.2, 
+             label = "Neigh has lower \n trait value than focal",
+             size=4) + 
+    geom_segment(aes(x = -1.5, y = 0.2, xend = -2.5, yend = 0.2),
+                 arrow = arrow(length = unit(0.2, "cm")))+
+    labs(x="Focal trait value - Neigh trait value",
+         y="trait",
+         color="Species grouping based on given interactions")+
+    scale_fill_gradientn(colours= wes_palette("Zissou1", 
+                                              101, 
+                                              type = "continuous"))+
+    scale_color_manual(values = c( "#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+    theme_bw() +
+    guides(color = guide_legend(title.position = "top")) + 
+    theme(legend.position="bottom",
+          axis.text.y=element_text(face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.neigh.df$trait)) %in% levels(as.factor(Test.neigh.trait.df$trait)),
+                                               "bold","plain")))
+  
+  
+  
+  Cool.rect.trait.plotlist[[paste0(country,"_sum")]] <-
+    ggarrange(Focal_sum,Neigh_sum,
+              nrow=1,
+              common.legend = F)
+}
+Cool.rect.trait.plotlist[["aus_sum"]] 
+Cool.rect.trait.plotlist[["spain_sum"]] 
+#---- 2.5. Summary plot with dist - circ ----
+Cool.circ.trait.plotlist <- list()
+country="aus"
+addline_format <- function(x,...){
+  gsub('\\s','\n',x)
+}
+for( country in country.list){
+  Test.focal.trait.df <- Test.trait.df[[country]]$Test.focal.trait.df %>%
+    dplyr::filter(p.value< 0.05)
+  trait.dist.df <-  Cool.trait.df[[country]]$trait.dist.df 
+  sum.trait.dist.focal.df<- Cool.trait.df[[country]]$sum.trait.dist.focal.df
+  specific.trait.dist <- Cool.trait.df[[country]]$specific.trait.dist 
+  
+  Focal_sum_circ <- ggplot()+
+    geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+                 mutate(focal = factor(focal, levels= Focal.group.df$focal[order(Focal.group.df$sigmoid)]))%>%
+                 mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))) %>%
+                 mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+               aes(y=trait.dist,  
+                   x=trait,
+                   fill=sigmoid.focal,
+                   color=focal.org),
+               position = position_dodge(width = 0.7),
+               shape=21,size=2,alpha=0.2) +
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.focal.df %>%
+                      mutate(focal.org = factor(focal.org, levels=c("Receives Fac","Receives both","Receives Comp"))), # "Receives both",
+                    position = position_dodge(width = 0.7),
+                    aes(y=median.trait.dist,
+                        x=trait,
+                        ymin=Q10.trait.dist,
+                        ymax=Q90.trait.dist,
+                        color=as.factor(focal.org)),
+                    shape=16,
+                    size=1) +
+    geom_hline(yintercept=0,color="black") +
+    annotate("text",x =3.4, y = 1, label = "Higher trait value",
+             angle = 14,color = "gray12",size = 3.5)+ # spain: 14, aus: 6
+    geom_segment(aes(x = 3.5, y = 0, xend = 3.5, yend = 2),
+                 arrow = arrow(length = unit(0.5, "cm")))+
+    annotate("text",x =3.6, y = -1, label = "Lower trait value",
+             angle = 14,color = "gray12",size = 3.5)+
+    geom_segment(aes(x = 3.5, y = 0, xend = 3.5, yend = -2),
+                 arrow = arrow(length = unit(0.5, "cm")))+
+    scale_y_continuous(breaks=c(0)) + 
+    scale_x_discrete(labels=addline_format(unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))) +
+    labs(fill="Percentage of Comp given",
+         color="Species grouping based on given interactions")+
+    scale_fill_gradientn(colours= wes_palette("Zissou1", 
+                                              101, 
+                                              type = "continuous"))+
+    scale_color_manual(values = c( "#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+    coord_polar() +
+    guides(color = guide_legend(title.position = "top"),
+           fill = guide_legend(title.position = "top")) + 
+    theme_bw() +
+    theme(legend.position="bottom",
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.y = element_blank(),
+          # Use gray text for the region names
+          axis.text.x = element_text(color = "gray12", size = 12,
+                                     face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.focal.df$trait)) %in% levels(as.factor(Test.focal.trait.df$trait)),
+                                                 "bold","plain")),
+          panel.background = element_rect(fill = "white", color = "white"),
+          panel.border = element_blank(),
+          panel.grid.minor.y = element_blank()) 
+  Focal_sum_circ 
+  
+  Test.neigh.trait.df  <- Test.trait.df[[country]]$Test.neigh.trait.df %>%
+    dplyr::filter(p.value< 0.05)  
+  
+  Neigh_sum_circ <- ggplot()+
+    geom_point(data=Cool.trait.df[[country]]$trait.dist.df %>%
+                 #mutate(neigh= factor(neigh, levels= Neigh.group.df$neigh[order(Neigh.group.df$sigmoid)])) %>%
+                 mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp"))) %>%
+                 mutate(trait = factor(trait, levels = unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))),
+               aes(y=-trait.dist,
+                   x=trait,
+                   fill= sigmoid.neigh,
+                   color=as.factor(neigh.org)),
+               position = position_dodge(width = 0.7),
+               shape=21,size=2,alpha=0.2) +
+    geom_pointrange(data=Cool.trait.df[[country]]$sum.trait.dist.neigh.df %>%
+                      mutate(neigh.org = factor(neigh.org, levels=c("Gives Fac","Gives both","Gives Comp"))), # "Gives both"
+                    position = position_dodge(width = 0.7),
+                    aes(y=-median.trait.dist,
+                        x=trait,
+                        ymin=-Q10.trait.dist,
+                        ymax=-Q90.trait.dist,
+                        color=as.factor(neigh.org)),
+                    shape=15,
+                    size=1) +
+    geom_hline(yintercept=0,color="black") +
+    scale_y_continuous(breaks=c(0)) + 
+    scale_x_discrete(labels=addline_format(unique(specific.trait.dist$trait[order(specific.trait.dist$category.traits)]))) +
+    labs(fill="Percentage of Comp given",
+         color="Species grouping based on given interactions")+
+    scale_fill_gradientn(colours= wes_palette("Zissou1", 
+                                              101, 
+                                              type = "continuous"))+
+    scale_color_manual(values = c( "#3B9AB2","#EBCC2A","#F21A00"))+ # "#EBCC2A",
+    coord_polar() +
+    guides(color = guide_legend(title.position = "top"),
+           fill = guide_legend(title.position = "top")) + 
+    theme_bw() +
+    theme(legend.position="bottom",
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.y = element_blank(),
+          # Use gray text for the region names
+          panel.background = element_rect(fill = "white", color = "white"),
+          panel.border = element_blank(),
+          panel.grid.minor.y = element_blank(),
+          axis.text.x=element_text(color = "gray12", size = 12,
+                                   face=ifelse(levels(as.factor(Cool.trait.df[[country]]$sum.trait.dist.neigh.df$trait)) %in% levels(as.factor(Test.neigh.trait.df$trait)),
+                                               "bold","plain")))
+  Neigh_sum_circ
+  
+  Cool.circ.trait.plotlist[[paste0(country,"_circ")]] <-
+    ggarrange(Focal_sum_circ,Neigh_sum_circ,
+              nrow=1,
+              common.legend = F, labels=c("a. Species as receiver","b. Species as impactor"))
+}
+
+Cool.circ.trait.plotlist[[paste0("spain_circ")]] # figures/Cool.circ.trait.spain.pdf
+Cool.circ.trait.plotlist[[paste0("aus_circ")]] # figures/Cool.circ.trait.aus.pdf
+
+
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+#---- 3.Traits Graph related- Looking at traits for answers---
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+#---- 3.1 With different grouping of functional group ----
 Realised.Int.Group.plotlist <- list()
 grouping.list <- list()
 net.fct.group <- list()
@@ -222,7 +1186,7 @@ net.fct.group[[8]]#figures/Network.all.aus.below.pdf
 net.fct.group[[9]]#figures/Network.srl.aus.below.pdf
 net.fct.group[[10]]#figures/Network.height.root.aus.below.pdf
 
-#---- 2.2 Along the fast to slow gradient ----
+#---- 3.2 Along the fast to slow gradient ----
 Realised.Int.FSspectrum.plotlist <- list()
 
 country = "aus"
@@ -291,7 +1255,7 @@ Realised.Int.FSspectrum.plotlist[["aus"]] #figures/Heatmap.FS.spectrum_aus.pdf
 
 Realised.Int.FSspectrum.plotlist[["spain"]] #figures/Heatmap.FS.spectrum_spain.pdf
 
-#---- 2.3 Along the dist between interactors----
+#---- 3.3 Along the dist between interactors----
 Realised.Int.Dist.plotlist <- list()
 country = "spain"
 for( country in country.list){
@@ -419,7 +1383,7 @@ Realised.Int.Dist.Year.plotlist[["aus"]]
 Realised.Int.Dist.plotlist[["spain"]] #figures/Ratio.Dist_spain.pdf
 Realised.Int.Dist.Year.plotlist[["spain"]]
 
-#---- 2.4 Along the trait dist between interactors----
+#---- 3.4 Along the trait dist between interactors----
 Realised.Int.Dist.plotlist <- list()
 country = "spain"
 for( country in country.list){
@@ -624,7 +1588,7 @@ for( country in country.list){
   Dist.plot
   
 }
-
+#---- 3.5 Sem -----
 sem.trait.plotlist <- list()
 country = "aus"
 for( country in country.list){

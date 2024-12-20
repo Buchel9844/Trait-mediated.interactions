@@ -255,6 +255,7 @@ for(country in country.list){
 
 save(Parameters,
      file=paste0(home.dic,"results/Parameters_alpha.RData"))
+load(paste0(home.dic,"results/Parameters_alpha.RData"))
 
 
 #---- 3.1 Lambda ----

@@ -108,28 +108,30 @@ for(country in country.list){
       alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
                                              neigh]
       
-      alpha_initial  <-  alpha_initial[which(alpha_initial >= quantile(alpha_initial,probs=c(0.10)) &
-                                               alpha_initial <=  quantile(alpha_initial,probs=c(0.9)))][1:6400]
-      
+      #alpha_initial  <-  alpha_initial[which(alpha_initial >= quantile(alpha_initial,probs=c(0.10)) &
+      #                                         alpha_initial <=  quantile(alpha_initial,probs=c(0.9)))][1:6400]
+      alpha_initial  <-  quantile(alpha_initial,probs=c(0.50))
       
       alpha_slope = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
                                            neigh]
       
-      alpha_slope  <-  alpha_slope[which(alpha_slope>= quantile(alpha_slope,probs=c(0.10)) &
-                                           alpha_slope <=  quantile(alpha_slope,probs=c(0.9)))][1:6400]
+      #alpha_slope  <-  alpha_slope[which(alpha_slope>= quantile(alpha_slope,probs=c(0.10)) &
+      #                                     alpha_slope <=  quantile(alpha_slope,probs=c(0.9)))][1:6400]
       
+      alpha_slope  <- quantile(alpha_slope,probs=c(0.50))
       
       alpha_c = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
                                        neigh]
       
-      alpha_c  <-   alpha_c[which( alpha_c >= quantile( alpha_c,probs=c(0.10)) &
-                                     alpha_c <=  quantile( alpha_c,probs=c(0.9)))][1:6400]
+      #alpha_c  <-   alpha_c[which( alpha_c >= quantile( alpha_c,probs=c(0.10)) &
+       #                              alpha_c <=  quantile( alpha_c,probs=c(0.9)))][1:6400]
+      alpha_c  <-quantile( alpha_c,probs=c(0.50)) 
       
       N_opt = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh]
       
-      N_opt  <-   N_opt[which(N_opt>= quantile( N_opt,probs=c(0.10)) &
-                                N_opt <=  quantile( N_opt,probs=c(0.9)))][1:6400]
-      
+      #N_opt  <-   N_opt[which(N_opt>= quantile( N_opt,probs=c(0.10)) &
+      #                          N_opt <=  quantile( N_opt,probs=c(0.9)))][1:6400]
+      N_opt  <-quantile( N_opt,probs=c(0.50))
       param.neigh <- data.frame(neigh = neigh, 
                                 country = country,
                                 alpha_initial = alpha_initial,
