@@ -412,13 +412,93 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
          "Canopy shape"="CS",
          "Root diameter"="DR",
          "Stem length"="heigh",
-         "Leaf/root area index"="LAI",
+         "Leaf area index"="LAI",
          "Leaf area"="LeafArea",
          "Leaf nitrogen cc"="N15",
          "Root mass density"="TDMr",
          "Mean fecundity"="total.seeds") 
   head(plant_traits_spain )
-
+  #---- 3.1.1 Data specific to PAIN----
+  # Data from https://uol.de/en/landeco/research/leda/data-files
+  #The LEDA Traitbase: A database of life-history traits of Northwest European flora. Journal of Ecology 96: 1266-1274.
+  seed_mass <- read_delim("data/spain_rawdata/PAIN_traits/seed.mass.csv", 
+                          delim = ";", escape_double = FALSE, trim_ws = TRUE, 
+                          skip = 3) %>%
+    rename("species"="SBS name") %>%
+    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                    str_detect(species, "^Parapholis")) %>%
+    dplyr::select(c("species","single value [mg]","mean SM [mg]")) %>% as.data.frame() %>%
+    rename("value"="single value [mg]",
+           "mean.value"="mean SM [mg]") %>% 
+    mutate(mean.value = coalesce(mean.value, value)) %>%
+    mutate(trait = "SeedMass") %>%
+    group_by( species,trait) %>%
+    summarise(value.trait = mean(mean.value)/100)
+  
+  LS <- read_delim("data/spain_rawdata/PAIN_traits/LA.csv", delim = ";", escape_double = FALSE, 
+                   trim_ws = TRUE, skip = 3) %>%
+    rename("species"="SBS name") %>%
+    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                    str_detect(species, "^Parapholis")) %>%
+    dplyr::select(c("species","single value [mm^2]","mean LS [mm^2]")) %>% as.data.frame() %>%
+    rename("value"="single value [mm^2]",
+           "mean.value"="mean LS [mm^2]") %>% 
+    mutate(mean.value = coalesce(mean.value, value)) %>%
+    mutate(trait = "Leaf area")%>%
+    group_by( species,trait) %>%
+    summarise(value.trait = mean(mean.value)/100)
+  
+  
+  SLA <- read_delim("data/spain_rawdata/PAIN_traits/SLA.csv", delim = ";", escape_double = FALSE, 
+                    trim_ws = TRUE, skip = 4) %>%
+    rename("species"="SBS name") %>%
+    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                    str_detect(species, "^Parapholis")) %>%
+    dplyr::select(c("species","single value [mm^2/mg]","mean SLA [mm^2/mg]")) %>% as.data.frame() %>%
+    rename("value"="single value [mm^2/mg]",
+           "mean.value"="mean SLA [mm^2/mg]") %>% 
+    mutate(mean.value = coalesce(mean.value, value)) %>%
+    mutate(trait = "SLA") %>%
+    group_by( species,trait) %>%
+    summarise(value.trait = mean(mean.value)*100)
+  
+  height <- read_delim("data/spain_rawdata/PAIN_traits/height.csv", delim = ";", escape_double = FALSE, 
+                       trim_ws = TRUE, skip = 4) %>%
+    rename("species"="SBS name") %>%
+    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                    str_detect(species, "^Parapholis")) %>%
+    dplyr::select(c("species","single value [m]","mean CH [m]")) %>% as.data.frame() %>%
+    rename("value"="single value [m]",
+           "mean.value"="mean CH [m]") %>% 
+    mutate(mean.value = coalesce(mean.value, value)) %>%
+    mutate(trait = "Stem length") %>%
+    group_by( species,trait) %>%
+    summarise(value.trait = mean(mean.value)*100)
+  
+  
+  LMDC <- read_delim("data/spain_rawdata/PAIN_traits/LMDC.csv", delim = ";", escape_double = FALSE, 
+                     trim_ws = TRUE, skip = 4) %>%
+    rename("species"="SBS name") %>%
+    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                    str_detect(species, "^Parapholis")) %>%
+    dplyr::select(c("species","single value [mg/g]","mean LMDC [mg/g]")) %>% as.data.frame() %>%
+    rename("value"="single value [mg/g]",
+           "mean.value"="mean LMDC [mg/g]") %>% 
+    mutate(mean.value = coalesce(mean.value, value)) %>%
+    mutate(trait = "LeafDryMatter") %>%
+    group_by(species,trait) %>%
+    summarise(value.trait = mean(mean.value)/100) 
+  
+  PAIN_traits <- bind_rows(LS, SLA,height) %>% # Seed mas and leaf dry matter
+    dplyr::filter(str_detect(species, "^Parapholis")) %>%
+    aggregate(value.trait ~ trait, function(x) mean(x,na.rm=T)) %>%
+    spread(trait,value.trait)  %>% 
+    mutate(code="PAIN") %>%
+    column_to_rownames("code")
+  
+  plant_traits_spain <- plant_traits_spain %>% bind_rows(PAIN_traits)
+  view(plant_traits_spain)
+  #---- 3.1.2. PCA trait -----
   spain.traits <- MFA(plant_traits_spain, 
                         group = rep(c(1),each=ncol(plant_traits_spain)),#(1,1,1,1,1,1,1,1,1,1), 
                         type = rep(c("s"),each=ncol(plant_traits_spain)),#c("n","n","n","s","s","s","s","s","n","n"),
@@ -445,7 +525,7 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
   plot(hc)
   plant_traits_spain <- plant_traits_spain %>%
     mutate( coord.slow.to.fast =spain.traits$global.pca$ind$coord[,"Dim.1"])
-
+  
 # ---- 4.4. Gather trait mat ----
   trait.dist_spain.df <- as.data.frame(as.matrix(spain.traits.dist)) %>%
     rownames_to_column(var="focal") %>%
@@ -964,6 +1044,7 @@ aus_traits_df <- read.csv("data/aus_traits_df.csv")
 plant_traits_aus <- aus_traits_df %>%
   mutate(mean.seed.mass.mg = case_when(is.na(mean.seed.mass.mg)~seed.dry.mass,
                                        T~mean.seed.mass.mg)) %>%
+  mutate(CanopyArea = pi*width.longest.mm*width.90.from.longest.mm) %>%
   dplyr::select(final.code,
                 flower.size.numb,
                 Fecundity,
@@ -971,20 +1052,21 @@ plant_traits_aus <- aus_traits_df %>%
                 mean.seed.mass.mg,
                 height.mm,
                 sla.mm2.mg,
-                width.longest.mm, 
-                width.90.from.longest.mm,
+                #width.longest.mm, 
+                #width.90.from.longest.mm,
+                CanopyArea,
                 total.root.length.cm,
                 number.of.root.tips,
                 srl,
                 root.biomass,
                 root.volume.less.than.0.5mm.diameter.mm3)  %>%
-  
   rename("Root volume"="root.volume.less.than.0.5mm.diameter.mm3",
          "SLA"="sla.mm2.mg",
          "SRL"="srl",
          "Root length"="total.root.length.cm",
-         "Canopy width"="width.longest.mm",
-         "Canopy width 90deg"="width.90.from.longest.mm",
+         "Canopy area" = "CanopyArea",
+         #"Canopy width"="width.longest.mm",
+         #"Canopy width 90deg"="width.90.from.longest.mm",
          "Stem height"="height.mm",
          "Seed mass"= "mean.seed.mass.mg",
          "Root tips"="number.of.root.tips",
@@ -992,8 +1074,8 @@ plant_traits_aus <- aus_traits_df %>%
          "Flower width"="flower.size.numb" ,
          "Mean fecundity" ="Fecundity") %>%
   #dplyr::filter(!final.code %in% c("ARCA","PEAI")) %>%
-  column_to_rownames("final.code")
-
+  column_to_rownames("final.code") 
+view(plant_traits_aus)
 # PCA analysis
 #https://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/116-mfa-multiple-factor-analysis-in-r-essentials/
 

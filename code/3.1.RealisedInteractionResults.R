@@ -422,10 +422,10 @@ for(country in country.list){
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
   
-  Box.Plot.Realised.effect <- Realised.Int.list[[country]] %>%
+  Box.Plot.Realised.effect <- Realised.Int.Obs.list[[country]] %>%
     mutate(intra.bi = case_when(focal==neigh ~ "INTRA",
                                 T~"INTER")) %>%
-    ggplot(aes(y=sigmoid,x=as.factor(neigh),
+    ggplot(aes(y=realised.effect.std.lambda,x=as.factor(neigh),
                color=as.factor(neigh),fill=intra.bi)) + 
     #geom_hline(yintercept = 1, color="black",size=1) +
     geom_boxplot() +
@@ -547,6 +547,7 @@ for(country in country.list){
       t()# for the network to have row has emitor and columns as receiver
   }
   plot.network.gradient.int(ratio.mat,strength.mat,"",0.01)
+  par(mar = rep(0, 4))
   net.country[[country]] <- recordPlot()
   
   
@@ -554,6 +555,7 @@ for(country in country.list){
 net.country$spain
 # figures/Network.Realised.effect_spain.pdf
 net.country$aus
+layout(1)
 # figures/Network.Realised.effect_aus.pdf
 plot(get_legend(plot.legend))
 #figures/Network.Realised.effect_legend.pdf
@@ -565,13 +567,13 @@ plot_grid(
   rel_heights =c(1,0.2),
   labels = '')
 # figures/Network.Realised.effect.pdf
-ggsave( plot_grid(net.country[["aus"]],
+ggsave( plot_grid(net.country$aus,
                   get_legend(plot.legend),
                   ncol = 1,
                   rel_heights =c(1,0.24),
                   labels = "",
                   hjust = 0, vjust = 1),
-        file=paste0(home.dic,"figures/Network.Obs.Realised.effect_aus.pdf")) 
+        file=paste0(home.dic,"figures/Network.Obs.Sigmoid.effect_aus.pdf")) 
 ggsave( plot_grid(net.country[["spain"]],
                   get_legend(plot.legend),
                   ncol = 1,
@@ -706,17 +708,17 @@ sum.up.df <- NULL
 for(country in country.list){
   
   sum.up.df.n <- Realised.Int.Obs.list[[country]] %>%
-    summarise(mean.effect = (mean(realised.effect)-1)*100,
-              median.effect = (median(realised.effect)-1)*100,
-              var.effect = (var(realised.effect))*100,
-              max.positive.effect = (max(realised.effect)-1)*100,
-              max.negative.effect = (min(realised.effect)-1)*100,
-              count.positive = count(realised.effect >1),
-              count.negative = count(realised.effect <1),
-              count.total = count(realised.effect>0)) %>%
-    mutate(proportion.positive =(count.positive/count.total) * 100,
-           proportion.negative =(count.negative/count.total)* 100,
-           proportion.neutre =100-(proportion.positive +proportion.negative),
+    summarise(mean.effect = (mean(sigmoid)),
+              median.effect = (median(sigmoid)),
+              var.effect = (var(sigmoid)),
+              max.positive.effect = (max(sigmoid)),
+              max.negative.effect = (min(sigmoid)),
+              count.positive = length(sigmoid[sigmoid >0]),
+              count.negative = length(sigmoid[sigmoid  <0]),
+              count.total = length(sigmoid)) %>%
+    mutate(proportion.positive =(count.positive/count.total),
+           proportion.negative =(count.negative/count.total),
+           proportion.neutre =1-(proportion.positive +proportion.negative),
            country = country,
            effect ="both",
            species = "All")
@@ -724,35 +726,34 @@ for(country in country.list){
   
   sum.up.neigh.df.n <- Realised.Int.list[[country]] %>%
     group_by(neigh) %>%
-    summarize(mean.effect = (mean(realised.effect)-1)*100,
-              median.effect = (median(realised.effect)-1)*100,
-              var.effect = (var(realised.effect))*100,
-              max.positive.effect = (max(realised.effect)-1)*100,
-              max.negative.effect = (min(realised.effect)-1)*100,
-              count.neutre = count(realised.effect ==1),
-              count.positive = count(realised.effect >1),
-              count.negative = count(realised.effect <1),
-              count.total = count(realised.effect>0)) %>%
-    mutate(proportion.positive =(count.positive/count.total) * 100,
-           proportion.negative =(count.negative/count.total)* 100,
-           proportion.neutre =100-(proportion.positive +proportion.negative),
+    summarise(mean.effect = (mean(sigmoid)),
+              median.effect = (median(sigmoid)),
+              var.effect = (var(sigmoid)),
+              max.positive.effect = (max(sigmoid)),
+              max.negative.effect = (min(sigmoid)),
+              count.positive = length(sigmoid[sigmoid >0]),
+              count.negative = length(sigmoid[sigmoid  <0]),
+              count.total = length(sigmoid)) %>%
+    mutate(proportion.positive =(count.positive/count.total),
+           proportion.negative =(count.negative/count.total),
+           proportion.neutre =1-(proportion.positive +proportion.negative),
+           country = country,
            effect ="given")%>%
     rename(species = "neigh")
   
   sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
     group_by(focal) %>%
-    summarize(mean.effect = (mean(realised.effect)-1)*100,
-              median.effect = (median(realised.effect)-1)*100,
-              var.effect = (var(realised.effect))*100,
-              max.positive.effect = (max(realised.effect)-1)*100,
-              max.negative.effect = (min(realised.effect)-1)*100,
-              count.neutre = count(realised.effect ==1),
-              count.positive = count(realised.effect >1),
-              count.negative = count(realised.effect <1),
-              count.total = count(realised.effect>0)) %>%
-    mutate(proportion.positive =(count.positive/count.total) * 100,
-           proportion.negative =(count.negative/count.total)* 100,
-           proportion.neutre =100-(proportion.positive +proportion.negative),
+    summarise(mean.effect = (mean(sigmoid)),
+              median.effect = (median(sigmoid)),
+              var.effect = (var(sigmoid)),
+              max.positive.effect = (max(sigmoid)),
+              max.negative.effect = (min(sigmoid)),
+              count.positive = length(sigmoid[sigmoid >0]),
+              count.negative = length(sigmoid[sigmoid  <0]),
+              count.total = length(sigmoid)) %>%
+    mutate(proportion.positive =(count.positive/count.total),
+           proportion.negative =(count.negative/count.total),
+           proportion.neutre =1-(proportion.positive +proportion.negative),
            country = country,
            effect ="received") %>%
     rename(species = "focal")
@@ -766,7 +767,7 @@ for(country in country.list){
 
 sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
   aggregate(realised.effect ~ focal, median)
-
+view(bind_rows(sum.up.df.n,sum.up.focal.df.n,sum.up.neigh.df.n))
 
 
 #---- 2.4 Heatmap Fac/Comp ----
