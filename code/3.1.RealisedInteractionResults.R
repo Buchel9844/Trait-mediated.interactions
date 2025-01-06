@@ -36,7 +36,11 @@ library(ggraph)
 home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
-
+project.dic <- ""
+load(file=paste0(home.dic,"data/clean.data.aus.RData"))
+load(file=paste0(home.dic,"data/clean.data.spain.RData"))
+country.list <- c("aus","spain")
+load(paste0(home.dic,"results/Parameters_alpha.RData"))
 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 1. Compute realised interactions  ----
@@ -370,22 +374,22 @@ for(country in country.list){
         #if(n==1){print(n)}
         df_neigh_n <- param.neigh[n,]
         
-        param.neigh[n,"sigmoid"] <- alpha_function4(df_neigh_n$alpha_initial,
+        df_neigh_n$sigmoid <- alpha_function4(df_neigh_n$alpha_initial,
                                                     df_neigh_n$alpha_slope,
                                                     df_neigh_n$alpha_c,
                                                     df_neigh_n$density,
                                                     df_neigh_n$N_opt_mean)
-        if(df_neigh_n$density==0){
-          param.neigh[n,"sigmoid"] <- 0
-        }
+        df_neigh_n$sigmoid[which(df_neigh_n$density==0)] <- 0
         
-        param.neigh[n,"realised.effect"] <- exp(param.neigh[n,"sigmoid"]*df_neigh_n$density)
-        param.neigh[n,"realised.effect.std.lambda"] <- (param.neigh[n,"sigmoid"]*df_neigh_n$density)/log(lambda)
+        df_neigh_n[,"sigmoid.std"] <- (df_neigh_n$sigmoid)/log(lambda)
         
+        df_neigh_n[,"realised.effect"] <- exp(df_neigh_n$sigmoid*df_neigh_n$density)
+        df_neigh_n[,"realised.effect.std"] <- (df_neigh_n$sigmoid*df_neigh_n$density)/log(lambda)
+        
+        df_neigh_n$year <- as.numeric(y) 
+        test.sigmoid <- bind_rows(test.sigmoid,df_neigh_n)
         
       }
-      test.sigmoid <- bind_rows(test.sigmoid, param.neigh)
-      
     }
     
     write.csv(test.sigmoid,

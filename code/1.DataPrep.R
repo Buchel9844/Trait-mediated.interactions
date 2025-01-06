@@ -401,7 +401,7 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
   gather(c("heigh","CS","LeafArea","SLA","LAI","DR","SRL",
           "TDMr","SRA","C.N","C13","N15"),key="trait",value="value") %>%
   aggregate(value ~ trait + code.analysis, mean) %>%
-  #dplyr::filter(!trait %in% c("LeafArea","LAI","DR","C.N","SRL")) %>%
+  dplyr::filter(!trait %in% c("LeafArea","LAI")) %>%
   spread(trait,value) %>%
   left_join(numb.seed.spain %>%
               aggregate(total.seeds ~ focal.analysis, function(x)mean(x,na.rm=T)) %>%
@@ -411,9 +411,9 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
          "Water use efficiency"="C13",
          "Canopy shape"="CS",
          "Root diameter"="DR",
-         "Stem length"="heigh",
-         "Leaf area index"="LAI",
-         "Leaf area"="LeafArea",
+         "Stem height"="heigh",
+         #"Leaf area index"="LAI",
+         #"Leaf area"="LeafArea",
          "Leaf nitrogen cc"="N15",
          "Root mass density"="TDMr",
          "Mean fecundity"="total.seeds") 
@@ -471,7 +471,7 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
     rename("value"="single value [m]",
            "mean.value"="mean CH [m]") %>% 
     mutate(mean.value = coalesce(mean.value, value)) %>%
-    mutate(trait = "Stem length") %>%
+    mutate(trait = "Stem height") %>%
     group_by( species,trait) %>%
     summarise(value.trait = mean(mean.value)*100)
   
@@ -489,7 +489,7 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
     group_by(species,trait) %>%
     summarise(value.trait = mean(mean.value)/100) 
   
-  PAIN_traits <- bind_rows(LS, SLA,height) %>% # Seed mas and leaf dry matter
+  PAIN_traits <- bind_rows(SLA,height) %>% # Seed mas and leaf dry matter,LS
     dplyr::filter(str_detect(species, "^Parapholis")) %>%
     aggregate(value.trait ~ trait, function(x) mean(x,na.rm=T)) %>%
     spread(trait,value.trait)  %>% 
@@ -524,7 +524,8 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
                method = "average", members = NULL) 
   plot(hc)
   plant_traits_spain <- plant_traits_spain %>%
-    mutate( coord.slow.to.fast =spain.traits$global.pca$ind$coord[,"Dim.1"])
+    mutate( coord.slow.to.fast =-spain.traits$global.pca$ind$coord[,"Dim.1"])%>%
+    rename("Fast to slow spectrum"="coord.slow.to.fast")
   
 # ---- 4.4. Gather trait mat ----
   trait.dist_spain.df <- as.data.frame(as.matrix(spain.traits.dist)) %>%
@@ -1064,7 +1065,7 @@ plant_traits_aus <- aus_traits_df %>%
          "SLA"="sla.mm2.mg",
          "SRL"="srl",
          "Root length"="total.root.length.cm",
-         "Canopy area" = "CanopyArea",
+         "Canopy shape" = "CanopyArea",
          #"Canopy width"="width.longest.mm",
          #"Canopy width 90deg"="width.90.from.longest.mm",
          "Stem height"="height.mm",
@@ -1105,9 +1106,9 @@ hc <- hclust(aus.traits.dist ,
              method = "average", members = NULL) 
 plot(hc)
 
-plant_traits_aus <- plant_traits_aus%>%
-  mutate( coord.slow.to.fast =aus.traits$global.pca$ind$coord[,"Dim.1"]) 
-
+plant_traits_aus <- plant_traits_aus %>%
+  mutate( coord.slow.to.fast = -aus.traits$global.pca$ind$coord[,"Dim.1"]) %>%
+  rename("Fast to slow spectrum"="coord.slow.to.fast")
 
 #----4.2.Category based on reproduction strategy----
 plant_pol.traits_aus <- aus_traits_df %>%

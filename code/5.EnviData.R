@@ -107,6 +107,8 @@ spain_env_pdsi <- data.frame(spain_pdsi = as.numeric(sc_pdsi$X),
                              levels=paste0(year,sep="_",month))) %>%
   left_join(env_spain) %>%
   rename("prec"="Se20Precip")
+
+
 view(spain_env_pdsi)
 write_csv(spain_env_pdsi,
           "results/spain_env_pdsi.csv")
