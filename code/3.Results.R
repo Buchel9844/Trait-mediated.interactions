@@ -65,17 +65,18 @@ for(country in country.list){
                y = individuals*widthplot,
                group=as.factor(species),
                color=as.factor(species))) +
-    stat_summary(fun.y = mean,
+    stat_summary(fun.y = median,
                  fun.ymin = function(x) quantile(x,0.05), 
                  fun.ymax = function(x) quantile(x,0.95), 
                  geom = "pointrange",size=2) +
-    stat_summary(fun.y = mean,
+    stat_summary(fun.y = median,
                  geom = "line",size=1) +
     scale_y_log10(limits = c(1,100)) +
     scale_x_discrete("year",limits= year.levels) +
     scale_color_manual(values= col.df$color.name) +
-    labs(color="species",y="Mean number of \nindividuals in 25x25cm plot",
-         title=paste0("Density over time of annual plants in ",country)) +
+    labs(color="species",y="Median number of \nindividuals in 25x25cm plot"#,
+         #title=paste0("Density over time of annual plants in ",country)
+         ) +
     coord_cartesian( xlim = NULL, #ylim=c(0,750),
                      expand = TRUE, default = FALSE, clip = "on") +
     #scale_color_manual(values=safe_colorblind_palette) +
@@ -93,16 +94,17 @@ for(country in country.list){
            axis.text.y= element_text(size=20),
            axis.title.x= element_text(size=24),
            axis.title.y= element_text(size=24),
-           title=element_text(size=16))
+           title=element_text(size=16),
+           plot.margin=unit(c(1,0,0,0),"cm"))
 }
 abundance_plotlist[["spain"]] # figures/Abundance_spain.pdf
 abundance_plotlist[["aus"]] #figures/Abundance_aus.pdf
 
-#---- 1.2 Abundances over PDSI ----
+#---- 1.2 Corrected abundances over time ----
 widthplot = 25
-abundance_pdsi_plotlist <- NULL
+abundance_corrected_plotlist <- NULL
+country ="aus"
 for(country in country.list){
-  
   abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
@@ -111,40 +113,55 @@ for(country in country.list){
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
   
-  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
-    group_by(year) %>% 
-    mutate(PDSI.mean = mean(get(paste0(country,"_pdsi")), na.rm = T),
-           PDSI.sd = sd(get(paste0(country,"_pdsi")),na.rm = T)) %>%
-    dplyr::select(year,PDSI.mean,PDSI.sd) %>%
-    filter(year %in%  year.levels) %>%
-    unique() %>%
-    ungroup() %>%
-    mutate(PDSI.max = max(PDSI.mean)) %>%
-    mutate_at("PDSI.mean",function(x) (x/ max(abs(x)))) %>% # scaling 
-    as.data.frame()
-  
-  abundance_pdsi_plotlist[[country]] <- abundance_summary %>%
-    mutate(year = as.numeric(year))%>%
+  #abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".preclean")]]
+  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] %>%
+    mutate(year=as.numeric(year)) %>%
     left_join(env_pdsi) %>%
-    ggplot() +
-    stat_summary(aes(x=exp(PDSI.mean), y = individuals*widthplot,
-                     group=as.factor(species),
-                     color=as.factor(species)),
-                 fun.y = mean,
-                 fun.ymin = function(x) mean(x) - sd(x), 
-                 fun.ymax = function(x) mean(x) + sd(x), 
+    mutate(year=factor(year,levels=year.levels)) 
+    #group_by(year)
+
+  # the coefficient if the sampling  effort differences between the years
+  Correction.model.year <- lm(individuals ~    year , 
+                              data=abundance_summary)$coef %>%
+    as.data.frame() %>%
+    mutate(year=year.levels) %>%
+    rename("Coef.year"=".") %>% rownames_to_column("to.deleted") %>%dplyr::select(year,Coef.year) %>%
+    mutate(year=as.numeric(year)) 
+  Correction.model.year$Coef.year[2:length(year.levels)] <- Correction.model.year$Coef.year[2:length(year.levels)] + Correction.model.year$Coef.year[1]
+  
+  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] %>%
+    mutate(year=as.numeric(year))
+  write.csv(abundance_summary %>%
+    mutate(year=as.numeric(year)) %>%
+    left_join(Correction.model.year) %>%
+    mutate(corrected.density = individuals-Coef.year) %>%
+    mutate(corrected.density = case_when(corrected.density<0 ~ 0,
+                                         T ~ corrected.density)),
+    file=paste0("results/Abundance.corrected.",country,".csv"))
+  
+  abundance_corrected_plotlist[[country]] <- abundance_summary %>%
+    mutate(year=as.numeric(year)) %>%
+    left_join(Correction.model.year) %>%
+    mutate(corrected.density = individuals-Coef.year) %>%
+    mutate(corrected.density = case_when(corrected.density<0 ~ 0,
+                                         T ~ corrected.density)) %>%
+    ggplot(aes(x=as.character(year), 
+               y = corrected.density*widthplot ,
+               group=as.factor(species),
+               color=as.factor(species))) +
+    stat_summary(fun.y = median,
+                 fun.ymin = function(x) quantile(x,0.05), 
+                 fun.ymax = function(x) quantile(x,0.95), 
                  geom = "pointrange",size=2) +
-    stat_summary(aes(x=exp(PDSI.mean), y = individuals*widthplot,
-                     group=as.factor(species),
-                     color=as.factor(species)),
-                 fun.y = mean,
+    stat_summary(fun.y = median,
                  geom = "line",size=1) +
-    scale_y_log10() +
+    scale_y_log10(limits = c(1,100)) +
+    scale_x_discrete("year",limits= year.levels) +
     scale_color_manual(values= col.df$color.name) +
-    labs(x="PDSI (exp)",
-         color="species",y="Mean number of \nindividuals in 25x25cm plot",
-         title=paste0("Density across PDSI of annual plants in ",country)) +
-    coord_cartesian( xlim = NULL, #ylim = c(0,200),
+    labs(color="species",y="Median number of \nindividuals in 25x25cm plot"
+         #title=paste0("Density over time of annual plants in ",country)
+         ) +
+    coord_cartesian( xlim = NULL, #ylim=c(0,750),
                      expand = TRUE, default = FALSE, clip = "on") +
     #scale_color_manual(values=safe_colorblind_palette) +
     theme_bw() +
@@ -161,25 +178,90 @@ for(country in country.list){
            axis.text.y= element_text(size=20),
            axis.title.x= element_text(size=24),
            axis.title.y= element_text(size=24),
-           title=element_text(size=16))
+           title=element_text(size=16),
+           plot.margin=unit(c(1,0,0,0),"cm"))
 }
-#abundance_pdsi_plotlist[["spain"]] #figures/Abundance_pdsi_spain.pdf
-#abundance_pdsi_plotlist[["aus"]] #figures/Abundance_pdsi_aus.pdf
+abundance_corrected_plotlist[["spain"]] # figures/Abundance_spain.pdf
+abundance_corrected_plotlist[["aus"]] #figures/Abundance_aus.pdf
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ggarrange(abundance_plotlist[["spain"]],
+          abundance_corrected_plotlist[["spain"]],
+          nrow=2, common.legend = T,legend="bottom",
+          font.label = list(size = 20, color = "black",
+                            face = "bold", family = NULL),
+          label.x = 0,
+          label.y = 1,
+          labels=c("a. Observed raw density", 
+                   "b. Observed desnity for year/sampling effort effect"))
 
-#---- 1.3 Corrected abundances over time ----
+
+ggarrange(abundance_plotlist[["aus"]],
+          abundance_corrected_plotlist[["aus"]],
+          nrow=2, common.legend = T,legend="bottom",
+          font.label = list(size = 20, color = "black",
+                            face = "bold", family = NULL),
+          label.x = 0,
+          label.y = 1,
+          labels=c("a. Observed raw density", 
+                   "b. Observed desnity for year/sampling effort effect"))
+
+
+#---- 1.3 Corrected abundances of each species over time ----
 widthplot = 25
-abundance_plotlist <- NULL
-country ="aus"
+Spabundance_plotlist <- NULL
+
 for(country in country.list){
-  
+  abundance_summary <- read.csv(paste0("results/Abundance.corrected.",country,".csv"))
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
   
   year.levels <-levels(as.factor( abundance_summary$year))
   col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
+  
+  Spabundance_plotlist[[country]] <- abundance_summary %>%
+    gather(individuals,corrected.density, key="corrected.or.not.density",value="density") %>%
+    ggplot() +
+    geom_density_ridges2(aes(x=density*widthplot,
+                             y=corrected.or.not.density,
+                             fill=species),alpha=0.5, scale=1) + 
+    facet_wrap(.~species,scales="free_x",nrow=3) + 
+    scale_color_manual(values= col.df$color.name) +
+    scale_fill_manual(values= col.df$color.name) + 
+   scale_y_discrete(labels=c("Corrected","Observed")) + 
+    theme_bw() +
+    theme( legend.key.size = unit(1, 'cm'),
+           legend.position = "none",
+           strip.background = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.grid.major.x = element_blank(),
+           strip.text = element_text(size=28),
+           legend.text=element_text(size=20),
+           legend.title=element_text(size=20),
+           #axis.ticks.x=element_blank(),
+           axis.text.x= element_text(size=20, angle=66, hjust=1),
+           axis.text.y= element_text(size=20),
+           axis.title.x= element_text(size=24),
+           axis.title.y= element_text(size=24),
+           title=element_text(size=16),
+           plot.margin=unit(c(1,0,0,0),"cm"))
+}
+Spabundance_plotlist[["spain"]] #figures/SpAbundance_spain.pdf
+Spabundance_plotlist[["aus"]]  #figures/SpAbundance_aus.pdf
+
+#---- 1.4 Abundances over PDSI ----
+widthplot = 25
+abundance_pdsi_plotlist <- NULL
+for(country in country.list){
+  
+  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  
+  
+  year.levels <-levels(as.factor( abundance_summary$year))
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  
   env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
     mutate(year.thermique= as.numeric(factor(year))) %>% 
     mutate(year.thermique.2 = case_when(month > 9 ~ year.thermique + 1,
@@ -200,40 +282,29 @@ for(country in country.list){
     as.data.frame() %>%
     mutate(year=as.numeric(year))
   
-  #abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".preclean")]]
-  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] %>%
-    mutate(year=as.numeric(year)) %>%
+  abundance_pdsi_plotlist[[country]] <- abundance_summary %>%
+    mutate(year = as.numeric(year))%>%
     left_join(env_pdsi) %>%
-    mutate(year=factor(year,levels=year.levels)) %>%
-    group_by(year)
-  str(abundance_summary )
-  # the coefficient if the smapling effort differences between the years
-  Correction.model.year <- lm(individuals ~    year , 
-                              data=abundance_summary)$coef %>%
-    as.data.frame() %>%
-    mutate(year=year.levels) %>%
-    rename("Coef.year"=".") %>% rownames_to_column("to.deleted") %>%dplyr::select(year,Coef.year) %>%
-    mutate(year=as.numeric(year))
-    
-  abundance_plotlist[[country]] <- abundance_summary %>%
-    mutate(year=as.numeric(year)) %>%
-    left_join(Correction.model.year) %>%
-    ggplot(aes(x=as.character(year), 
-               y = (individuals-Coef.year)*widthplot ,
-               group=as.factor(species),
-               color=as.factor(species))) +
-    stat_summary(fun.y = mean,
-                 fun.ymin = function(x) quantile(x,0.05), 
-                 fun.ymax = function(x) quantile(x,0.95), 
+    ggplot() +
+    stat_summary(aes(x=Precip.extrem , y = individuals*widthplot,
+                     group=as.factor(species),
+                     color=as.factor(species)),
+                 fun.y = median,
+                 fun.ymin = function(x) mean(x) - sd(x), 
+                 fun.ymax = function(x) mean(x) + sd(x), 
                  geom = "pointrange",size=2) +
-    stat_summary(fun.y = mean,
+    stat_summary(aes(x=Precip.extrem , y = individuals*widthplot,
+                     group=as.factor(species),
+                     color=as.factor(species)),
+                 fun.y = mean,
                  geom = "line",size=1) +
-    scale_y_log10(limits = c(1,100)) +
-    scale_x_discrete("year",limits= year.levels) +
+    scale_y_log10() +
     scale_color_manual(values= col.df$color.name) +
-    labs(color="species",y="Mean number of \nindividuals in 25x25cm plot",
-         title=paste0("Density over time of annual plants in ",country)) +
-    coord_cartesian( xlim = NULL, #ylim=c(0,750),
+    labs(x="Precipitation extrem (positive=wet)",
+         color="species",y="Median number of \nindividuals in 25x25cm plot"#,
+         #title=paste0("Density across PDSI of annual plants in ",country)
+         ) +
+    coord_cartesian( xlim = NULL, #ylim = c(0,200),
                      expand = TRUE, default = FALSE, clip = "on") +
     #scale_color_manual(values=safe_colorblind_palette) +
     theme_bw() +
@@ -252,8 +323,109 @@ for(country in country.list){
            axis.title.y= element_text(size=24),
            title=element_text(size=16))
 }
-abundance_plotlist[["spain"]] # figures/Abundance_spain.pdf
-abundance_plotlist[["aus"]] #figures/Abundance_aus.pdf
+abundance_pdsi_plotlist[["spain"]] #figures/Abundance_pdsi_spain.pdf
+abundance_pdsi_plotlist[["aus"]] #figures/Abundance_pdsi_aus.pdf
+
+#---- 1.5 Corrected abundances over PDSI ----
+widthplot = 25
+abundance_corrected_pdsi_plotlist <- NULL
+for(country in country.list){
+  
+  abundance_summary <- read.csv(paste0("results/Abundance.corrected.",country,".csv"))
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  
+  
+  year.levels <-levels(as.factor( abundance_summary$year))
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  
+  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
+    mutate(year.thermique= as.numeric(factor(year))) %>% 
+    mutate(year.thermique.2 = case_when(month > 9 ~ year.thermique + 1,
+                                        T ~ year.thermique)) %>%
+    group_by(year.thermique.2) %>% 
+    mutate(PDSI.mean = mean(get(paste0(country,"_pdsi")), na.rm = T),
+           PDSI.sd = sd(get(paste0(country,"_pdsi")),na.rm = T),
+           Precip = sum(prec)) %>%
+    ungroup() %>%
+    mutate(year.thermique =year.levels.all[year.thermique.2]) %>%
+    dplyr::select(year.thermique,PDSI.mean,PDSI.sd,Precip) %>%
+    unique() %>%
+    filter(year.thermique %in%  year.levels) %>%
+    mutate(Precip.extrem = Precip - median(Precip)) %>%
+    rename("year"="year.thermique") %>%
+    mutate(PDSI.max = max(PDSI.mean)) %>%
+    mutate_at("PDSI.mean",function(x) (x/ max(abs(x)))) %>% # scaling 
+    as.data.frame() %>%
+    mutate(year=as.numeric(year))
+  
+  abundance_corrected_pdsi_plotlist[[country]] <- abundance_summary %>%
+    mutate(year = as.numeric(year))%>%
+    left_join(env_pdsi) %>%
+    ggplot() +
+    stat_summary(aes(x=Precip.extrem , y = corrected.density*widthplot,
+                     group=as.factor(species),
+                     color=as.factor(species)),
+                 fun.y = mean,
+                 fun.ymin = function(x) mean(x) - sd(x), 
+                 fun.ymax = function(x) mean(x) + sd(x), 
+                 geom = "pointrange",size=2) +
+    stat_summary(aes(x=Precip.extrem , y = corrected.density*widthplot,
+                     group=as.factor(species),
+                     color=as.factor(species)),
+                 fun.y = mean,
+                 geom = "line",size=1) +
+    scale_y_log10() +
+    scale_color_manual(values= col.df$color.name) +
+    labs(x="Precipitation extrem (positive=wet)",
+         color="species",y="Median number of \nindividuals in 25x25cm plot"#,
+         #title=paste0("Density across PDSI of annual plants in ",country)
+    ) +
+    coord_cartesian( xlim = NULL, #ylim = c(0,200),
+                     expand = TRUE, default = FALSE, clip = "on") +
+    #scale_color_manual(values=safe_colorblind_palette) +
+    theme_bw() +
+    theme( legend.key.size = unit(1, 'cm'),
+           legend.position = "bottom",
+           strip.background = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.grid.major.x = element_blank(),
+           strip.text = element_text(size=28),
+           legend.text=element_text(size=20),
+           legend.title=element_text(size=20),
+           #axis.ticks.x=element_blank(),
+           axis.text.x= element_text(size=20, angle=66, hjust=1),
+           axis.text.y= element_text(size=20),
+           axis.title.x= element_text(size=24),
+           axis.title.y= element_text(size=24),
+           title=element_text(size=16))
+}
+abundance_corrected_pdsi_plotlist[["spain"]] #figures/Abundance_pdsi_spain.pdf
+abundance_corrected_pdsi_plotlist[["aus"]] #figures/Abundance_pdsi_aus.pdf
+ggarrange(abundance_pdsi_plotlist[["spain"]],
+          abundance_corrected_pdsi_plotlist[["spain"]],
+          nrow=2, common.legend = T,legend="bottom",
+          font.label = list(size = 20, color = "black",
+                            face = "bold", family = NULL),
+          label.x = 0,
+          label.y = 1,
+          labels=c("a. Observed raw density", 
+                   "b. Observed desnity for year/sampling effort effect"))
+
+
+ggarrange(abundance_pdsi_plotlist[["aus"]],
+          abundance_corrected_pdsi_plotlist[["aus"]],
+          nrow=2, common.legend = T,legend="bottom",
+          font.label = list(size = 20, color = "black",
+                            face = "bold", family = NULL),
+          label.x = 0,
+          label.y = 1,
+          labels=c("a. Observed raw density", 
+                   "b. Observed desnity for year/sampling effort effect"))
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 2. Environmental Gradient  ----

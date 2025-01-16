@@ -55,20 +55,15 @@ widthplot = 15
 # for median of individuals 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  abundance_df  <- read.csv(paste0("results/Abundance.corrected.",country,".csv")) %>%
+    rename("obs.individuals"="individuals")%>%
+    rename("individuals"="corrected.density")%>%
+    aggregate(individuals ~ year + species + com_id, sum) %>% 
+    mutate(individuals = individuals *widthplot) %>%
+    spread(species, individuals) 
   
-  if(country  =="aus"){
-    abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".preclean")]] 
-    abundance_df <-  abundance_df %>%
-      aggregate(individuals ~ year + species + com_id, sum) %>% 
-      mutate(individuals = individuals *widthplot) %>%
-      spread(species, individuals)  %>%
-      dplyr::select(all_of(c("year",Code.focal.list))) 
-  }else{
-    abundance_df <-  abundance_df %>%
-      mutate(individuals = individuals*widthplot) %>%
-      spread(species, individuals)
-  }
+
   Realised.Int.focal<- list()
   Realised.Int.country.df <- NULL
   for(Code.focal in Code.focal.list){ #focal.levels
@@ -183,6 +178,7 @@ save(Realised.Int.list,
 
 
 load(paste0(project.dic,"results/Realised.Int.list.RData"))
+
 #---- 1.2. Compute realised interactions based on time  ----
 
 source(paste0(home.dic,"code/PopProjection_toolbox.R"))
@@ -191,18 +187,14 @@ Realised.Int.Year.list <- list()
 widthplot = 15
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
-  if(country  =="aus"){
-    abundance_df <-  abundance_df %>%
-      aggregate(individuals ~ year + species + com_id, sum) %>% 
-      mutate(individuals = individuals *widthplot) %>%
-      spread(species, individuals)  %>%
-      dplyr::select(all_of(c("year",Code.focal.list))) 
-  }else{
-    abundance_df <-  abundance_df %>%
-      mutate(individuals = individuals*widthplot) %>%
-      spread(species, individuals)
-  }
+  #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  abundance_df  <- read.csv(paste0("results/Abundance.corrected.",country,".csv")) %>%
+    rename("obs.individuals"="individuals")%>%
+    rename("individuals"="corrected.density")%>%
+    aggregate(individuals ~ year + species + com_id, sum) %>% 
+    mutate(individuals = individuals *widthplot) %>%
+    spread(species, individuals) 
+  
   Realised.Int.Year.focal<- list()
   Realised.Int.Year.country.df <- NULL
   for(Code.focal in Code.focal.list){ #focal.levels
@@ -301,19 +293,14 @@ widthplot = 15
 country ="aus"
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
-  
-  if(country  =="aus"){
-    #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".clean")]] 
-    abundance_df <-  abundance_df %>%
+  #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  abundance_df  <- read.csv(paste0("results/Abundance.corrected.",country,".csv")) %>%
+    rename("obs.individuals"="individuals")%>%
+    rename("individuals"="corrected.density")%>%
       aggregate(individuals ~ year + species + com_id, sum) %>% 
       mutate(individuals = individuals *widthplot) %>%
       spread(species, individuals) 
-  }else{
-    abundance_df <-  abundance_df %>%
-      mutate(individuals = individuals*widthplot) %>%
-      spread(species, individuals)
-  }
+
   Realised.Int.Obs.focal<- list()
   Realised.Int.Obs.country.df <- NULL
   # Code.focal ="ARCA"
@@ -325,6 +312,7 @@ for(country in country.list){
     print(paste0(country,Code.focal))
     
     abundance_short_focal_df <-  abundance_df %>%
+      dplyr::filter(year ==y) %>%
       dplyr::filter(get(Code.focal) > 0) %>%
       dplyr::filter( !is.na(get(Code.focal))) %>%
       mutate_at(Code.focal,as.numeric) 
@@ -334,35 +322,40 @@ for(country in country.list){
     test.sigmoid.all <- NULL
     test.sigmoid  <- NULL
     
-    for( neigh in  SpNames){
-      print(neigh)
+    for( y in year.levels){
+      for( neigh.sp in  SpNames){
+        print(paste(neigh.sp,y))
+  
       neigh.abundance <- abundance_short_focal_df %>%
-        dplyr::filter(!is.na(get(neigh))) %>%
-        dplyr::select(year, com_id,neigh) 
+        dplyr::filter(!is.na(get(neigh.sp))) %>%
+        dplyr::select(year, com_id,neigh.sp) 
+      
+      if(nrow(neigh.abundance)==0) next
+      
       names(neigh.abundance)[3] <-"density"
       
       alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
-                                             neigh]
+                                             neigh.sp]
       
       alpha_initial  <-  quantile(alpha_initial,probs=c(0.5)) 
       
       
       alpha_slope = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
-                                           neigh]
+                                           neigh.sp]
       
       alpha_slope  <- quantile(alpha_slope,probs=c(0.5)) 
       
       alpha_c = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
-                                       neigh]
+                                       neigh.sp]
       
       alpha_c  <-    quantile(alpha_c,probs=c(0.5)) 
       
-      N_opt = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh]
+      N_opt = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh.sp]
       
       N_opt  <-  quantile(N_opt,probs=c(0.5))
       
       param.neigh <- neigh.abundance %>%
-        mutate(neigh = neigh, 
+        mutate(neigh = neigh.sp, 
                country = country,
                alpha_initial = alpha_initial,
                alpha_slope = alpha_slope,
@@ -391,7 +384,7 @@ for(country in country.list){
         
       }
     }
-    
+    }
     write.csv(test.sigmoid,
               file=paste0(project.dic,"results/Realised.Int.Obs.",country,".",Code.focal,".csv"))
     
@@ -412,13 +405,228 @@ save(Realised.Int.Obs.list,
 
 load(paste0(project.dic,"results/Realised.Int.Obs.list.RData"))
 
+#---- 1.2. Compute realised interactions for obs based on time  ----
 
+source(paste0(home.dic,"code/PopProjection_toolbox.R"))
+test.sigmoid.all  <- NULL
+Realised.Obs.Year.list <- list()
+widthplot = 15
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  abundance_df  <- read.csv(paste0("results/Abundance.corrected.",country,".csv")) %>%
+    rename("obs.individuals"="individuals")%>%
+    rename("individuals"="corrected.density")%>%
+    aggregate(individuals ~ year + species + com_id, sum) %>% 
+    mutate(individuals = individuals *widthplot) %>%
+    spread(species, individuals) 
+  
+  Realised.Obs.Year.focal<- list()
+  Realised.Obs.Year.country.df <- NULL
+  for(Code.focal in Code.focal.list){ #focal.levels
+    lambda = median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1], na.rm=T)
+    
+    df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
+    
+    print(paste0(country,Code.focal))
+    
+    abundance_short_focal_df <-  abundance_df %>%
+      filter(Code.focal > 0 | !is.na(Code.focal)) %>%
+      mutate_at(Code.focal.list,as.numeric) 
+    year.levels <- levels(as.factor(abundance_short_focal_df$year))
+    
+    SpNames <- names(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+    
+    test.sigmoid.all <- NULL
+    test.sigmoid  <- NULL
+    for( y in year.levels){
+      for( neigh.sp in  SpNames){
+        print(paste(neigh.sp,y))
+        
+        neigh.abundance <- abundance_short_focal_df %>%
+          dplyr::filter(year ==y) %>%
+          dplyr::select(neigh.sp) %>%
+          filter(!is.na(get(neigh.sp))) %>%
+          dplyr::filter(get(neigh.sp)>0) %>%
+          unique()
+        
+        minmax.vec <-quantile(neigh.abundance,probs=c(0.05,0.95), na.rm = T)
+        
+        neigh.abundance <- neigh.abundance %>%
+          dplyr::filter(get(neigh.sp) > minmax.vec[1] & get(neigh.sp) < minmax.vec[2])
+        N_opt_mean = as.numeric(unlist(median(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh.sp])))
+        
+        param.neigh <- neigh.abundance %>%
+          rename("density"= as.character(neigh.sp)) %>%
+          mutate(year=as.numeric(y),
+                 neigh = neigh.sp, 
+                                  country = country,
+                                  alpha_initial = median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
+                                                                                neigh.sp]),
+                                  alpha_slope =  median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
+                                                                               neigh.sp]),
+                                  alpha_c =  median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
+                                                                          neigh.sp]),
+                                  N_opt_mean = N_opt_mean,
+                                  focal=Code.focal)
+        
+        for (n in 1:nrow(param.neigh)){
+          #if(n==1){print(n)}
+          param.neigh[n,"sigmoid"] <- alpha_function4(param.neigh$alpha_initial[n],
+                                                      param.neigh$alpha_slope[n],
+                                                      param.neigh$alpha_c[n],
+                                                      param.neigh$density[n],
+                                                      param.neigh$N_opt_mean[n])
+          
+          
+        }
+        test.sigmoid <- bind_rows(test.sigmoid,param.neigh)
+      }
+    }
+    
+    Realised.Obs.Year.country.df <- bind_rows(Realised.Obs.Year.country.df,test.sigmoid)
+    
+    save(Realised.Obs.Year.country.df,
+         file=paste0(project.dic,"results/Realised.Obs.Year.df_",country,".RData"))
+    
+  }
+  
+  #sigmoid.list[[country]] <- sigmoid.list.focal
+  Realised.Obs.Year.list[[country]] <-  Realised.Obs.Year.country.df
+}
 
-
+save(Realised.Obs.Year.list,
+     file=paste0(project.dic,
+                 "results/Realised.Obs.Year.list.RData"))
+load(paste0(project.dic,
+            "results/Realised.Obs.Year.list.RData"))
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
-#---- 2. Display Interactions  ----
+#---- 2. Compute theoretical interactions  ----
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
-#---- 2.1. Boxplot of RI  ----
+
+source(paste0(home.dic,"code/PopProjection_toolbox.R"))
+test.sigmoid.all  <- NULL
+#---- 2.1. Theoretical interactions  ----
+
+Theoretical.Int.list <- list()
+widthplot = 15
+
+# for median of individuals 
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
+  abundance_df  <- read.csv(paste0("results/Abundance.corrected.",country,".csv")) %>%
+    rename("obs.individuals"="individuals")%>%
+    rename("individuals"="corrected.density")%>%
+    aggregate(individuals ~ year + species + com_id, sum) %>% 
+    mutate(individuals = individuals *widthplot) %>%
+    spread(species, individuals) 
+  
+  Theoretical.Int.country.df<- NULL
+  for(Code.focal in Code.focal.list){ #focal.levels
+    lambda = median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1], na.rm=T)
+    
+    df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
+    
+    abundance_short_focal_df <-  abundance_df %>%
+      filter(Code.focal > 0 & !is.na(Code.focal)) %>%
+      mutate_at(Code.focal.list,as.numeric) 
+    
+    SpNames <- names(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+    
+    test.sigmoid  <- NULL
+      for( neigh.sp in  SpNames){
+        print(paste(Code.focal,neigh.sp))
+        
+        neigh.abundance <- abundance_short_focal_df %>%
+          dplyr::select(neigh.sp) %>%
+          dplyr::filter(!is.na(get(neigh.sp)))%>%
+          dplyr::filter(get(neigh.sp) > 0)
+        
+        if(nrow(neigh.abundance)==0) next
+        
+        density.neigh <- c(0,quantile(neigh.abundance[,1],c(0.25,0.5,0.75))) 
+  
+    df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
+    
+    SpNames <- names(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt)
+    
+
+      alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
+                                             neigh.sp]
+      
+      #alpha_initial  <-  alpha_initial[which(alpha_initial >= quantile(alpha_initial,probs=c(0.10)) &
+      #                                         alpha_initial <=  quantile(alpha_initial,probs=c(0.9)))][1:6400]
+      alpha_initial  <-  quantile(alpha_initial,probs=c(0.50))
+      
+      alpha_slope = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
+                                           neigh.sp]
+      
+      #alpha_slope  <-  alpha_slope[which(alpha_slope>= quantile(alpha_slope,probs=c(0.10)) &
+      #                                     alpha_slope <=  quantile(alpha_slope,probs=c(0.9)))][1:6400]
+      
+      alpha_slope  <- quantile(alpha_slope,probs=c(0.50))
+      
+      alpha_c = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
+                                       neigh.sp]
+      
+      #alpha_c  <-   alpha_c[which( alpha_c >= quantile( alpha_c,probs=c(0.10)) &
+      #                              alpha_c <=  quantile( alpha_c,probs=c(0.9)))][1:6400]
+      alpha_c  <-quantile( alpha_c,probs=c(0.50)) 
+      
+      N_opt = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh.sp]
+      
+      #N_opt  <-   N_opt[which(N_opt>= quantile( N_opt,probs=c(0.10)) &
+      #                          N_opt <=  quantile( N_opt,probs=c(0.9)))][1:6400]
+      N_opt  <-quantile( N_opt,probs=c(0.50))
+      param.neigh <- data.frame(neigh = neigh.sp, 
+                                country = country,
+                                alpha_initial = alpha_initial,
+                                alpha_slope = alpha_slope,
+                                alpha_c=  alpha_c,
+                                N_opt_mean = N_opt ,
+                                focal=Code.focal,
+                                lambda=lambda,
+                                density=density.neigh,
+                                density.quantile=c("intercept","low","medium","high"))
+      
+      for (n in 1:4){
+        #if(n==1){print(n)}
+        df_neigh_n <-  param.neigh[n,]
+        
+        
+        df_neigh_n[,"theoretical.effect"] <- alpha_function4(df_neigh_n$alpha_initial,
+                                                  df_neigh_n$alpha_slope,
+                                                  df_neigh_n$alpha_c,
+                                                  df_neigh_n$density,
+                                                  df_neigh_n$N_opt_mean)
+
+        test.sigmoid <- bind_rows(test.sigmoid,df_neigh_n)
+        
+      }
+    }
+    
+    
+    Theoretical.Int.country.df <- bind_rows( Theoretical.Int.country.df,test.sigmoid)
+    
+    save(Theoretical.Int.country.df,
+         file=paste0(project.dic,"results/Theoretical.Int.df_",country,".RData"))
+    
+  }
+  
+  #sigmoid.plot.list[[country]] <- sigmoid.plot.list.focal
+  Theoretical.Int.list[[country]] <-  Theoretical.Int.country.df
+}
+
+save(Theoretical.Int.list,
+     file=paste0(project.dic,"results/Theoretical.Int.list.RData"))
+
+
+load(paste0(project.dic,"results/Theoretical.Int.list.RData"))
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+#---- 3. Display Interactions  ----
+#####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+#---- 3.1. Boxplot of RI  ----
 
 for(country in country.list){
   Box.Plot.Realised.effect <- NULL
@@ -473,145 +681,7 @@ for(country in country.list){
 }
 
 
-#---- 2.2. Network visualasition ----
-colours  <- wes_palette("Zissou1", 101, type = "continuous")
-
-plot.legend <- ggplot(data.frame(x=rep(c(1,2,3,4,5),
-                                       times=50),
-                                 y=1:250),
-                      aes(as.factor(x),
-                          y,fill=x)) +
-  geom_point() +
-  geom_line(aes(linewidth=as.factor(x), alpha=as.factor(x))) + 
-  scale_linewidth_manual("Standardized median effect",
-                         values=c(0.5,1,1.5,2,3),
-                         labels=c("< 5%","5%-10%","10%-25%","25%-50%",">50%")) +
-  scale_alpha_manual("Standardized median effect",
-                     values=c(0.2,0.4,0.6,0.8,1),
-                     labels=c("< 5%","5%-10%","10%-25%","25%-50%",">50%")) +
-  scale_fill_gradientn("Ratio of facilitation and competitive effect",
-                       colours = colours,
-                       breaks=c(1,51,101),
-                       labels=c("100% \nFacilitative",
-                                "50/50",
-                                "100% \nCompetitive"),
-                       limits=c(1,101)) +
-  guides(fill= guide_colourbar(title.position="top", title.hjust = 0.5),
-         linewidth = guide_legend(title.position="top", 
-                                  title.hjust = 0,
-                                  nrow=2)) +
-  theme_bw() +
-  theme(legend.key.size = unit(1, 'cm'),
-        legend.position = "bottom",
-        legend.text = element_text(size=16),
-        legend.title = element_text(size=20))
-plot.legend 
-
-#load(paste0(project.dic,"results/Realised.Int.list.RData"))
-net.country <- list()
-# country = "aus"
-#species.focal = "GORO"
-
-for(country in country.list){
-  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
-                       neigh = Code.focal.list)
-  
-  ratio.mat <-   Realised.Int.Obs.list[[country]]  %>%
-    aggregate(sigmoid ~ focal + neigh, function(x) length(which(x<0))/length(x)) %>% # percentage of negative interaction
-    spread(neigh,sigmoid) %>%
-    dplyr::select(-focal) %>%
-    as.matrix()
-  
-  strength.mat <- Realised.Int.Obs.list[[country]]  %>%
-    aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
-    spread(neigh,sigmoid) %>%
-    dplyr::select(-focal) %>%
-    as.matrix()
-  # for the network to have row as receiver
-  if(!dim(strength.mat)[1]==dim(strength.mat)[2]){
-    df.all.comb <- expand.grid(Code.focal.list,Code.focal.list) %>%
-      rename("focal"="Var1") %>%
-      rename("neigh"="Var2")
-    
-    ratio.mat <-Realised.Int.Obs.list[[country]]  %>%
-      aggregate(sigmoid ~ focal + neigh,
-                function(x) length(which(x<0))/length(x)) %>% # percentage of negative interaction
-      right_join(df.all.comb) %>%
-      spread(neigh,sigmoid ) %>%
-      dplyr::select(-focal) %>%
-      as.matrix()
-    
-    strength.mat <- Realised.Int.Obs.list[[country]]  %>%
-      aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
-      right_join(df.all.comb) %>%
-      spread(neigh,sigmoid) %>%
-      dplyr::select(-focal) %>%
-      as.matrix() %>%
-      t()# for the network to have row has emitor and columns as receiver
-  }
-  plot.network.gradient.int(ratio.mat,strength.mat,"",0.01)
-  par(mar = rep(0, 4))
-  net.country[[country]] <- recordPlot()
-  
-  
-}
-net.country$spain
-# figures/Network.Realised.effect_spain.pdf
-net.country$aus
-layout(1)
-# figures/Network.Realised.effect_aus.pdf
-plot(get_legend(plot.legend))
-#figures/Network.Realised.effect_legend.pdf
-plot_grid(
-  plot_grid(net.country$aus,net.country$spain,
-            nrow = 1,labels=c("Australia","Spain")),
-  get_legend(plot.legend),
-  ncol = 1,
-  rel_heights =c(1,0.2),
-  labels = '')
-# figures/Network.Realised.effect.pdf
-ggsave( plot_grid(net.country$aus,
-                  get_legend(plot.legend),
-                  ncol = 1,
-                  rel_heights =c(1,0.24),
-                  labels = "",
-                  hjust = 0, vjust = 1),
-        file=paste0(home.dic,"figures/Network.Obs.Sigmoid.effect_aus.pdf")) 
-ggsave( plot_grid(net.country[["spain"]],
-                  get_legend(plot.legend),
-                  ncol = 1,
-                  rel_heights =c(1,0.24),
-                  labels = "",
-                  hjust = 0, vjust = 1),
-        file=paste0(home.dic,"figures/Network.Obs.Realised.effect_spain.pdf")) 
-
-# figures/Network.Realised.effect_aus.pdf")
-
-library(qgraph)
-plotwebfun<-function(web,metaweb=NULL,colmat,
-                     layout = "circle", curveDefault = 0.4,
-                     wtimes=200,vertex.size=8,edge.arrow.size=1,
-                     minimum,theme,parallelAngleDefault,edge.width,
-                     labels,curveAll){
-  web<- t(web)
-  if(!is.null(metaweb)){
-    spcode<-sapply(colnames(web),
-                   function(x)which(colnames(metaweb)==x))#could be useful
-  }
-  qgraph(web,color = "white", layout = layout,
-         curveDefault = curveDefault, minimum=minimum,
-         edge.width=edge.width,
-         theme=theme,
-         parallelAngleDefault=parallelAngleDefault,
-         weighted=T,
-         labels=labels,curveAll=curveAll)
-}
-plotwebfun( strength.mat, colmat=ratio.mat,
-            minimum = 0,edge.width=2,
-            parallelAngleDefault=pi/10,theme="Hollywood",
-            labels= colnames(strength.mat),curveAll=F)
-
+#---- 3.2. Network visualasition ----
 plot.network.gradient.int <- function(ratio.mat,strength.mat,
                                       title.y,minimum.stength){
   alphamat.pos <- unname(abs(round(strength.mat,3))) %>%
@@ -705,13 +775,126 @@ plot.network.gradient.int <- function(ratio.mat,strength.mat,
        edge.loop.angle = edgeloopAngles)
   title(title.y, line = -2)
 }
+colours  <- wes_palette("Zissou1", 101, type = "continuous")
 
-#---- 2.3. Table sum up ----
+plot.legend <- ggplot(data.frame(x=rep(c(1,2,3,4,5),
+                                       times=50),
+                                 y=1:250),
+                      aes(as.factor(x),
+                          y,fill=x)) +
+  geom_point() +
+  geom_line(aes(linewidth=as.factor(x), alpha=as.factor(x))) + 
+  scale_linewidth_manual("Standardized median effect",
+                         values=c(0.5,1,1.5,2,3),
+                         labels=c("< 5%","5%-10%","10%-25%","25%-50%",">50%")) +
+  scale_alpha_manual("Standardized median effect",
+                     values=c(0.2,0.4,0.6,0.8,1),
+                     labels=c("< 5%","5%-10%","10%-25%","25%-50%",">50%")) +
+  scale_fill_gradientn("Ratio of facilitation and competitive effect",
+                       colours = colours,
+                       breaks=c(1,51,101),
+                       labels=c("100% \nFacilitative",
+                                "50/50",
+                                "100% \nCompetitive"),
+                       limits=c(1,101)) +
+  guides(fill= guide_colourbar(title.position="top", title.hjust = 0.5),
+         linewidth = guide_legend(title.position="top", 
+                                  title.hjust = 0,
+                                  nrow=2)) +
+  theme_bw() +
+  theme(legend.key.size = unit(1, 'cm'),
+        legend.position = "bottom",
+        legend.text = element_text(size=16),
+        legend.title = element_text(size=20))
+plot.legend 
+
+#load(paste0(project.dic,"results/Realised.Int.list.RData"))
+net.country <- list()
+# country = "aus"
+#species.focal = "GORO"
+
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  
+  ratio.mat <-   Realised.Int.list[[country]]  %>%
+    aggregate(sigmoid ~ focal + neigh, function(x) length(which(x<0))/length(x)) %>% # percentage of negative interaction
+    spread(neigh,sigmoid) %>%
+    dplyr::select(-focal) %>%
+    as.matrix()
+  
+  strength.mat <- Realised.Int.list[[country]]  %>%
+    aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
+    spread(neigh,sigmoid) %>%
+    dplyr::select(-focal) %>%
+    as.matrix()
+  # for the network to have row as receiver
+  if(!dim(strength.mat)[1]==dim(strength.mat)[2]){
+    df.all.comb <- expand.grid(Code.focal.list,Code.focal.list) %>%
+      rename("focal"="Var1") %>%
+      rename("neigh"="Var2")
+    
+    ratio.mat <-Realised.Int.Obs.list[[country]]  %>%
+      aggregate(sigmoid ~ focal + neigh,
+                function(x) length(which(x<0))/length(x)) %>% # percentage of negative interaction
+      right_join(df.all.comb) %>%
+      spread(neigh,sigmoid ) %>%
+      dplyr::select(-focal) %>%
+      as.matrix()
+    
+    strength.mat <- Realised.Int.Obs.list[[country]]  %>%
+      aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
+      right_join(df.all.comb) %>%
+      spread(neigh,sigmoid) %>%
+      dplyr::select(-focal) %>%
+      as.matrix() %>%
+      t()# for the network to have row has emitor and columns as receiver
+  }
+  plot.network.gradient.int(ratio.mat,strength.mat,"",0.01)
+  par(mar = rep(0, 4))
+  net.country[[country]] <- recordPlot()
+  
+  
+}
+net.country$spain
+# figures/Network.Realised.effect_spain.pdf
+net.country$aus
+layout(1)
+# figures/Network.Realised.effect_aus.pdf
+plot(get_legend(plot.legend))
+#figures/Network.Realised.effect_legend.pdf
+plot_grid(
+  plot_grid(net.country$aus,net.country$spain,
+            nrow = 1,labels=c("Australia","Spain")),
+  get_legend(plot.legend),
+  ncol = 1,
+  rel_heights =c(1,0.2),
+  labels = '')
+# figures/Network.Realised.effect.pdf
+ggsave( plot_grid(net.country$aus,
+                  get_legend(plot.legend),
+                  ncol = 1,
+                  rel_heights =c(1,0.24),
+                  labels = "",
+                  hjust = 0, vjust = 1),
+        file=paste0(home.dic,"figures/Network.Obs.Sigmoid.effect_aus.pdf")) 
+ggsave( plot_grid(net.country[["spain"]],
+                  get_legend(plot.legend),
+                  ncol = 1,
+                  rel_heights =c(1,0.24),
+                  labels = "",
+                  hjust = 0, vjust = 1),
+        file=paste0(home.dic,"figures/Network.Obs.Realised.effect_spain.pdf")) 
+
+
+
+#---- 3.3. Table sum up ----
 str(Realised.Int.list)
 sum.up.df <- NULL
 for(country in country.list){
   
-  sum.up.df.n <- Realised.Int.Obs.list[[country]] %>%
+  sum.up.df.n <- Realised.Int.list[[country]] %>%
     summarise(mean.effect = (mean(sigmoid)),
               median.effect = (median(sigmoid)),
               var.effect = (var(sigmoid)),
@@ -743,7 +926,7 @@ for(country in country.list){
            proportion.neutre =1-(proportion.positive +proportion.negative),
            country = country,
            effect ="given")%>%
-    rename(species = "neigh")
+    rename("species" = "neigh")
   
   sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
     group_by(focal) %>%
@@ -760,7 +943,7 @@ for(country in country.list){
            proportion.neutre =1-(proportion.positive +proportion.negative),
            country = country,
            effect ="received") %>%
-    rename(species = "focal")
+    rename("species" = "focal")
   
   
   write.csv(bind_rows(sum.up.df.n,sum.up.focal.df.n,sum.up.neigh.df.n),

@@ -398,23 +398,31 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
             by="code.plant") %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
   dplyr::select(-c(code.plant,species)) %>%
-  gather(c("heigh","CS","LeafArea","SLA","LAI","DR","SRL",
-          "TDMr","SRA","C.N","C13","N15"),key="trait",value="value") %>%
+  gather(c("C13",
+    #"N15",
+    "C.N",
+    "CS",
+    "DR",
+    "heigh",
+    "TDMr",
+    "LAI",
+     "SLA",
+     "SRL",
+     "SRA"),key="trait",value="value") %>%
   aggregate(value ~ trait + code.analysis, mean) %>%
-  dplyr::filter(!trait %in% c("LeafArea","LAI")) %>%
   spread(trait,value) %>%
   left_join(numb.seed.spain %>%
               aggregate(total.seeds ~ focal.analysis, function(x)mean(x,na.rm=T)) %>%
               rename("code.analysis"="focal.analysis")) %>%
   column_to_rownames("code.analysis") %>%
-  rename("Ratio leafs" ="C.N",
-         "Water use efficiency"="C13",
+  rename("Leaf C to N ratio" ="C.N",
+         "C13 water use efficiency"="C13",
          "Canopy shape"="CS",
          "Root diameter"="DR",
          "Stem height"="heigh",
-         #"Leaf area index"="LAI",
+         "Leaf area index"="LAI",
          #"Leaf area"="LeafArea",
-         "Leaf nitrogen cc"="N15",
+         #"Leaf nitrogen cc"="N15",
          "Root mass density"="TDMr",
          "Mean fecundity"="total.seeds") 
   head(plant_traits_spain )
@@ -498,41 +506,6 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
   
   plant_traits_spain <- plant_traits_spain %>% bind_rows(PAIN_traits)
   view(plant_traits_spain)
-  #---- 3.1.2. PCA trait -----
-  spain.traits <- MFA(plant_traits_spain, 
-                        group = rep(c(1),each=ncol(plant_traits_spain)),#(1,1,1,1,1,1,1,1,1,1), 
-                        type = rep(c("s"),each=ncol(plant_traits_spain)),#c("n","n","n","s","s","s","s","s","n","n"),
-                        name.group = colnames(plant_traits_spain),
-                        graph = T)
-  
-  eig.val <- get_eigenvalue(spain.traits)
-  head(eig.val)
-  fviz_contrib(spain.traits, choice = "quanti.var", axes = 1, top = 20,palette = kelly())
-  fviz_contrib(spain.traits, choice = "quanti.var", axes = 2, top = 20,palette = kelly())
-  fviz_mfa_var(spain.traits, "quanti.var", palette = kelly(), 
-               col.var.sup = "violet", repel = TRUE)
-  fviz_mfa_ind(spain.traits, col.ind = "cos2", 
-               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-               repel = TRUE)
-  # cluster analysis
-
-  spain.traits.dist <- vegdist(plant_traits_spain %>% scale() %>% 
-                                as.data.frame(),
-                                na.rm = T,method="euclidean")
-  
-  hc <- hclust(spain.traits.dist,
-               method = "average", members = NULL) 
-  plot(hc)
-  plant_traits_spain <- plant_traits_spain %>%
-    mutate( coord.slow.to.fast =-spain.traits$global.pca$ind$coord[,"Dim.1"])%>%
-    rename("Fast to slow spectrum"="coord.slow.to.fast")
-  
-# ---- 4.4. Gather trait mat ----
-  trait.dist_spain.df <- as.data.frame(as.matrix(spain.traits.dist)) %>%
-    rownames_to_column(var="focal") %>%
-    gather(any_of(final.species.list.spain),
-           key="neigh",value="dist")
-  
 #---- 4. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
   rename("focal"="focal.analysis") 
@@ -545,7 +518,7 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       plant_traits =plant_traits_spain,
                       trait.dist_spain.df = trait.dist_spain.df)
 #load("data/clean.data.spain.RData")
-#clean.data.spain$plant_traits <- plant_traits_spain
+clean.data.spain$plant_traits <- plant_traits_spain
 ## clean.data.spain$trait.dist_spain.df  <- trait.dist_spain.df 
 #clean.data.spain$abundance_spain.summary <- abundance_spain.summary
 save(clean.data.spain,
@@ -992,7 +965,7 @@ web.traits <- austraits$traits %>%
 
 view(web.traits)
 # internal dataset
-plant_traits_aus <- read.csv("data/aus_rawdata/Traits_database.csv",
+OG.plant_traits_aus <- read.csv("data/aus_rawdata/Traits_database.csv",
                              header = T, stringsAsFactors = F, sep=",",
                              na.strings = c("","NA"))
 plant_germ_aus <- read.csv("~/Documents/Projects/Perenjori/data/seed_rates.csv",
@@ -1005,7 +978,7 @@ WinnieSiu.traits <- read.csv("data/aus_rawdata/WinnieSiu_traits.csv") %>%
   spread(traits,value)
 
 
-aus_traits_df <- plant_traits_aus %>%
+aus_traits_df <- OG.plant_traits_aus %>%
   left_join(plant_code_aus[,c("name","code","final.code")] %>%
               rename("species" ="name" ), 
             by=c("species"),
@@ -1014,9 +987,10 @@ aus_traits_df <- plant_traits_aus %>%
   dplyr::select(final.code,species,aboverground.biomass.mg, 
                 height.mm,mean.seed.mass.mg,sla.mm2.mg,
                 width.longest.mm, width.90.from.longest.mm,
-                delta.C13.discrimination.permill,
+                C13.plant.permill,
                 total.root.length.cm,number.of.root.tips,
-                root.volume.less.than.0.5mm.diameter.mm3) %>%
+                root.volume.less.than.0.5mm.diameter.mm3,
+                total.root.volume.cm3) %>%
   group_by(final.code,species) %>%
   summarise_all(list(~ median(.x, na.rm = TRUE))) %>%
   left_join(plant_germ_aus[,c("name","code","germ","surv")] %>%
@@ -1041,11 +1015,13 @@ view(aus_traits_df)
 write.csv(aus_traits_df,
           "data/aus_traits_df.csv")
 aus_traits_df <- read.csv("data/aus_traits_df.csv")
-#----4.2.General categories----
+#rename and clean data set for analysis
 plant_traits_aus <- aus_traits_df %>%
   mutate(mean.seed.mass.mg = case_when(is.na(mean.seed.mass.mg)~seed.dry.mass,
                                        T~mean.seed.mass.mg)) %>%
-  mutate(CanopyArea = pi*width.longest.mm*width.90.from.longest.mm) %>%
+  mutate(CanopyArea = pi*width.longest.mm*width.90.from.longest.mm,
+         sla.mm2.mg = 10*sla.mm2.mg,
+         Root.mass.density =root.biomass/total.root.volume.cm3) %>% # convert to cm2/gr
   dplyr::select(final.code,
                 flower.size.numb,
                 Fecundity,
@@ -1058,267 +1034,28 @@ plant_traits_aus <- aus_traits_df %>%
                 CanopyArea,
                 total.root.length.cm,
                 number.of.root.tips,
+                C13.plant.permill,
                 srl,
-                root.biomass,
-                root.volume.less.than.0.5mm.diameter.mm3)  %>%
-  rename("Root volume"="root.volume.less.than.0.5mm.diameter.mm3",
+                Root.mass.density 
+                #root.volume.less.than.0.5mm.diameter.mm3
+                )  %>%
+  rename(#"Root volume"="root.volume.less.than.0.5mm.diameter.mm3",
          "SLA"="sla.mm2.mg",
          "SRL"="srl",
          "Root length"="total.root.length.cm",
          "Canopy shape" = "CanopyArea",
+         "C13 water use efficiency"="C13.plant.permill",
          #"Canopy width"="width.longest.mm",
          #"Canopy width 90deg"="width.90.from.longest.mm",
          "Stem height"="height.mm",
          "Seed mass"= "mean.seed.mass.mg",
          "Root tips"="number.of.root.tips",
-         "Root biomass"="root.biomass",
+         "Root mass density"="Root.mass.density",
          "Flower width"="flower.size.numb" ,
          "Mean fecundity" ="Fecundity") %>%
   #dplyr::filter(!final.code %in% c("ARCA","PEAI")) %>%
   column_to_rownames("final.code") 
 view(plant_traits_aus)
-# PCA analysis
-#https://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/116-mfa-multiple-factor-analysis-in-r-essentials/
-
-aus.traits <- MFA(plant_traits_aus,
-                           group = rep(1, times= ncol(plant_traits_aus)), 
-                           type = rep("s", times= ncol(plant_traits_aus)), # s = quantitative , n= factorial
-                           name.group = colnames(plant_traits_aus),
-                           graph = T)
-
-eig.val <- get_eigenvalue(aus.traits)
-head(eig.val)
-fviz_contrib(aus.traits, choice = "quanti.var", axes = 1, top = 20,palette = kelly(n=22))
-fviz_contrib(aus.traits, choice = "quanti.var", axes = 2, top = 20,palette = kelly(n=22))
-fviz_mfa_var(aus.traits, "quanti.var", palette = kelly(n=22), 
-             col.var.sup = "violet", repel = TRUE)
-
-fviz_mfa_ind(aus.traits, col.ind = "cos2", 
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE)
-# cluster analysis
-library(vegan)
-aus.traits.dist <- vegdist(plant_traits_aus %>% scale() %>% 
-                                       as.data.frame(),
-                                     na.rm = T,method="euclidean")
-
-hc <- hclust(aus.traits.dist ,
-             method = "average", members = NULL) 
-plot(hc)
-
-plant_traits_aus <- plant_traits_aus %>%
-  mutate( coord.slow.to.fast = -aus.traits$global.pca$ind$coord[,"Dim.1"]) %>%
-  rename("Fast to slow spectrum"="coord.slow.to.fast")
-
-#----4.2.Category based on reproduction strategy----
-plant_pol.traits_aus <- aus_traits_df %>%
-  mutate(mean.seed.mass.mg = case_when(is.na(mean.seed.mass.mg)~seed.dry.mass,
-                                       T~mean.seed.mass.mg)) %>%
-  dplyr::select(final.code,
-                flower.size.numb,
-                Fecundity,
-                surv,mean.seed.mass.mg )  %>%
-  column_to_rownames("final.code")
-str(plant_pol.traits_aus )
-view(plant_pol.traits_aus)
-
-# PCA analysis
-#https://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/116-mfa-multiple-factor-analysis-in-r-essentials/
-res.pol.traits <- MFA(plant_pol.traits_aus, 
-               group = c(1,1,1,1),#(1,1,1,1,1,1,1,1,1,1), 
-               type = c("s","s","s","s"),#c("n","n","n","s","s","s","s","s","n","n"),
-               name.group = c("flower","fecundity","survival.seed","seed.mass"),
-                 #"flower.size","flower.colour","flowers.per.plant","Dispersal",
-                 #"Fecundity","germ",
-                 #"surv",
-                # "mean.seed.mass.mg","seed.dry.mass"),
-               graph = T)
-
-eig.val <- get_eigenvalue(res.pol.traits)
-head(eig.val)
-fviz_contrib(res.pol.traits, choice = "quanti.var", axes = 1, top = 20,palette = "jco")
-fviz_contrib(res.pol.traits, choice = "quanti.var", axes = 2, top = 20,palette = "jco")
-fviz_mfa_var(res.pol.traits, "quanti.var", palette = "jco", 
-             col.var.sup = "violet", repel = TRUE)
-
-fviz_mfa_ind(res.pol.traits, col.ind = "cos2", 
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE)
-# cluster analysis
-library(vegan)
-plant_pol.traits_aus.dist <- vegdist(plant_pol.traits_aus %>% scale() %>% 
-                                       as.data.frame(),
-                                     na.rm = T,method="euclidean")
-
-hc <- hclust(plant_pol.traits_aus.dist ,method = "average", members = NULL) 
-plot(hc)
-
-#flower.size.numb. range 0-1;1-2; > 2
-
-
-aus_pol_grouping <-  plant_pol.traits_aus %>%
-  rownames_to_column("final.code") %>%
-  mutate(group.cluster =case_when(final.code %in% c("ARCA","POAR","WAAC","POLE") ~ 1,
-                                   final.code %in% c("PEAI") ~ 2,
-                                   final.code %in% c("GORO","GOBE","LARO") ~ 3,
-                                   final.code %in% c("PLDE","HYGL","MIMY","TRCY") ~ 4)) %>%
-    mutate(name.cluster =case_when(group.cluster==1 ~ "Big flower",
-                                    group.cluster ==2~ "Grass-like",
-                                    group.cluster ==3~ "Medium flower with big seeds",
-                                    group.cluster ==4~ "Multiple small flowers with medium seeds")) %>%
-    mutate(flower.size.cluster =case_when( final.code == "PEAI" ~ NA,
-                                          flower.size.numb>2 ~ "Big flower",
-                                          flower.size.numb <= 2 & flower.size.numb> 1 ~ "Medium flower",
-                                          flower.size.numb <= 1 ~ "Small flower")) 
-
-
-
-#----4.3.Category based on above ground strategy----
-
-plant_abovetraits_aus <- aus_traits_df %>%
-  dplyr::select(final.code,
-                #aboverground.biomass.mg,
-                height.mm,sla.mm2.mg,
-                width.longest.mm, width.90.from.longest.mm,
-                #delta.C13.discrimination.permill
-                )  %>%
-  column_to_rownames("final.code")
-str(plant_abovetraits_aus)
-view(plant_abovetraits_aus)
-
-res.abovetraits.aus <- MFA(plant_abovetraits_aus, 
-                      group = rep(1, times= ncol(plant_abovetraits_aus)), 
-                      type = rep("s", times= ncol(plant_abovetraits_aus)), # s = quantitative , n= factorial
-                      name.group = colnames(plant_abovetraits_aus),
-                      graph = T)
-
-eig.val <- get_eigenvalue(res.abovetraits.aus)
-head(eig.val)
-fviz_contrib(res.abovetraits.aus, choice = "quanti.var", axes = 1, top = 20,palette = "jco")
-fviz_contrib(res.abovetraits.aus, choice = "quanti.var", axes = 2, top = 20,palette = "jco")
-fviz_mfa_var(res.abovetraits.aus, "quanti.var", palette = "jco", 
-             col.var.sup = "violet", repel = TRUE)
-
-fviz_mfa_ind(res.abovetraits.aus, partial = "all",
-              #col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE)
-fviz_mfa_ind(res.abovetraits.aus,col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE)
-# cluster analysis
-plant_abovetraits_aus.dist <- vegdist(plant_abovetraits_aus %>% scale() %>% as.data.frame(),
-                                     na.rm = T,method="euclidean")
-hc <- hclust(plant_abovetraits_aus.dist ,method = "average", members = NULL) 
-plot(hc)
-
-hist(plant_abovetraits_aus$sla.mm2.mg)
-hist(aus_above_grouping$area)
-hist(aus_above_grouping$volume)
-aus_above_grouping <-  plant_abovetraits_aus  %>%
-  rownames_to_column("final.code") %>%
-  mutate(area = 0.5*width.longest.mm*height.mm) %>%
-  mutate(volume = (1/3)*width.longest.mm*height.mm*width.90.from.longest.mm) %>%
-  mutate(group.cluster = case_when(final.code %in% c("ARCA","GORO","TRCY") ~ 1, 
-                                   final.code %in% c("POAR","WAAC","LARO","HYGL") ~ 2, 
-                                   final.code %in% c("PLDE","GOBE","POLE","MIMY","PEAI") ~ 3)) %>% 
-  mutate(name.cluster = case_when(group.cluster==1 ~ "Creeping",
-                                  group.cluster ==2~ "Tall",
-                                  group.cluster ==3~ "Medium"))%>%
-  mutate(SLA.cluster = case_when(sla.mm2.mg > 30 ~ "Thick leaves",
-                                sla.mm2.mg < 25~ "Fin leaves",
-                                T ~ "Medium leaves")) %>%
-  mutate(heigh.cluster = case_when(height.mm > 100 ~ "Tall stem",
-                                   height.mm < 50 ~ "Small stem",
-                                  T ~ "Medium stem")) %>%
-  mutate(Area.cluster = case_when(area > 3000 ~ "Large area",
-                                 area < 1000 ~ "Small area",
-                                 T ~ "Medium area")) %>%
-  mutate(Volume.cluster = case_when(volume < 10000 ~ "Small Volume",
-                                  volume > 1000 & volume < 100000 ~ "Medium Volume",
-                                  T ~ "Large Volume"))
-
-
-aus_above_grouping <-  plant_abovetraits_aus  %>%
-  rownames_to_column("final.code") %>%
-  mutate(group.cluster = case_when(final.code %in% c("ARCA","GORO","TRCY") ~ 1, 
-                                   final.code %in% c("POAR","WAAC","LARO","HYGL") ~ 2, 
-                                   final.code %in% c("PLDE","GOBE","POLE","MIMY","PEAI") ~ 3)) %>% 
-  mutate(name.cluster = case_when(group.cluster==1 ~ "Creeping",
-                                  group.cluster ==2~ "Tall",
-                                  group.cluster ==3~ "Medium")) 
-
-#----4.4.Category based on below ground strategy----
-
-plant_belowtraits_aus <- aus_traits_df %>%
-  #mutate(biomass.ratio = root.biomass/aboverground.biomass.mg) %>% # if big, invest more below groung
-  dplyr::select(final.code,
-                total.root.length.cm,
-                number.of.root.tips,
-                root.volume.less.than.0.5mm.diameter.mm3,
-                root.biomass,
-                srl)  %>%
-  column_to_rownames("final.code")
-str(plant_belowtraits_aus)
-view(plant_belowtraits_aus)
-
-res.belowtraits.aus <- MFA(plant_belowtraits_aus, 
-                           group = rep(1, times= ncol(plant_belowtraits_aus)), 
-                           type = rep("s", times= ncol(plant_belowtraits_aus)), # s = quantitative , n= factorial
-                           name.group = names(plant_belowtraits_aus),
-                           graph = T)
-
-eig.val <- get_eigenvalue(res.belowtraits.aus)
-head(eig.val)
-fviz_contrib(res.belowtraits.aus, choice = "quanti.var", axes = 1, top = 20,palette = "jco")
-fviz_contrib(res.belowtraits.aus, choice = "quanti.var", axes = 2, top = 20,palette = "jco")
-fviz_mfa_var(res.belowtraits.aus, "quanti.var", palette = "jco", 
-             col.var.sup = "violet", repel = TRUE)
-
-fviz_mfa_ind(res.belowtraits.aus, col.ind = "cos2", 
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE)
-# cluster analysis
-library(vegan)
-plant_belowtraits_aus.dist <- vegdist(plant_belowtraits_aus %>% scale() %>% as.data.frame(),
-                                      na.rm = T,method="euclidean")
-hc <- hclust(plant_belowtraits_aus.dist ,method = "average", members = NULL) 
-plot(hc)
-
-hist(plant_belowtraits_aus$root.biomass)
-aus_below_grouping <-  plant_belowtraits_aus  %>%
-  rownames_to_column("final.code") %>%
-  mutate(group.cluster = case_when(final.code %in% c("POAR","WAAC") ~ 1,
-                                   final.code %in% c("PEAI") ~ 2,
-                                   final.code %in% c("ARCA") ~ 3,
-                                   final.code %in% c("LARO","GOBE","MIMY","HYGL",
-                                                     "GORO","POLE","TRCY","PLDE") ~ 4)) %>%
-  mutate(name.cluster = case_when(group.cluster==1 ~ "Heavy Taproot",
-                                  group.cluster ==2~ "Grass-like/Thin and spread",
-                                  group.cluster ==3~ "Long and thin taproot",
-                                  group.cluster ==4~ "Small and thin Taproot")) %>%
-  mutate(srl.cluster = case_when( srl < 5 ~ "small srl",
-                                  srl >10 ~ "high srl",
-                                  T ~ "medium srl"))  %>%
-  mutate(root.length.cluster = case_when( total.root.length.cm > 50 ~ "deep root",
-                                          total.root.length.cm < 20 ~ "small root",
-                                          T ~ "medium root")) 
-
-# ---- 4.4. Gather trait mat ----
-trait.dist_aus.df <- as.data.frame(as.matrix(plant_pol.traits_aus.dist)) %>%
-  rownames_to_column(var="focal") %>%
-  gather(all_of(final.species.list.aus),
-         key="neigh",value="pol.traits")  %>%
-  left_join(as.data.frame(as.matrix(plant_belowtraits_aus.dist)) %>%
-              rownames_to_column(var="focal") %>%
-              gather(all_of(final.species.list.aus),
-                     key="neigh",value="below.traits")) %>%
-  left_join(as.data.frame(as.matrix(plant_abovetraits_aus.dist)) %>%
-              rownames_to_column(var="focal") %>%
-              gather(all_of(final.species.list.aus),
-                     key="neigh",value="above.traits")) %>%
-  left_join(as.data.frame(as.matrix(aus.traits.dist)) %>%
-  rownames_to_column(var="focal") %>%
-  gather(all_of(final.species.list.aus),
-         key="neigh",value="dist"))
 
 # ---- 5. Save data AUS ----
 clean.data.aus = list(seed_germination_aus=seed_germination_aus,
@@ -1332,12 +1069,12 @@ clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       plant_pol.traits_aus.dist = plant_pol.traits_aus.dist,
                       trait.dist_aus.df  =trait.dist_aus.df,
                       plant_traits = plant_traits_aus)
-#load("data/clean.data.aus.RData")
+load("data/clean.data.aus.RData")
 #clean.data.aus$abundance_aus.summary <- abundance_aus.clean
 #clean.data.aus$aus_above_grouping <-aus_above_grouping
 #clean.data.aus$aus_pol_grouping <-aus_pol_grouping
 #clean.data.aus$aus_below_grouping <-aus_below_grouping
 #clean.data.aus$trait.dist_aus.df <-trait.dist_aus.df
-#clean.data.aus$plant_traits <-plant_traits_aus
+clean.data.aus$plant_traits <-plant_traits_aus
 save(clean.data.aus,
      file="data/clean.data.aus.RData")
