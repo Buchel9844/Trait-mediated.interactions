@@ -47,6 +47,7 @@ library(ggthemes)
 library(grid)
 library(pals) # for lots of colors
 library(FactoMineR)
+#install.packages("factoextra")
 library(factoextra)
 library(vegan)
 setwd("~/Documents/Projects/Facilitation_gradient")
@@ -1020,8 +1021,10 @@ plant_traits_aus <- aus_traits_df %>%
   mutate(mean.seed.mass.mg = case_when(is.na(mean.seed.mass.mg)~seed.dry.mass,
                                        T~mean.seed.mass.mg)) %>%
   mutate(CanopyArea = pi*width.longest.mm*width.90.from.longest.mm,
-         sla.mm2.mg = 10*sla.mm2.mg,
-         Root.mass.density =root.biomass/total.root.volume.cm3) %>% # convert to cm2/gr
+         sla.mm2.mg = 10*sla.mm2.mg, # to have cm2/g
+         srl= 1000*srl, # to have cm2/g
+         height.mm = height.mm/10, # to have cm
+         Root.mass.density =root.biomass/(total.root.volume.cm3*1000)) %>% # convert to mg/cm3
   dplyr::select(final.code,
                 flower.size.numb,
                 Fecundity,

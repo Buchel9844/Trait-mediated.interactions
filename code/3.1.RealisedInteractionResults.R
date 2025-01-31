@@ -910,10 +910,10 @@ for(country in country.list){
            effect ="both",
            species = "All")
   
-  
+ 
   sum.up.neigh.df.n <- Realised.Int.list[[country]] %>%
     group_by(neigh) %>%
-    summarise(mean.effect = (mean(sigmoid)),
+    dplyr::summarise(mean.effect = (mean(sigmoid)),
               median.effect = (median(sigmoid)),
               var.effect = (var(sigmoid)),
               max.positive.effect = (max(sigmoid)),
@@ -921,16 +921,16 @@ for(country in country.list){
               count.positive = length(sigmoid[sigmoid >0]),
               count.negative = length(sigmoid[sigmoid  <0]),
               count.total = length(sigmoid)) %>%
-    mutate(proportion.positive =(count.positive/count.total),
+    dplyr::mutate(proportion.positive =(count.positive/count.total),
            proportion.negative =(count.negative/count.total),
            proportion.neutre =1-(proportion.positive +proportion.negative),
            country = country,
-           effect ="given")%>%
-    rename("species" = "neigh")
+           effect ="given") %>%
+    dplyr::rename("species" = "neigh")
   
   sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
     group_by(focal) %>%
-    summarise(mean.effect = (mean(sigmoid)),
+    dplyr::summarise(mean.effect = (mean(sigmoid)),
               median.effect = (median(sigmoid)),
               var.effect = (var(sigmoid)),
               max.positive.effect = (max(sigmoid)),
@@ -938,12 +938,12 @@ for(country in country.list){
               count.positive = length(sigmoid[sigmoid >0]),
               count.negative = length(sigmoid[sigmoid  <0]),
               count.total = length(sigmoid)) %>%
-    mutate(proportion.positive =(count.positive/count.total),
+    dplyr::mutate(proportion.positive =(count.positive/count.total),
            proportion.negative =(count.negative/count.total),
            proportion.neutre =1-(proportion.positive +proportion.negative),
            country = country,
            effect ="received") %>%
-    rename("species" = "focal")
+    dplyr::rename("species" = "focal")
   
   
   write.csv(bind_rows(sum.up.df.n,sum.up.focal.df.n,sum.up.neigh.df.n),
