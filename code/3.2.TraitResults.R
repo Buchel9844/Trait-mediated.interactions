@@ -224,12 +224,7 @@ for( country in country.list){
       glm.inter.trait.i.dist <- glmmTMB(theoretical.effect ~  scaled.trait.dist  + (1|focal) + (1|neigh), 
                                trait.dist.df.i,
                                family="gaussian")
- 
-      glm.inter.trait.i.rec <- glmmTMB(theoretical.effect ~  receiver.trait  + (1|focal) + (1|neigh), 
-                                   trait.dist.df.i,
-                                   family="gaussian")
-   
-      glm.inter.trait.i.emit <- glmmTMB(theoretical.effect ~  emitter.trait  + (1|focal) + (1|neigh), 
+      glm.inter.trait.i <- glmmTMB(theoretical.effect ~  receiver.trait  + emitter.trait  + (1|focal) + (1|neigh), 
                                    trait.dist.df.i,
                                    family="gaussian")
   
@@ -237,12 +232,9 @@ for( country in country.list){
       Inter.trait.df.i <- as.data.frame(confint(glm.inter.trait.i.dist)) %>%
         mutate(model = "scaled.trait.dist") %>%
         rownames_to_column("parameters") %>%
-      bind_rows(as.data.frame(confint(glm.inter.trait.i.rec))%>%
-                    mutate(model = "receiver.trait")%>%
+      bind_rows(as.data.frame(confint(glm.inter.trait.i))%>%
+                    mutate(model = "trait")%>%
                   rownames_to_column("parameters")) %>%
-        bind_rows(as.data.frame(confint(glm.inter.trait.i.emit))%>%
-                    mutate(model = "emitter.trait")%>%
-                    rownames_to_column("parameters"))%>% 
         rename("Q2.5"="2.5 %",
                "Q97.5"="97.5 %") %>%
         mutate(trait=trait.i,
@@ -266,9 +258,9 @@ for( country in country.list){
 }
 view(Cool.theory.trait.df[[country]]$Inter.trait.df)
 trait.dist.df <- Cool.theory.trait.df[["aus"]]$trait.dist.df
-Cool.theory.trait.df[[country]] %>%
+trait.dist.df %>%
   dplyr::filter(trait %in% c("SLA","C13 water use efficiency")) %>%
-  dplyr::select(focal,trait,receiver.trait)%>%
+  dplyr::select(focal,trait,receiver.trait) %>%
   spread(trait,receiver.trait)
 ggplot()+
   geom_point(aes(x=trait.dist.df$receiver.trait[which(trait.dist.df$trait=="SLA")],
@@ -583,7 +575,7 @@ for( country in country.list){
       unit="in")
   }
 }
-Cool.detailed.theory.trait.plotlist[[paste0("spain")]] # figures/Theory.int.intercept.spain.pdf
+Cool.detailed.theory.trait.plotlist[["spain_intercept"]] # figures/Theory.int.intercept.spain.pdf
 Cool.detailed.theory.trait.plotlist[[paste0("aus")]]
 
 #---- 1.3. Make summary of glm plots ----
@@ -618,7 +610,7 @@ for( country in country.list){
                  "Leaf C to N ratio"= "#BCBD22FF" ,
                  "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
                   "SLA"="#59A14FFF","Stem height"="#FED789FF",
-                 "intercept"="black")
+                 "intercept"="grey80")
   
   
   df.i <- Inter.trait.df %>%
@@ -818,7 +810,7 @@ for( country in country.list){
   
   # JUST INTERCEPT 
   intercept.df <- bind_rows(df.i,Intra.trait.df.i) %>%
-    dplyr::filter(density.quantile %in% c("intercept","high")) %>%
+    dplyr::filter(density.quantile %in% c("intercept")) %>%
     #dplyr::filter(!parameters =="intercept") %>%
     dplyr::mutate(trait = case_when(parameters =="intercept" ~ "intercept",
                                     T~trait)) %>%
@@ -830,16 +822,18 @@ for( country in country.list){
     summarise(Q2.5=min(Q2.5),
               Q97.5=max(Q97.5),
               Estimate =median(Estimate))%>%
-    ungroup()
+    ungroup() %>%
+    mutate(pointshape = "intercept")
 
  
   Cool.glm.theory.trait.plotlist[[paste0(country,"_intercept")]]  <- bind_rows(df.i,Intra.trait.df.i) %>%
-    dplyr::filter(density.quantile  %in% c("intercept","high")) %>%
+    dplyr::filter(density.quantile  %in% c("intercept")) %>%
     dplyr::filter(!parameters =="intercept")%>%
     dplyr::filter(!trait %in% c("Root diameter",
                                "Flower width","Seed mass",
                                "Leaf area index",
-                               "Canopy shape","Stem height"))%>%
+                               "Canopy shape"))%>%
+    mutate(pointshape = "estimate") %>%
     bind_rows(intercept.df) %>%
     mutate(parameters= factor(parameters,
                               levels=c("Focal trait\non interspecific","Emitter trait\non interspecific",
@@ -856,7 +850,8 @@ for( country in country.list){
                x=Estimate,
                color=as.factor(trait),
                group=as.factor(trait),
-               shape=density.quantile)) +
+               shape = pointshape )) + 
+               #shape=density.quantile)) +
     geom_linerange(aes(xmin=Q2.5,
                         xmax=Q97.5),
                     size=1,alpha=0.7) +
@@ -867,10 +862,12 @@ for( country in country.list){
                   group=as.factor(trait),label=signif),
               size=10,color="black") +
     scale_color_manual(values=dummy.col)+
+    scale_shape_manual(values=c(16:17))+
     scale_y_continuous(breaks=c(1:4),
-                     labels=rev(c("Focal trait\non interspecific","Emitter trait\non interspecific",
-                                    "Focal trait -\nEmitter trait\non interspecific",
-                                    "Focal trait\non intraspecific"))) +
+                     labels=rev(c("Focal trait",
+                                  "Neighbor trait",
+                                  "Focal trait -\nNeighbor trait",
+                                  "Focal trait"))) +
     theme_bw() +
     geom_vline(xintercept=0) + 
     labs(x="estimate",
@@ -879,6 +876,10 @@ for( country in country.list){
     guides(color = guide_legend(title.position = "top",
                                 nrow=2)) +
     theme(legend.position="bottom",
+          plot.margin = unit(c(1,ifelse(country=="aus",
+                                        0,3),0,
+                               ifelse(country=="aus",
+                                    3,0)),"cm"),
           strip.text = element_text(size=18),
           legend.title =element_text(size=18),
           legend.text =element_text(size=18),
@@ -896,14 +897,13 @@ Cool.glm.theory.trait.plotlist[[paste0("spain")]]#figures/GLM.traits.SPAIN.pdf
 Cool.glm.theory.trait.plotlist[[paste0("aus")]]#figures/GLM.traits.AUS.pdf
 legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
                         bind_rows(Cool.theory.trait.df[["spain"]]$Intra.trait.df) %>%
+                        mutate(pointshape = rep(c("intercept"),each=240)) %>%
                         dplyr::filter(!parameters =="intercept") %>%
                         dplyr::filter(!trait %in% c("Root diameter",
                                                     "Flower width","Seed mass",
                                                     "Leaf area index",
-                                                    "Canopy shape",
-                                                    "Stem height"))%>%
-                        
-                        bind_rows(intercept.df )%>%
+                                                    "Canopy shape")) %>%
+                        #bind_rows(intercept.df) %>%
                         filter(density.quantile  %in% c("high","intercept")) %>%
                         mutate( density.quantile = factor(density.quantile ,
                                                           levels=c("intercept","high"))) %>%
@@ -912,11 +912,17 @@ legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
                       aes(y=Estimate,
                           x=parameters,
                           color=trait,
-                          shape=density.quantile )) + geom_blank() + 
+                          shape = pointshape))+
+                          #shape=density.quantile )) + 
+  geom_blank() + 
   geom_pointrange(aes(xmin=Q2.5,
                       xmax=Q97.5),
                   size=2,alpha=0.8) +
-  scale_color_manual(values= dummy.col )  +
+  scale_shape_manual("",values= 17 )  +
+  scale_color_manual("",values= dummy.col )  +
+  guides(shape= guide_legend(nrow=2,byrow=TRUE,
+                             override.aes = list(alpha = 1,
+                                                 color=c("grey80")))) +
   theme_few() +
   theme(legend.position="bottom",
         legend.key.size = unit(1, 'cm'),
@@ -924,16 +930,49 @@ legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
         legend.title =element_text(size=20),
         legend.text =element_text(size=16),
         axis.text = element_text(size=18))
+legend.plot
 
-plot_grid( ggarrange(Cool.glm.theory.trait.plotlist[[paste0("aus_intercept")]],
+GLM.traits.Intercep <- plot_grid( ggarrange(Cool.glm.theory.trait.plotlist[[paste0("aus_intercept")]],
            Cool.glm.theory.trait.plotlist[[paste0("spain_intercept")]],
-          common.legend = T, legend = "none",
-          ncol=2,labels=c("a. Australia","b. Spain","")),
+           common.legend = T, legend = "none",
+           label.x = c(0.27,0.15),
+           label.y = 1.01,
+           font.label = list(size = 26, color = "black", 
+                             face = "bold", family = NULL),
+           ncol=2,labels=c("a. Australia","b. Spain","")),
            ggpubr::get_legend(legend.plot),
            ncol=1,
           rel_heights =c(1,0.2),
           nrow=2,legend="none")
-#figures/GLM.traits.Intercept.High.pdf
+GLM.traits.Intercep
+
+GLM.traits.Intercep + annotation_custom(
+  grob = textGrob(label = "Effect on \ninter- \ninteractions",
+                  hjust = 0, gp = gpar(cex = 1.5),rot=0),
+  ymin = 0.68,      # Vertical position of the textGrob
+  ymax = 0.68,
+  xmin = 0.002,         # Note: The grobs are positioned outside the plot area
+  xmax = 0.002)+
+  annotation_custom(grob = textGrob(label = "Effect on \nintra- \ninteractions",
+                    hjust = 0, gp = gpar(cex = 1.5),rot=0),
+    ymin = 0.3,      # Vertical position of the textGrob
+    ymax = 0.3,
+    xmin = 0.002,         # Note: The grobs are positioned outside the plot area
+    xmax = 0.002)
+
+bottom_x = 115
+grid.brackets(bottom_x,420, bottom_x,40, lwd=2, col="black")
+grid.brackets(bottom_x,570, bottom_x,425, lwd=2, col="black")
+
+ggsave(last_plot(),
+       width=15.41,
+       height=10.30,
+       unit="in",
+       file="figures/GLM.traits.Intercept.pdf")
+
+library(grid)
+library(pBrackets) 
+#figures/GLM.traits.Intercept.pdf
 
 #---- 1.4.PCA axes----
 PCA.trait.df <- list()
@@ -990,7 +1029,7 @@ for( country in country.list){
                                             "Mean fecundity","C13 water use efficiency","Leaf C to N ratio","Leaf area index",
                                             "Canopy shape","SLA","Stem height"))) 
     toremove <- c("Root diameter",
-                  "Flower width","Seed mass","SRL",
+                  "Flower width","Seed mass",
                   "Leaf area index",
                   "Canopy shape","Root tips")
   }
@@ -1005,6 +1044,7 @@ for( country in country.list){
     spread(trait,receiver.trait) %>%
     column_to_rownames("focal")
   data_normalized[[country]] 
+
   #data_normalized[["spain"]] 
   #data_normalized[["aus"]] 
   #https://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/116-mfa-multiple-factor-analysis-in-r-essentials/
@@ -1024,6 +1064,8 @@ for( country in country.list){
   eig.val <- get_eigenvalue(res.traits[[country]])
   head(eig.val)
   pdf(paste0("figures/pca/",country,"PCAaxes.pdf"))
+  chart.Correlation(  data_normalized[[country]], histogram=TRUE, pch=19)
+  
   fviz_contrib(res.traits[[country]],
                choice = "quanti.var", axes = 1, top = 20,palette = "jco")
   fviz_contrib(res.traits[[country]], choice = "quanti.var",
@@ -1041,20 +1083,27 @@ for( country in country.list){
   if(country=="spain"){
   PCA.trait.df[[country]]  <-  data.frame("BelowGroundStrategy"=res.traits[[country]]$ind$coord[,1],
                                           "PlantSize"=res.traits[[country]]$ind$coord[,2],
-                                          "AboveGroundStrategy"=res.traits[[country]]$ind$coord[,3])
+                                          "AboveGroundStrategy"=res.traits[[country]]$ind$coord[,3],
+                                          "BelowGroundTrait"=data_normalized[[country]]$SRA,
+                                          "PlantSizeTrait"=data_normalized[[country]]$`Stem height`,
+                                          "AboveGroundTrait"=data_normalized[[country]]$SLA)
   }
   
   if(country=="aus"){
     PCA.trait.df[[country]]  <-  data.frame("PlantSize"=-1*res.traits[[country]]$ind$coord[,1],
                                             "AboveGroundStrategy"=-1*res.traits[[country]]$ind$coord[,2],
-                                            "BelowGroundStrategy"=res.traits[[country]]$ind$coord[,3])
+                                            "BelowGroundStrategy"=res.traits[[country]]$ind$coord[,3],
+                                            "BelowGroundTrait"=data_normalized[[country]]$`Root length`,
+                                            "PlantSizeTrait"=data_normalized[[country]]$`Stem height`,
+                                            "AboveGroundTrait"=data_normalized[[country]]$`C13 water use efficiency`)
   }
 }
 
-#---- 1.5.PCA GLM----
+#---- 1.5.PCA GLM- FOCAL----
 glm.trait.pca.list <- list()
+glm.trait.list <- list()
 glm.new.data.list <- list()
-glm.new.data.3D.list<- list()
+glm.new.data.trait.list<- list()
 for( country in country.list){
   
 trait.pca.df <- Theoretical.Int.list[[country]] %>%
@@ -1064,7 +1113,9 @@ trait.pca.df <- Theoretical.Int.list[[country]] %>%
             relationship ="many-to-many")
 
 glm.trait.pca.df <- NULL
+glm.trait.df <- NULL
 glm.new.data.df <- NULL
+glm.new.data.trait.df <- NULL
 #glm.new.data.df.3D <- NULL
 #glm.new.data.df.3D.i <- data.frame(AboveGroundStrategy = c(0,seq(min(trait.pca.df$AboveGroundStrategy),max(trait.pca.df$AboveGroundStrategy),by=(max(trait.pca.df$AboveGroundStrategy)-min(trait.pca.df$AboveGroundStrategy))/100)),
 #                                   BelowGroundStrategy = c(0,seq(min(trait.pca.df$BelowGroundStrategy),max(trait.pca.df$BelowGroundStrategy),by=(max(trait.pca.df$BelowGroundStrategy)-min(trait.pca.df$BelowGroundStrategy))/100)))
@@ -1079,14 +1130,21 @@ glm.new.data.df <- NULL
 
 #glm.new.data.df.i <- expand.grid(glm.new.data.df.i)
 
-glm.new.data.df.i <- data.frame(PlantSize=c(runif(50000,min = min(trait.pca.df$PlantSize), max = quantile(trait.pca.df$PlantSize,0.33)),
-                                            runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
-                                            runif(50000,min = quantile(trait.pca.df$PlantSize,0.66), max = max(trait.pca.df$PlantSize))),# interaction Size-Above
-                                AboveGroundStrategy = runif(150000, min =min(trait.pca.df$AboveGroundStrategy),
+glm.new.data.df.i <- data.frame(PlantSize=c(runif(50000,min = min(trait.pca.df$PlantSize), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
+                                            #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
+                                            runif(50000,min = 0, max = max(trait.pca.df$PlantSize))),# interaction Size-Above # quantile(trait.pca.df$PlantSize,0.66)
+                                AboveGroundStrategy = runif(100000, min =min(trait.pca.df$AboveGroundStrategy),
                                                             max=max(trait.pca.df$AboveGroundStrategy)),
-                                BelowGroundStrategy = runif(150000, min =min(trait.pca.df$BelowGroundStrategy),
+                                BelowGroundStrategy = runif(100000, min =min(trait.pca.df$BelowGroundStrategy),
                                                             max=max(trait.pca.df$BelowGroundStrategy)),
-                                PlantSizeCat =rep(c("BelowAverage","AroundAverage","AboveAverage"),each=50000))
+                                PlantSizeCat =rep(c("BelowAverage","AboveAverage"),each=50000),
+                                BelowGroundTrait=runif(100000, min =min(trait.pca.df$BelowGroundTrait,na.rm=T),
+                                                       max=max(trait.pca.df$BelowGroundTrait,na.rm=T)),
+                                PlantSizeTrait=c(runif(50000,min = min(trait.pca.df$PlantSizeTrait,na.rm=T), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
+                                                 #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
+                                                 runif(50000,min = 0, max = max(trait.pca.df$PlantSizeTrait))),
+                                AboveGroundTrait=runif(100000, min =min(trait.pca.df$AboveGroundTrait,na.rm=T),
+                                                       max=max(trait.pca.df$AboveGroundTrait,na.rm=T))) #"AroundAverage",
 glm.new.data.df.i <- glm.new.data.df.i %>%
   dplyr::filter(PlantSize>min(trait.pca.df$PlantSize) &
           PlantSize < max(trait.pca.df$PlantSize))
@@ -1096,7 +1154,8 @@ for(n in density.quantile.name){
     trait.pca.df.i <-  trait.pca.df %>%
       dplyr::filter(density.quantile==n) %>%
       dplyr::select(focal,theoretical.effect,density.quantile,
-                    PlantSize,AboveGroundStrategy,BelowGroundStrategy) %>%
+                    PlantSize,AboveGroundStrategy,BelowGroundStrategy,
+                    BelowGroundTrait,PlantSizeTrait,AboveGroundTrait) %>%
       mutate(focal=as.factor(focal))
     
     glm.trait.pca.i <- glmmTMB(theoretical.effect ~  PlantSize*AboveGroundStrategy*BelowGroundStrategy, 
@@ -1117,76 +1176,97 @@ for(n in density.quantile.name){
     glm.trait.pca.df <- bind_rows(glm.trait.pca.df,glm.trait.pca.df.i)
 
     
-    glm.new.data.df.i$theoretical.effect <- predict(glm.trait.pca.i,
+    glm.new.data.df.i$theoretical.effect.pca <- predict(glm.trait.pca.i,
                                                 glm.new.data.df.i)
+    
+    glm.trait.i <- glmmTMB(theoretical.effect ~  PlantSizeTrait*AboveGroundTrait*BelowGroundTrait, 
+                               trait.pca.df.i,
+                               family="gaussian")
+    summary(glm.trait.i)
+    glm.trait.df.i <- as.data.frame(confint(glm.trait.i)) %>%
+      mutate(density.quantile=n) %>%
+      rownames_to_column("parameters") %>%
+      dplyr::rename("Q2.5"="2.5 %",
+                    "Q97.5"="97.5 %") %>%
+      mutate(trait=trait.i,
+             density.quantile=n,
+             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
+                              (Q2.5>0 & Q97.5>0 )~"*",
+                              T~""))
+    
+    glm.trait.df <- bind_rows(glm.trait.df,glm.trait.df.i)
+    
+    
+    glm.new.data.df.i$theoretical.effect <- predict(glm.trait.i,
+                                                    glm.new.data.df.i)
     glm.new.data.df <- bind_rows( glm.new.data.df, glm.new.data.df.i%>%
                                     mutate(density.quantile=n))
+
     
-    #glm.new.data.df.3D.i$theoretical.effect <- predict(glm.trait.pca.i,
-    #                                                glm.new.data.df.3D.i)
-    #glm.new.data.df.3D <- bind_rows( glm.new.data.df.3D, glm.new.data.df.3D.i%>%
-     #                               mutate(density.quantile=n))
-    
-      
 }
 glm.trait.pca.list[[country]] <-  glm.trait.pca.df
+glm.trait.list[[country]] <-  glm.trait.df
 glm.new.data.list[[country]] <-glm.new.data.df
-glm.new.data.3D.list[[country]] <- glm.new.data.df.3D
+glm.new.data.trait.list[[country]] <- glm.new.data.trait.df
 }
-view(glm.trait.pca.list[["aus"]]) 
+view(glm.trait.pca.list[["aus"]])  
 view(glm.trait.pca.list[["spain"]])
 
-#---- 1.6.PCA plot glm----
+#---- 1.6.PCA plot glm-FOCAL----
 # Above ground and below ground
 glm.plot.list <- list()
-
+# for focal species
 for( country in country.list){
   if(country=="aus"){
     limits.vec = c(-0.4,0.4)
-  }else{limits.vec = c(-0.4,0.4)}
+    ylabname = "13C, WUE"
+    xlabname = "Root length"
+  }else{limits.vec = c(-0.4,0.4)
+  ylabname = "SLA - Inversed 13C, WUE"
+  xlabname = "SRA"}
     focal.pca.df.i <- Theoretical.Int.list[[country]] %>%
       dplyr::filter(!neigh ==focal) %>% 
       aggregate(theoretical.effect~ focal, median) %>%
       left_join(as.data.frame(PCA.trait.df[[country]] %>%
                                 rownames_to_column("focal")))%>%
-      mutate(PlantSizeCat = case_when(PlantSize < quantile(trait.pca.df$PlantSize,0.33) ~ "BelowAverage",
-                                      PlantSize > quantile(trait.pca.df$PlantSize,0.66) ~ "AboveAverage",
+      mutate(PlantSizeCat = case_when(PlantSizeTrait < 0 ~ "BelowAverage", #quantile(trait.pca.df$PlantSize,0.33)
+                                      PlantSizeTrait > 0 ~ "AboveAverage", #quantile(trait.pca.df$PlantSize,0.66)
                                       T~"AroundAverage"))
     
     glm.new.data.df.i <- glm.new.data.list[[country]]%>%
       filter(theoretical.effect  > min(Theoretical.Int.list[[country]]$theoretical.effect) &
                theoretical.effect < max(Theoretical.Int.list[[country]]$theoretical.effect))
 glm.plot.list[[country]] <-glm.new.data.df.i  %>%
-  dplyr::filter(density.quantile %in%c("intercept","high"))%>%
-  ggplot(aes(y=AboveGroundStrategy, 
-             x=BelowGroundStrategy,
+  dplyr::filter(density.quantile %in%c("intercept"))%>%
+  ggplot(aes(y=AboveGroundTrait, #Strategy,
+             x=BelowGroundTrait, #Strategy,
              fill=theoretical.effect)) +
   geom_tile(width = 0.04,
               height = 0.04,
             alpha=0.8)+
   geom_point(data=focal.pca.df.i,
-            aes(y=AboveGroundStrategy, 
-                x=BelowGroundStrategy,
+            aes(y=AboveGroundTrait, #Strategy,
+                x=BelowGroundTrait, #Strategy,
                 fill=theoretical.effect),
             shape=21,size=3) +
   geom_text(data=focal.pca.df.i,
-             aes(y=AboveGroundStrategy, 
-                 x=BelowGroundStrategy,
+             aes(y=AboveGroundTrait, #Strategy, 
+                 x=BelowGroundTrait, #Strategy,
                  label=focal),
             size=4,hjust=0.5,vjust=-0.5) +
   scale_fill_gradientn(colours = rev(wes_palette("Zissou1", 
                                              101, 
                                              type = "continuous")),
                        limits=limits.vec)+
-  facet_wrap(density.quantile~PlantSizeCat,nrow=2)+
+  facet_wrap(density.quantile~PlantSizeCat,nrow=1)+
   theme_clean()+
   labs(title=country,
-       y = "Above ground strategy, \nfrom less to more drought sensitive",
-       x = "Below ground strategy, \nfrom more to less cooperative",
-       subtitle = "Plant size, from high/fast to small/slow growing",
+       y =   ylabname, #"Above ground strategy, \nfrom less to more drought sensitive",
+       x =   xlabname, #"Below ground strategy, \nfrom more to less cooperative",
+       subtitle = "Plant height", #"Plant size, from high/fast to small/slow growing",
        fill="Predicted interaction effect on \nof focal species with that trait combinaison")+
   theme(legend.position="bottom",
-        legend.key.size = unit(2, 'cm'),
+        legend.key.size = unit(1, 'cm'),
         legend.background = element_blank(),
         plot.background = element_blank(),
         axis.text =element_text(size=20),
@@ -1202,16 +1282,199 @@ glm.plot.list[[country]]
  
 }
 
-glm.plot.list[["spain"]]
-glm.plot.list[["aus"]] #figures/pca/
+glm.plot.list[["spain"]] # figures/pca/Flat3D.focal.spain.pdf
+glm.plot.list[["aus"]] # figures/pca/Flat3D.focal.aus.pdf
 
 ggarrange(glm.plot.list[["spain"]],
           glm.plot.list[["aus"]],
-          common.legend = F,
+          common.legend = T,legend="bottom",
           nrow=2, 
           labels=c("a. Spain","b. Australia"),
           font.label = list(size = 20, color = "black", 
                             face = "bold", family = NULL))
+# figures/pca/Flat3D.focal.intercept.pdf
+levels(as.factor(Chapt1_Parameters_values$parameter))
+names(Chapt1_Parameters_values)
+ParameterValuesForJurg <- Chapt1_Parameters_values %>%
+  filter(parameter %in% c("Intraspecific","Plant - plant") &
+           year== "2021" &
+           complexity.plant =="family") %>%
+  dplyr::rename("Iterations"="X" ) %>%
+  dplyr::select(Iterations,focal,lambdas,parameter,estimate) %>%
+  spread(parameter,estimate)
+  view(ParameterValuesForJurg)
+  write.csv(ParameterValuesForJurg,
+            file="/Users/lisabuche/Downloads/ParameterValuesForJurg")
+#---- 1.7.PCA  GLM-NEIGH----
+glm.trait.pca.neigh.list <- list()
+glm.trait.neigh.list <- list()
+glm.new.data.neigh.list <- list()
+glm.new.data.neigh.3D.list<- list()
+for( country in country.list){
+  
+  trait.pca.df <- Theoretical.Int.list[[country]] %>%
+    dplyr::filter(!neigh ==focal) %>% 
+    left_join(as.data.frame(PCA.trait.df[[country]] %>%
+                              rownames_to_column("neigh")),
+              relationship ="many-to-many")
+  
+  
+  glm.new.data.df.i <- data.frame(PlantSize=c(runif(50000,min = min(trait.pca.df$PlantSize), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
+                                              #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
+                                              runif(50000,min = 0, max = max(trait.pca.df$PlantSize))),# interaction Size-Above # quantile(trait.pca.df$PlantSize,0.66)
+                                  AboveGroundStrategy = runif(100000, min =min(trait.pca.df$AboveGroundStrategy),
+                                                              max=max(trait.pca.df$AboveGroundStrategy)),
+                                  BelowGroundStrategy = runif(100000, min =min(trait.pca.df$BelowGroundStrategy),
+                                                              max=max(trait.pca.df$BelowGroundStrategy)),
+                                  PlantSizeCat =rep(c("BelowAverage","AboveAverage"),each=50000),
+                                  BelowGroundTrait=runif(100000, min =min(trait.pca.df$BelowGroundTrait,na.rm=T),
+                                                         max=max(trait.pca.df$BelowGroundTrait,na.rm=T)),
+                                  PlantSizeTrait=c(runif(50000,min = min(trait.pca.df$PlantSizeTrait,na.rm=T), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
+                                                   #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
+                                                   runif(50000,min = 0, max = max(trait.pca.df$PlantSizeTrait))),
+                                  AboveGroundTrait=runif(100000, min =min(trait.pca.df$AboveGroundTrait,na.rm=T),
+                                                         max=max(trait.pca.df$AboveGroundTrait,na.rm=T))) #"AroundAverage",
+  glm.new.data.df.i <- glm.new.data.df.i %>%
+    dplyr::filter(PlantSize>min(trait.pca.df$PlantSize) &
+                    PlantSize < max(trait.pca.df$PlantSize))
+  
+  glm.trait.df <- NULL
+  glm.trait.pca.df<- NULL
+  glm.new.data.df <- NULL
+  for(n in density.quantile.name){
+    trait.pca.df.i <-  trait.pca.df %>%
+      dplyr::filter(density.quantile==n) %>%
+      dplyr::select(neigh,theoretical.effect,density.quantile,
+                    PlantSize,AboveGroundStrategy,BelowGroundStrategy,
+                    PlantSizeTrait,AboveGroundTrait,BelowGroundTrait) %>%
+      mutate(neigh=as.factor(neigh))
+    
+    glm.trait.pca.i <- glmmTMB(theoretical.effect ~  PlantSize*AboveGroundStrategy*BelowGroundStrategy, 
+                               trait.pca.df.i,
+                               family="gaussian")
+    summary(glm.trait.pca.i)
+    glm.trait.pca.df.i <- as.data.frame(confint(glm.trait.pca.i)) %>%
+      mutate(density.quantile=n) %>%
+      rownames_to_column("parameters") %>%
+      dplyr::rename("Q2.5"="2.5 %",
+                    "Q97.5"="97.5 %") %>%
+      mutate(trait=trait.i,
+             density.quantile=n,
+             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
+                              (Q2.5>0 & Q97.5>0 )~"*",
+                              T~""))
+    
+    glm.trait.pca.df <- bind_rows(glm.trait.pca.df,glm.trait.pca.df.i)
+    
+    
+    glm.new.data.df.i$theoretical.effect.pca <- predict(glm.trait.pca.i,
+                                                    glm.new.data.df.i)
+    glm.trait.i <- glmmTMB(theoretical.effect ~  PlantSizeTrait*AboveGroundTrait*BelowGroundTrait, 
+                           trait.pca.df.i,
+                           family="gaussian")
+    summary(glm.trait.i)
+    glm.trait.df.i <- as.data.frame(confint(glm.trait.i)) %>%
+      mutate(density.quantile=n) %>%
+      rownames_to_column("parameters") %>%
+      dplyr::rename("Q2.5"="2.5 %",
+                    "Q97.5"="97.5 %") %>%
+      mutate(trait=trait.i,
+             density.quantile=n,
+             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
+                              (Q2.5>0 & Q97.5>0 )~"*",
+                              T~""))
+    
+    glm.trait.df <- bind_rows(glm.trait.df,glm.trait.df.i)
+    
+    
+    glm.new.data.df.i$theoretical.effect <- predict(glm.trait.i,
+                                                    glm.new.data.df.i)
+    glm.new.data.df <- bind_rows( glm.new.data.df, glm.new.data.df.i%>%
+                                    mutate(density.quantile=n))
+  }
+  glm.trait.pca.neigh.list[[country]] <-  glm.trait.pca.df
+  glm.trait.neigh.list[[country]] <-  glm.trait.df
+  glm.new.data.neigh.list[[country]] <-glm.new.data.df
+}
+#---- 1.8.PCA plot glm-NEIGH----
+glm.plot.neigh.list <- list()
+for( country in country.list){
+  if(country=="aus"){
+    limits.vec = c(-0.4,0.4)
+    ylabname = "13C, WUE"
+    xlabname = "Root length"
+  }else{limits.vec = c(-0.4,0.4)
+  ylabname = "SLA - Inversed 13C, WUE"
+  xlabname = "SRA"}
+  neigh.pca.df.i <- Theoretical.Int.list[[country]] %>%
+    dplyr::filter(!neigh ==focal) %>% 
+    aggregate(theoretical.effect~ neigh , median) %>%
+    left_join(as.data.frame(PCA.trait.df[[country]] %>%
+                              rownames_to_column("neigh")))%>%
+    mutate(PlantSizeCat = case_when(PlantSizeTrait < 0 ~ "BelowAverage",
+                                    PlantSizeTrait > 0 ~ "AboveAverage",
+                                    T~"AroundAverage"))
+  
+  glm.new.data.df.i <- glm.new.data.neigh.list[[country]]%>%
+    filter(theoretical.effect  > min(Theoretical.Int.list[[country]]$theoretical.effect) &
+             theoretical.effect < max(Theoretical.Int.list[[country]]$theoretical.effect))
+  
+  glm.plot.neigh.list[[country]] <-glm.new.data.df.i  %>%
+    dplyr::filter(density.quantile %in%c("intercept"))%>%
+    ggplot(aes(y=AboveGroundTrait, #Strategy, 
+               x=BelowGroundTrait, #Strategy, 
+               fill=theoretical.effect)) +
+    geom_tile(width = 0.04,
+              height = 0.04,
+              alpha=0.8)+
+    geom_point(data= neigh.pca.df.i,
+               aes(y=AboveGroundTrait, #Strategy, 
+                   x=BelowGroundTrait, #Strategy, 
+                   fill=theoretical.effect),
+               shape=21,size=3) +
+    geom_text(data= neigh.pca.df.i,
+              aes(y=AboveGroundTrait, #Strategy,  
+                  x=BelowGroundTrait, #Strategy, 
+                  label=neigh),
+              size=4,hjust=0.5,vjust=-0.5) +
+    scale_fill_gradientn(colours = rev(wes_palette("Zissou1", 
+                                                   101, 
+                                                   type = "continuous")),
+                         limits=limits.vec)+
+    facet_wrap(density.quantile~PlantSizeCat,nrow=1)+
+    theme_clean()+
+    labs(title=country,
+         y = ylabname, #"Above ground strategy, \nfrom less to more drought sensitive",
+         x =  xlabname, #"Below ground strategy, \nfrom more to less cooperative",
+         subtitle = "Plant height",#"Plant size, from high/fast to small/slow growing",
+         fill="Predicted interaction effect on \nof focal species with that trait combinaison")+
+    theme(legend.position="bottom",
+          legend.key.size = unit(2, 'cm'),
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          axis.text =element_text(size=20),
+          axis.title =element_text(size=20),
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.y = element_blank(),
+          legend.title.position = "top",
+          legend.title =element_text(size=20),
+          legend.text =element_text(size=20))
+  
+  glm.plot.neigh.list[[country]]
+  
+  
+}
+glm.plot.neigh.list[["aus"]]# figures/pca/Flat3D.neigh.aus.pdf
+glm.plot.neigh.list[["spain"]]# figures/pca/Flat3D.neigh.spain.pdf
+
+ggarrange(glm.plot.neigh.list[["spain"]],
+          glm.plot.neigh.list[["aus"]],
+          common.legend = T,legend="bottom",
+          nrow=2, 
+          #labels=c("a. Spain","b. Australia"),
+          font.label = list(size = 20, color = "black", 
+                            face = "bold", family = NULL))
+# figures/pca/Flat3D.neigh.intercept.pdf
 
 #----Not use----
 data.3d <- glm.new.data.3D.list[[country]]%>%
