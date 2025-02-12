@@ -90,7 +90,7 @@ abundance_spain.summary <- abundance_spain %>%
   left_join(plant_code_spain, by="code.plant") %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
   aggregate(individuals ~ code.analysis + year + plot + subplot , sum) %>%
-  mutate(individuals =individuals/100,
+  mutate(individuals =individuals/10000, # number of individuals per cm squarre
          com_id = paste(plot,subplot,sep="_")) %>%
   rename("species"="code.analysis") %>%
   group_by(year) %>%
@@ -540,7 +540,7 @@ load("/Users/lisabuche/Documents/Projects/Perenjori/results/community_id_df.csv.
 abundance_aus <- community_id_df
 
 abundance_aus.summary.year <- abundance_aus %>%
-  mutate(count=as.numeric((count/(scale.width))*25)) %>%
+  mutate(count=as.numeric((count/(scale.area))*625)) %>%
   filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>%
   dplyr::select(count,year,final.code) %>%
   filter( final.code %in% species.list.to.keep.aus) %>%
@@ -563,48 +563,21 @@ final.species.list.aus <- c("ARCA","GOBE","GORO","HYGL",
                             "POAR", "POLE","TRCY","WAAC")
 
 # Abundance clean data
-abundance_aus.clean <- abundance_aus %>%
-  mutate(count=as.numeric(count/(scale.width))) %>%
+abundance_aus.summary <- abundance_aus %>%
   filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>% # remove reserve outside Perenjory in 2023
-  dplyr::select(count,year,final.code,id.plot,collector,scale.width) %>%
+  dplyr::select(count,year,final.code,id.plot,collector,scale.width,scale.area ) %>%
   filter( final.code %in% final.species.list.aus) %>%
   rename("species"="final.code") %>%
   rename("individuals" ="count") %>%
   rename("com_id" ="id.plot")%>%
-  aggregate(individuals ~ year + species + com_id +collector +scale.width, sum)
-
-#abundance_aus_med <-  abundance_aus.preclean  %>%
-# aggregate(individuals ~ species + year, function(x) median(x[!x==0 & !is.na(x)]))
-
-#abundance_aus_var <-abundance_aus.preclean   %>%
-# aggregate(individuals ~ species + year, function(x) sd(x[!x==0 & !is.na(x)])) 
-
-# for Australia, sample 10 community for each year based on the observation mean and var of the species
-#n.year = levels(as.factor(abundance_aus.preclean$year))
-#abundance_aus.clean <- data.frame(year=rep(n.year,each=10),
-                                    com_id = rep(1:10,times=length(n.year)))
-
-#for(n in final.species.list.aus){
-# abundance_aus.clean[,n]<- NA
-# for(y in  n.year){
-#  abundance.vec.realistic.value <- rlnorm(100,meanlog=as.numeric((abundance_aus_med %>% filter( year==y & species ==n))$individuals),
-#                                          sdlog=as.numeric((abundance_aus_var %>% filter( year==y & species ==n))$individuals))
-#  if(sum(is.na(abundance.vec.realistic.value))>1){
-#    abundance.vec.realistic.value <- rlnorm(100,meanlog=as.numeric(mean((abundance_aus_med %>% filter(species ==n))$individuals,na.rm=T)),
-#                                             sdlog=as.numeric(mean((abundance_aus_var %>% filter(species ==n))$individuals,na.rm=T)))
-#    
-#  }
-#  abundance_aus.clean[which(abundance_aus.clean$year==y),n] <- abundance.vec.realistic.value[abundance.vec.realistic.value< 100 & 
-#                                                                                                abundance.vec.realistic.value> 0.001][1:10]
-#   
-# }
-#}
-
-abundance_aus.clean <- abundance_aus.clean %>%
+  aggregate(individuals ~ year + species + com_id +collector +scale.width+scale.area , sum) %>%
+  mutate(individuals =individuals/scale.area ) %>% # number of individuals per cm^2
   group_by(year) %>%
   mutate(count.zscore = zscore.fct(individuals)) %>%
   ungroup()
-head(abundance_aus.clean)
+
+#abundance_aus_med <-  abundance_aus.preclean  %>%
+# aggregate(individuals ~ species + year, function(x) median(x[!x==0 & !is.na(x)]))
 
 # VISUALISATION
 library(pals)
@@ -1073,7 +1046,7 @@ clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       trait.dist_aus.df  =trait.dist_aus.df,
                       plant_traits = plant_traits_aus)
 load("data/clean.data.aus.RData")
-#clean.data.aus$abundance_aus.summary <- abundance_aus.clean
+#clean.data.aus$abundance_aus.summary <- abundance_aus.summary
 #clean.data.aus$aus_above_grouping <-aus_above_grouping
 #clean.data.aus$aus_pol_grouping <-aus_pol_grouping
 #clean.data.aus$aus_below_grouping <-aus_below_grouping
