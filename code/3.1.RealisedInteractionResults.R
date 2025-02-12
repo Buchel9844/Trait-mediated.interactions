@@ -32,11 +32,14 @@ library(igraph)
 library(statnet)
 library(intergraph)
 library(ggraph)
+install.packages("ggraph")
+library(Polychrome)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
-home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
 project.dic <- ""
+home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
+
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 country.list <- c("aus","spain")
@@ -86,22 +89,21 @@ for(country in country.list){
       print(neigh)
       neigh.abundance <- abundance_short_focal_df %>%
         dplyr::filter(!is.na(get(neigh))) %>%
+        dplyr::filter(get(neigh)>0) %>%
         dplyr::select(neigh) %>%
         unlist() %>%
         as.vector()
       
-      seq.abun.neigh <- seq(min(quantile(neigh.abundance,probs=c(0.10,0.5,0.80), na.rm = T)),
-                            max(quantile(neigh.abundance,probs=c(0.10,0.5,0.80), na.rm = T)),
-                            (max(quantile(neigh.abundance,probs=c(0.10,0.5,0.80), 
-                                          na.rm = T))-min(quantile(neigh.abundance,probs=c(0.10,0.5,0.80),
+      seq.abun.neigh <- seq(min(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), na.rm = T)),
+                            max(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), na.rm = T)),
+                            (max(quantile(neigh.abundance,probs=c(0.10,0.5,0.90), 
+                                          na.rm = T))-min(quantile(neigh.abundance,probs=c(0.10,0.5,0.90),
                                                                    na.rm = T)))/10)[1:10]
-      if(sum(seq.abun.neigh==0| is.na(seq.abun.neigh))>2){
-        
-        seq.abun.neigh <- c(0, mean(neigh.abundance)-sd(neigh.abundance),mean(neigh.abundance),
-                            mean(neigh.abundance)+sd(neigh.abundance))
-        
-        seq.abun.neigh <-    seq.abun.neigh[which(   seq.abun.neigh>=0)]
-      }
+      seq.abun.neigh <-    seq.abun.neigh[which(   seq.abun.neigh>=0)]
+      seq.abun.neigh <-    seq.abun.neigh[!is.na(seq.abun.neigh)]
+      
+      if(length( seq.abun.neigh )<10) next()
+      
       library(HDInterval)
       
       alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
@@ -150,7 +152,7 @@ for(country in country.list){
                                                   df_neigh_n$density,
                                                   df_neigh_n$N_opt_mean)
         
-        df_neigh_n$sigmoid[which(df_neigh_n$density==0)] <- 0
+        #df_neigh_n$sigmoid[which(df_neigh_n$density==0)] <- 0
         
         df_neigh_n[,"realised.effect"] <- exp(df_neigh_n$sigmoid*df_neigh_n$density)
         
@@ -403,9 +405,9 @@ save(Realised.Int.Obs.list,
      file=paste0(project.dic,"results/Realised.Int.Obs.list.RData"))
 
 
-load(paste0(project.dic,"results/Realised.Int.Obs.list.RData"))
+load(paste0(project.dic,"results/Realised.Int.list.RData"))
 
-#---- 1.2. Compute realised interactions for obs based on time  ----
+#---- 1.4. Compute realised interactions for obs based on time  ----
 
 source(paste0(home.dic,"code/PopProjection_toolbox.R"))
 test.sigmoid.all  <- NULL
@@ -545,7 +547,7 @@ for(country in country.list){
         
         if(nrow(neigh.abundance)==0) next
         
-        density.neigh <- c(0,quantile(neigh.abundance[,1],c(0.25,0.5,0.75))) 
+        density.neigh <- c(0,quantile(neigh.abundance[,1],c(0.10,0.5,0.90))) 
   
     df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
     
@@ -631,7 +633,7 @@ load(paste0(project.dic,"results/Theoretical.Int.list.RData"))
 for(country in country.list){
   Box.Plot.Realised.effect <- NULL
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+  col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
   
   Box.Plot.Realised.effect <- Realised.Int.Obs.list[[country]] %>%
@@ -735,8 +737,8 @@ plot.network.gradient.int <- function(ratio.mat,strength.mat,
   
   # Colour edge
   library(grDevices)
-  col.vec <- round(as.numeric(ratio.mat[alphamat.pos  > 0]),3) * 1000 + 1 
-  colours  <- wes_palette("Zissou1", 1001, type = "continuous")
+  col.vec <- round(as.numeric(ratio.mat[alphamat.pos  > 0]),1) * 10 + 1 
+  colours  <- wes_palette("Zissou1", 11, type = "continuous")
   col.mat <-  colours[col.vec] 
   alpha.edge <-  lwd.mat
   alpha.edge[lwd.mat <=minimum.stength] <-0.2
@@ -815,17 +817,23 @@ net.country <- list()
 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+  col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
-  
   ratio.mat <-   Realised.Int.list[[country]]  %>%
-    aggregate(sigmoid ~ focal + neigh, function(x) length(which(x<0))/length(x)) %>% # percentage of negative interaction
+    group_by(focal, neigh) %>%
+    summarise(count.positive = length(sigmoid[sigmoid > 0]),
+              count.negative = length(sigmoid[sigmoid < 0]),
+              count.neutral = length(sigmoid[sigmoid  ==0]),
+              count.total = length(sigmoid)) %>%
+    mutate(sigmoid = count.negative/(count.total-count.neutral)) %>%
+    ungroup() %>%
+    dplyr::select(-c('count.positive','count.negative','count.neutral','count.total')) %>%
     spread(neigh,sigmoid) %>%
     dplyr::select(-focal) %>%
     as.matrix()
   
   strength.mat <- Realised.Int.list[[country]]  %>%
-    aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
+    aggregate(sigmoid ~ focal + neigh, function(x) abs(median(x))) %>%
     spread(neigh,sigmoid) %>%
     dplyr::select(-focal) %>%
     as.matrix()
@@ -835,23 +843,29 @@ for(country in country.list){
       rename("focal"="Var1") %>%
       rename("neigh"="Var2")
     
-    ratio.mat <-Realised.Int.Obs.list[[country]]  %>%
-      aggregate(sigmoid ~ focal + neigh,
-                function(x) length(which(x<0))/length(x)) %>% # percentage of negative interaction
-      right_join(df.all.comb) %>%
-      spread(neigh,sigmoid ) %>%
-      dplyr::select(-focal) %>%
-      as.matrix()
-    
-    strength.mat <- Realised.Int.Obs.list[[country]]  %>%
-      aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
+    ratio.mat <- Realised.Int.list[[country]]  %>%
+      group_by(focal, neigh) %>%
+      summarise(count.positive = length(sigmoid[sigmoid > 0]),
+                count.negative = length(sigmoid[sigmoid < 0]),
+                count.neutral = length(sigmoid[sigmoid  ==0]),
+                count.total = length(sigmoid)) %>%
+      mutate(sigmoid = count.negative/(count.total-count.neutral)) %>%
+      ungroup() %>%
+      dplyr::select(-c('count.positive','count.negative','count.neutral','count.total')) %>%
       right_join(df.all.comb) %>%
       spread(neigh,sigmoid) %>%
-      dplyr::select(-focal) %>%
+      dplyr::select(-focal) %>% # percentage of negative interaction
+      as.matrix()
+    
+    strength.mat <- Realised.Int.list[[country]]  %>%
+      aggregate(sigmoid ~ focal + neigh, function(x) abs(median(x))) %>%
+      right_join(df.all.comb) %>%
+      spread(neigh,sigmoid) %>%
+      column_to_rownames(var="focal") %>%
       as.matrix() %>%
       t()# for the network to have row has emitor and columns as receiver
   }
-  plot.network.gradient.int(ratio.mat,strength.mat,"",0.01)
+  plot.network.gradient.int(ratio.mat,strength.mat,"",0.0001)
   par(mar = rep(0, 4))
   net.country[[country]] <- recordPlot()
   
@@ -871,7 +885,7 @@ plot_grid(
   ncol = 1,
   rel_heights =c(1,0.2),
   labels = '')
-# figures/Network.Realised.effect.pdf
+# figures/metworks/Network.Realised.effect.pdf
 ggsave( plot_grid(net.country$aus,
                   get_legend(plot.legend),
                   ncol = 1,
@@ -888,8 +902,86 @@ ggsave( plot_grid(net.country[["spain"]],
         file=paste0(home.dic,"figures/Network.Obs.Realised.effect_spain.pdf")) 
 
 
+#---- 3.4. Network per density ----
+density.quantile.name <- c("intercept","low","medium","high")
+for(country in country.list){
+  for(dq in density.quantile.name){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  
+  ratio.mat <-   Theoretical.Int.list[[country]]  %>%
+    dplyr::filter(density.quantile==dq) %>%
+    dplyr::rename("sigmoid"="theoretical.effect") %>%
+    group_by(focal, neigh) %>%
+    summarise(count.positive = length(sigmoid[sigmoid > 0]),
+              count.negative = length(sigmoid[sigmoid < 0]),
+              count.neutral = length(sigmoid[sigmoid  ==0]),
+              count.total = length(sigmoid)) %>%
+    mutate(sigmoid = count.negative/(count.total-count.neutral)) %>%
+    ungroup() %>%
+    dplyr::select(-c('count.positive','count.negative','count.neutral','count.total')) %>%
+    spread(neigh,sigmoid) %>%
+    dplyr::select(-focal) %>% # percentage of negative interaction
+    as.matrix()
+  
+  
+  strength.mat <- Theoretical.Int.list[[country]]  %>%
+    dplyr::filter(density.quantile==dq) %>%
+    dplyr::rename("sigmoid"="theoretical.effect") %>%
+    aggregate(sigmoid ~ focal + neigh, function(x) abs(median(x))) %>%
+    spread(neigh,sigmoid) %>%
+    dplyr::select(-focal) %>%
+    as.matrix()
+  # for the network to have row as receiver
+  if(!dim(strength.mat)[1]==dim(strength.mat)[2]){
+    df.all.comb <- expand.grid(Code.focal.list,Code.focal.list) %>%
+      rename("focal"="Var1") %>%
+      rename("neigh"="Var2")
+    
+    ratio.mat <-Theoretical.Int.list[[country]]  %>%
+      dplyr::filter(density.quantile==dq) %>%
+      dplyr::rename("sigmoid"="theoretical.effect") %>%
+      group_by(focal, neigh) %>%
+      summarise(count.positive = length(sigmoid[sigmoid > 0]),
+                count.negative = length(sigmoid[sigmoid < 0]),
+                count.neutral = length(sigmoid[sigmoid  ==0]),
+                count.total = length(sigmoid)) %>%
+      mutate(sigmoid = count.negative/(count.total-count.neutral)) %>%
+      ungroup() %>%
+      dplyr::select(-c('count.positive','count.negative','count.neutral','count.total')) %>%
+      right_join(df.all.comb) %>%
+      spread(neigh,sigmoid) %>%
+      dplyr::select(-focal) %>% # percentage of negative interaction
+      as.matrix()
+    
+    strength.mat <- Theoretical.Int.list[[country]]  %>%
+      dplyr::filter(density.quantile==dq) %>%
+      dplyr::rename("sigmoid"="theoretical.effect") %>%
+      aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
+      right_join(df.all.comb) %>%
+      spread(neigh,sigmoid) %>%
+      dplyr::select(-focal) %>%
+      as.matrix() %>%
+      t()# for the network to have row has emitor and columns as receiver
+  }
+  plot.network.gradient.int(ratio.mat,strength.mat,"",0.01)
+  par(mar = rep(0, 4))
+  net.country[[paste0(country,"_",dq)]] <- recordPlot()
+  
+    }
+}
+net.country[[paste0("aus_",density.quantile.name[1])]] #figures/networks/Aus_intercept.pdf
+net.country[[paste0("aus_",density.quantile.name[2])]]#figures/networks/Aus_low.pdf
+net.country[[paste0("aus_",density.quantile.name[3])]]#figures/networks/Aus_medium.pdf
+net.country[[paste0("aus_",density.quantile.name[4])]]#figures/networks/Aus_high.pdf
 
-#---- 3.3. Table sum up ----
+net.country[[paste0("spain_",density.quantile.name[1])]]#figures/networks/Spain_intercept.pdf
+net.country[[paste0("spain_",density.quantile.name[2])]]#figures/networks/Spain_low.pdf
+net.country[[paste0("spain_",density.quantile.name[3])]]#figures/networks/Spain_medium.pdf
+net.country[[paste0("spain_",density.quantile.name[4])]]#figures/networks/Spain_high.pdf
+
+#---- 3.5. Table sum up ----
 str(Realised.Int.list)
 sum.up.df <- NULL
 for(country in country.list){
@@ -955,6 +1047,67 @@ for(country in country.list){
 sum.up.focal.df.n <- Realised.Int.list[[country]] %>%
   aggregate(realised.effect ~ focal, median)
 view(bind_rows(sum.up.df.n,sum.up.focal.df.n,sum.up.neigh.df.n))
+
+
+#---- 3.6. Table sum up for intra vs inter ----
+str(Realised.Int.list)
+sum.up.df <- NULL
+for(country in country.list){
+  
+  sum.up.intra.df.n <- Theoretical.Int.list[[country]] %>%
+    dplyr::filter(neigh==focal)%>%
+    dplyr::rename("sigmoid"="theoretical.effect")%>%
+    group_by(density.quantile) %>%
+    summarise(mean.effect = (mean(sigmoid)),
+              median.effect = (median(sigmoid)),
+              var.effect = (var(sigmoid)),
+              max.positive.effect = (max(sigmoid)),
+              max.negative.effect = (min(sigmoid)),
+              count.positive = length(sigmoid[sigmoid >0.001]),
+              count.negative = length(sigmoid[sigmoid  <0.001]),
+              count.total = length(sigmoid)) %>%
+    ungroup()%>%
+    mutate(proportion.positive =(count.positive/count.total),
+           proportion.negative =(count.negative/count.total),
+           proportion.neutre =1-(proportion.positive +proportion.negative),
+           country = country,
+           effect ="both",
+           species = "All",
+           interaction="intra") %>%
+    mutate(density.quantile=factor(density.quantile,
+                                   level=density.quantile.name))
+  
+  #view(sum.up.intra.df.n )
+  
+  sum.up.inter.df.n <- Theoretical.Int.list[[country]] %>%
+    dplyr::filter(!neigh==focal)%>%
+    dplyr::rename("sigmoid"="theoretical.effect")%>%
+    group_by(density.quantile) %>%
+    summarise(mean.effect = (mean(sigmoid)),
+              median.effect = (median(sigmoid)),
+              var.effect = (var(sigmoid)),
+              max.positive.effect = (max(sigmoid)),
+              max.negative.effect = (min(sigmoid)),
+              count.positive = length(sigmoid[sigmoid >0]),
+              count.negative = length(sigmoid[sigmoid  <0]),
+              count.total = length(sigmoid)) %>%
+    ungroup()%>%
+    mutate(proportion.positive =(count.positive/count.total),
+           proportion.negative =(count.negative/count.total),
+           proportion.neutre =1-(proportion.positive +proportion.negative),
+           country = country,
+           effect ="both",
+           species = "All",
+           interaction="inter") %>%
+    mutate(density.quantile=factor(density.quantile,
+                                   level=density.quantile.name))
+  
+  #view(sum.up.inter.df.n )
+  write.csv(bind_rows(sum.up.intra.df.n,sum.up.inter.df.n),
+            file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv"))
+  
+}
+
 
 
 #---- 2.4 Heatmap Fac/Comp ----
@@ -1390,7 +1543,7 @@ for(country in country.list){
   abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] 
   year.levels <- levels(as.factor(abundance_df$year))
   
-  col.df <- data.frame(color.name = unname(kelly())[3:(length(Code.focal.list)+2)],
+  col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
   for(y in year.levels){
     ratio.mat <-Realised.Int.Obs.list[[country]]  %>%
