@@ -34,10 +34,16 @@ library(igraph)
 library(statnet)
 library(intergraph)
 library(ggraph)
+library(Hmisc)
+
+library(Polychrome)
+library(knitr)
+write_bib(x="Hmisc") # creates citation bib
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
-home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
+home.dic <- ""
+project.dic <- ""
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 1. Visualisation of Species Abundance ----
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
@@ -48,6 +54,8 @@ country.list <- c("aus","spain")
 #---- 1.1 Abundances over time ----
 widthplot = 25*25
 abundance_plotlist <- NULL
+
+country ="aus"     
 for(country in country.list){
   #abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".preclean")]]
   abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
@@ -59,30 +67,109 @@ for(country in country.list){
   col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
                        neigh = Code.focal.list)
   
-  abundance_plotlist[[country]] <- abundance_summary %>%
-    #filter( individuals > 0.001) %>%
-    ggplot(aes(x=as.character(year), 
-               y = individuals*widthplot,
+  df.split <- with(abundance_summary %>% 
+               mutate(individuals.plot = individuals*widthplot), 
+             split(abundance_summary %>% 
+                     mutate(individuals.plot = individuals*widthplot),
+                   list(year,species)))
+  df.bb <- lapply( df.split, function(x) smean.cl.boot(x$individuals.plot,
+                                                       conf.int=0.90, B=100,na.rm=TRUE, reps=T))
+  abundance_summary.for.ribbon <- do.call(rbind,df.bb) %>%
+    unlist() %>%
+    as.data.frame() %>%
+    rownames_to_column("var.to.sep") %>%
+    tidyr::separate(col="var.to.sep",into=c("year","species"),
+                     extra = "merge")
+  #view(abundance_summary.for.ribbon)
+  #view(abundance_summary %>%
+   # aggregate(individuals ~ year + species, function(x) mean(x*widthplot)))
+  abundance_plotlist[[country]] <- abundance_summary.for.ribbon %>%
+    ggplot(aes(x=as.numeric(year), 
+               y = Mean,
                group=as.factor(species),
-               color=as.factor(species))) +
-    stat_summary(fun.y = median,
-                 fun.ymin = function(x) quantile(x,0.05), 
-                 fun.ymax = function(x) quantile(x,0.95), 
-                 geom = "pointrange",size=2,
-                 position = position_dodge2(width=0.5,reverse=T)) +
-    stat_summary(fun.y = median,
-                 geom = "line",size=1,
-                 position = position_dodge2(width=0.5,reverse=T)) +
-    scale_y_log10() +
-    scale_x_discrete("year",limits= year.levels) +
-    scale_color_manual(values= col.df$color.name) +
-    labs(color="species",y="Median number of \nindividuals in 25x25cm plot"#,
-         #title=paste0("Density over time of annual plants in ",country)
+               color=as.factor(species),
+               fill=as.factor(species))) +
+    geom_ribbon(aes(y=Mean, ymin=Lower,ymax=Upper),
+                alpha=0.4) +
+    #stat_summary(#fun.data = Hmisc::smean.cl.boot,
+                 #fun.args=list(conf.int=0.95, na.rm=TRUE, reps=F),
+                 #geom='ribbon',alpha=0.4) +
+    scale_y_log10(breaks=c(.01,.1,1,10,100)) +
+    scale_x_continuous() +
+    scale_color_manual("species",values= col.df$color.name) +
+    scale_fill_manual("species",values= col.df$color.name) +
+    labs(y="Number of individuals \nin 25x25cm plot"
          ) +
-    coord_cartesian( xlim = NULL, #ylim=c(0,750),
-                     expand = TRUE, default = FALSE, clip = "on") +
-    #scale_color_manual(values=safe_colorblind_palette) +
+    coord_cartesian( expand = F, default = FALSE, clip = "on") +
     theme_bw() +
+    guides(fill = guide_legend(position="right",
+                               ncol=1,override.aes = list(alpha=1)),
+           color = guide_legend(position="right",ncol=1))+
+    theme(legend.key.size = unit(0.5, 'cm'),
+          #legend.position.inside =  c(1.08,0.5),
+          legend.background = element_rect(fill="NA"),
+          legend.box.background = element_rect(fill = alpha('grey98', .6)), 
+          strip.background = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.grid.major.x = element_blank(),
+           strip.text = element_text(size=28),
+           legend.text=element_text(size=14),
+           legend.title=element_blank(),
+           #axis.ticks.x=element_blank(),
+           axis.text.x= element_blank(),
+           axis.text.y= element_text(size=20),
+           axis.title.x= element_blank(),
+           axis.title.y= element_text(size=18),
+           title=element_text(size=16),
+           plot.margin=unit(c(1,1,0,0),"cm"))
+abundance_plotlist[[country]]
+}
+abundance_plotlist[["spain"]] # figures/Abundance_spain.pdf
+abundance_plotlist[["aus"]] #figures/Abundance_aus.pdf
+#---- 1.2 Precipitation extrem over time ----
+Precipitation.plot.list <- list()
+for(country in country.list){
+  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  
+  
+  year.levels <-levels(as.factor( abundance_summary$year))
+  col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
+                       neigh = Code.focal.list)
+  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) 
+  year.levels.all <-levels(as.factor(env_pdsi$year))
+  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
+    mutate(year.thermique= as.numeric(factor(year))) %>% 
+    mutate(year.thermique.2 = case_when(month > 9 ~ year.thermique + 1,
+                                        T ~ year.thermique)) %>%
+    group_by(year.thermique.2) %>% 
+    mutate(PDSI.mean = mean(get(paste0(country,"_pdsi")), na.rm = T),
+           PDSI.sd = sd(get(paste0(country,"_pdsi")),na.rm = T),
+           Precip = sum(prec)) %>%
+    ungroup() %>%
+    mutate(year.thermique =year.levels.all[year.thermique.2]) %>%
+    dplyr::select(year.thermique,PDSI.mean,PDSI.sd,Precip) %>%
+    unique() %>%
+    filter(year.thermique %in%  year.levels) %>%
+    mutate(Precip.extrem = Precip - mean(Precip),
+           Precip.extrem.Q1 = Precip - (mean(Precip) + sd(Precip)),
+           Precip.extrem.Q9 = Precip - (mean(Precip) + sd(Precip))) %>%
+    rename("year"="year.thermique") %>%
+    mutate(PDSI.max = max(PDSI.mean)) %>%
+    mutate_at("PDSI.mean",function(x) (x/ max(abs(x)))) %>% # scaling 
+    as.data.frame() %>%
+    mutate(year=as.numeric(year))
+
+  
+  Precipitation.plot.list[[country]] <- env_pdsi %>%
+      ggplot(aes(y=Precip.extrem,x=year))+
+    geom_line(size=2) +
+    theme_bw() +
+    labs(y="Precipitation \n extreme (mm)")+
+    geom_hline(yintercept=0,linetype="dashed")+
+    scale_y_continuous(breaks=c(-100,0,100)) +
+  scale_x_continuous(breaks=c(2011,2013,2015,2017,2019,2021,2023))+ 
+    coord_cartesian( expand = F, default = FALSE, clip = "on") +
     theme( legend.key.size = unit(1, 'cm'),
            legend.position = "bottom",
            strip.background = element_blank(),
@@ -92,17 +179,34 @@ for(country in country.list){
            legend.text=element_text(size=20),
            legend.title=element_text(size=20),
            #axis.ticks.x=element_blank(),
-           axis.text.x= element_text(size=20, angle=66, hjust=1),
-           axis.text.y= element_text(size=20),
-           axis.title.x= element_text(size=24),
-           axis.title.y= element_text(size=24),
-           title=element_text(size=16),
-           plot.margin=unit(c(1,0,0,0),"cm"))
+           axis.text.x= element_text(size=18, angle=66, hjust=1),
+           axis.text.y= element_text(size=18),
+           axis.title.x= element_blank(),
+           axis.title.y= element_text(size=18),
+           title=element_text(size=18),
+           plot.margin=unit(c(1,1,0,0),"cm"))
 }
-abundance_plotlist[["spain"]] # figures/Abundance_spain.pdf
-abundance_plotlist[["aus"]] #figures/Abundance_aus.pdf
 
-#---- 1.2 Corrected abundances over time ----
+ggarrange(ggarrange(abundance_plotlist[["aus"]],
+            Precipitation.plot.list[["aus"]],
+            nrow=2,align="v",
+            heights = c(1.5,1)),
+          ggarrange(abundance_plotlist[["spain"]],
+            Precipitation.plot.list[["spain"]],
+            nrow=2,align="v",
+            heights = c(1.5,1)),
+          nrow=2,align="v",
+          heights = c(1,1),
+          label.x = c(-0.06,-.04),
+          label.y = 1.01,
+          font.label = list(size = 26, color = "black", 
+                            face = "bold", family = NULL),
+          ncol=1,labels=c("a. Australia","b. Spain"))
+
+# figures/main/Abundance.over.time.pdf
+#height =862
+#width =953
+#---- 1.3 Corrected abundances over time with precipitation extrem in it ----
 widthplot = 25*25
 abundance_corrected_plotlist <- NULL
 country ="aus"
@@ -271,7 +375,7 @@ ggarrange(abundance_corrected_plotlist[["aus"]],
           labels=c("a. Australia", 
                    "b. Spain"))
 #figures/Abundances.pdsi.pdf
-#---- 1.3 Overall abundance over time ----
+#---- 1.4 Overall abundance over time ----
 widthplot = 25*25
 ALLabundance_corrected_plotlist <- NULL
 country ="aus"
@@ -410,8 +514,8 @@ ggarrange(ALLabundance_corrected_plotlist[["aus"]],
           labels=c("a. Australia", 
                    "b. Spain"))
 #figures/Abundances.pdsi.pdf
-#---- 1.3 Corrected abundances of each species over time ----
-widthplot = 25
+#---- 1.5 Corrected abundances of each species over time ----
+widthplot = 25*25
 Spabundance_plotlist <- NULL
 
 for(country in country.list){
@@ -453,7 +557,7 @@ for(country in country.list){
 Spabundance_plotlist[["spain"]] #figures/SpAbundance_spain.pdf
 Spabundance_plotlist[["aus"]]  #figures/SpAbundance_aus.pdf
 
-#---- 1.4 Abundances over PDSI ----
+#---- 1.6 Abundances over PDSI ----
 widthplot = 25
 abundance_pdsi_plotlist <- NULL
 for(country in country.list){
@@ -530,7 +634,7 @@ for(country in country.list){
 abundance_pdsi_plotlist[["spain"]] #figures/Abundance_pdsi_spain.pdf
 abundance_pdsi_plotlist[["aus"]] #figures/Abundance_pdsi_aus.pdf
 
-#---- 1.5 Corrected abundances over PDSI ----
+#---- 1.7 Corrected abundances over PDSI ----
 widthplot = 25
 abundance_corrected_pdsi_plotlist <- NULL
 for(country in country.list){
