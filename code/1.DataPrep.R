@@ -542,6 +542,12 @@ abundance_aus <- community_id_df
 abundance_aus.summary.year <- abundance_aus %>%
   mutate(count=as.numeric((count/(scale.area))*625)) %>%
   filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>%
+  dplyr::select(count,year,family) %>%
+  aggregate(count~ family, mean)
+
+abundance_aus.summary.year <- abundance_aus %>%
+  mutate(count=as.numeric((count/(scale.area))*625)) %>%
+  filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>%
   dplyr::select(count,year,final.code) %>%
   filter( final.code %in% species.list.to.keep.aus) %>%
   aggregate(count~ year + final.code, mean) %>%
