@@ -96,17 +96,23 @@ for( country in country.list){
     specific.trait.dist.n <- outer(trait.df[,i], trait.df[,i], '-') %>%
       as.data.frame() %>%
       gather(.,key="neigh",value="trait.dist") %>%
+      bind_cols(outer(trait.df[,i], trait.df[,i], '/') %>%
+                  as.data.frame() %>%
+                  gather(.,key="focal",value="trait.ratio")) %>%
       mutate(trait.dist=trait.dist,
-             scaled.trait.dist=as.vector(scale(trait.dist)),
+             scaled.trait.dist = as.vector(scale(trait.dist)),
+             scaled.trait.ratio = as.vector(scale(trait.ratio)),
              trait=i,
              neigh= rep(rownames(trait.df),each=length(Code.focal.list)),
              focal= rep(rownames(trait.df),times=length(Code.focal.list))) %>%
       left_join(trait.df %>% dplyr::select(all_of(i)) %>% 
                   rownames_to_column("focal") %>% rename("receiver.trait"=i) %>%
-                  mutate(receiver.trait.scaled = as.vector(zscore(receiver.trait))))%>%
+                  mutate(receiver.trait.scaled = as.vector(zscore(receiver.trait)),
+                         receiver.trait.log.scaled = as.vector(zscore(log(receiver.trait)))))%>%
       left_join(trait.df %>% dplyr::select(all_of(i)) %>%
                   rownames_to_column("neigh") %>% rename("emitter.trait"=i)%>%
-                  mutate(emitter.trait.scaled = as.vector(zscore(emitter.trait))))
+                  mutate(emitter.trait.scaled = as.vector(zscore(emitter.trait)),
+                         emitter.trait.log.scaled = as.vector(zscore(log(emitter.trait)))))
     
     # specific.trait.dist.n <- as.data.frame(as.matrix(vegdist(trait.df %>% dplyr::select(i) %>% 
     #                                                       scale() %>% as.data.frame(),
@@ -145,7 +151,14 @@ for( country in country.list){
       trait.lambda.df.i <-   trait.value.lambda.df  %>%
         dplyr::filter(trait==trait.i) %>%
         dplyr::filter(density.quantile==n) %>%
-        mutate(focal=as.factor(focal))
+        mutate(focal=as.factor(focal),
+               lambda=zscore(log(lambda)))
+      if(i %in% c("C13 water use efficiency")){
+        trait.lambda.df.i <- trait.lambda.df.i %>%
+          dplyr::select(-receiver.trait.scaled) %>%
+          dplyr::rename("receiver.trait.scaled" ="receiver.trait.log.scaled") %>%
+          mutate(receiver.trait= log(receiver.trait))
+      }
       
       glm.lambda.trait.i <- glmmTMB(lambda ~ 1 + receiver.trait.scaled + (1|focal) ,
                                 trait.lambda.df.i,
@@ -177,8 +190,9 @@ for( country in country.list){
       
     }
   }
-  # Make data frae with trait and INTRA specific interactions
+  # Make data frame with trait and INTRA specific interactions
   trait.value.intra.df <- Theoretical.Int.list[[country]] %>%
+    dplyr::filter(neigh==focal)%>%
     left_join(specific.trait.dist,
               relationship ="many-to-many")
   Intra.trait.df <- NULL
@@ -192,8 +206,15 @@ for( country in country.list){
         dplyr::filter(density.quantile==n) %>%
         dplyr::select(focal,density.quantile,trait,theoretical.effect,
                       emitter.trait,receiver.trait,
-                      emitter.trait.scaled,receiver.trait.scaled) %>%
+                      emitter.trait.scaled,receiver.trait.scaled,
+                      emitter.trait.log.scaled,receiver.trait.log.scaled) %>%
         mutate(focal=as.factor(focal))
+      if(i %in% c("C13 water use efficiency")){
+        trait.intra.df.i <-  trait.intra.df.i %>%
+          dplyr::select(-receiver.trait.scaled) %>%
+          dplyr::rename("receiver.trait.scaled" ="receiver.trait.log.scaled") %>%
+          mutate(receiver.trait= log(receiver.trait))
+      }
       
       glm.intra.trait.i <- glmmTMB(theoretical.effect ~ 1 + receiver.trait.scaled  + (1|focal),
                                     trait.intra.df.i,
@@ -243,10 +264,23 @@ for( country in country.list){
         dplyr::filter(trait==trait.i) %>%
         dplyr::filter(density.quantile==n) %>%
         dplyr::select(neigh,focal,density.quantile,trait,
-                      theoretical.effect,emitter.trait,emitter.trait.scaled,
-                      receiver.trait,receiver.trait.scaled,scaled.trait.dist) %>%
+                      theoretical.effect,
+                      emitter.trait,emitter.trait.scaled,emitter.trait.log.scaled,
+                      receiver.trait,receiver.trait.scaled,receiver.trait.log.scaled,
+                      trait.dist,scaled.trait.dist,trait.ratio,scaled.trait.ratio) %>%
         mutate(focal=as.factor(focal),
                neigh=as.factor(neigh))
+      
+      if(i %in% c("C13 water use efficiency")){
+        trait.dist.df.i <-    trait.dist.df.i %>%
+          dplyr::select(-c('receiver.trait.scaled','emitter.trait.scaled','scaled.trait.dist','trait.dist')) %>%
+          dplyr::rename("receiver.trait.scaled" ="receiver.trait.log.scaled",
+                        "emitter.trait.scaled" ="emitter.trait.log.scaled",
+                        "scaled.trait.dist" ="scaled.trait.ratio",
+                        "trait.dist"="trait.ratio") %>%
+          mutate(receiver.trait= log(receiver.trait),
+                 emitter.trait= log(emitter.trait))
+      }
       
       glm.inter.trait.i.dist <- glmmTMB(theoretical.effect ~  scaled.trait.dist  + (1|focal) + (1|neigh), 
                                trait.dist.df.i,
@@ -270,7 +304,7 @@ for( country in country.list){
                                             trait.dist.df.i %>%
                                              dplyr::filter(scaled.trait.dist>-3 &
                                                              scaled.trait.dist<3)%>%
-                                             mutate(scaled.trait.dist= zscore(receiver.trait-emitter.trait)),
+                                             mutate(scaled.trait.dist= zscore(trait.dist)),
                                            family="gaussian")
       
       Inter.trait.df.i <- as.data.frame(confint(glm.inter.trait.i.dist)) %>%
@@ -326,35 +360,6 @@ trait.dist.df %>%
 ggplot()+
   geom_point(aes(x=trait.dist.df$receiver.trait[which(trait.dist.df$trait=="SLA")],
                  y=trait.dist.df$receiver.trait[which(trait.dist.df$trait=="C13 water use efficiency")]))
-# for trade off - to add later
-trait.dist.df.pivot <- trait.dist.df%>%
-  mutate(trait = gsub(" ", ".", trait)) %>%
-  dplyr::select(density.quantile,trait, scaled.trait.dist,theoretical.effect)%>%
-  spread(trait, scaled.trait.dist)
-trait.comb <- combn(gsub(" ", ".", names(trait.df)),2)
-trait.comb <- apply(trait.comb,2,paste,collapse=":")
-glm.int.all.trait <- glm(formula(paste("theoretical.effect ~ 1",
-                                       paste0(gsub(" ", ".", names(trait.df)),
-                                              collapse = "+"),
-                                       paste0(trait.comb,collapse = "+"),
-                                       sep="+")), 
-                         data=trait.dist.df.pivot,
-                         family='gaussian',
-                         control=glm.control(maxit=1000))
-
-
-Test.all.trait.df <- as.data.frame(summary(glm.int.all.trait)$coef) %>%
-  rownames_to_column("parameters") %>%
-  rename("estimate"="Estimate",
-         "std.error"="Std. Error",
-         "t.value"="t value",
-         "pvalue"="Pr(>|t|)") %>%
-  mutate(trait=trait.i,
-         signif=case_when((pvalue<0.1 & pvalue >0.05 )~"*",
-                          (pvalue<0.05 & pvalue >0.01 )~"**",
-                          (pvalue<0.01)~"***",
-                          T~""),
-         RMSE = sqrt(mean(glm.int.all.trait$residuals^2)))
 
 #---- 1.2. Make detailed graphs ----
 Cool.detailed.theory.trait.plotlist <- list()
@@ -362,13 +367,6 @@ addline_format <- function(x,...){
   gsub('\\s','\n',x)
 }
 density.quantile.name <- c("intercept","low","medium","high")
-# apply this later
-lm.mod<-function(df){
-  m1<-lm(n~year, data=df)
-  m2<-lm(n~year+I(year^2), data=df)
-  p <- ifelse(AIC(m1)<AIC(m2), "y~x", "y~poly(x, 2)")
-  return(p) 
-}
 country="aus"
 for( country in country.list){
   for(n in density.quantile.name){
@@ -901,27 +899,34 @@ for( country in country.list){
 Cool.glm.theory.trait.plotlist[[paste0("spain")]]#figures/GLM.traits.SPAIN.pdf
 Cool.glm.theory.trait.plotlist[[paste0("aus")]]#figures/GLM.traits.AUS.pdf
 #---- 1.3. Make graph for main text - INTRA ----
+dummy <- data.frame(country = c("spain","aus"), 
+                    Estimate = c(-0.025),
+                    )
 
 for( country in country.list){
-
+  trait.to.remove <- c("Root diameter",
+    #"Flower width","Seed mass",
+    "Leaf area index",
+    "Canopy shape")
   Cool.glm.theory.trait.plotlist[[paste0(country,"_intra")]]  <- summary.table.for.plot.glm[[country]]$Intra.trait.df.i %>%
-      mutate(facet.name="Effect on Intraspecific interaction\n at medium neighbor's density") %>%
-      bind_rows( summary.table.for.plot.glm[[country]]$Lambda.trait.df.i %>%
-                   mutate(facet.name="Effect on \nIntrinsic fecundity") ) %>%
+  
+    dplyr::filter(density.quantile  %in% c("low")) %>%
+    mutate(facet.name=case_when(density.quantile == "low" ~ "Intraspecific interaction at\nLow conspecific's density",
+                                density.quantile == "high" ~ "High neighbor's density")) %>%
+    bind_rows( summary.table.for.plot.glm[[country]]$Lambda.trait.df.i %>%
+                 mutate(facet.name="Intrinsic fecundity") ) %>%
     dplyr::filter( outlier== "removed") %>%
-    dplyr::filter(density.quantile  %in% c("medium")) %>%
-    dplyr::filter(!trait %in% c("Root diameter",
-                                "Flower width","Seed mass",
-                                "Leaf area index",
-                                "Canopy shape"))%>%
+    dplyr::filter(!trait %in% trait.to.remove)%>%
+    dplyr::filter(!parameters =="intercept") %>%
     mutate(parameters= factor(parameters,
                               levels=c("Focal trait")))%>%
     mutate(facet.name= factor(facet.name,
-                              levels=c("Effect on Intraspecific interaction\n at medium neighbor's density",
-                                       "Effect on \nIntrinsic fecundity")))%>%
+                              levels=c("Intraspecific interaction at\nLow conspecific's density",
+                                       #"High neighbor's density",
+                                       "Intrinsic fecundity"))) %>%
     mutate(y_numb= case_when(parameters =="Focal trait" ~ 1)) %>%
     mutate(trait=factor(trait, 
-                        names(dummy.col))) %>%
+                        names(dummy.col)[!names(dummy.col) %in%trait.to.remove])) %>%
     mutate(y_trait=((as.numeric(trait)-6)*0.01 +y_numb)) %>%
     ggplot(aes(y=y_trait,
                x=Estimate,
@@ -935,34 +940,36 @@ for( country in country.list){
                    size=1,alpha=0.7) +
     geom_pointrange(aes(xmin=Q2.5,
                         xmax=Q97.5),
-                    size=2,alpha=0.7) +
+                    size=2) +
     geom_text(aes(y=y_trait, x=Estimate,
                   group=as.factor(trait),label=signif),
               size=10,color="black") +
     scale_color_manual(values=dummy.col)+
     scale_y_continuous(labels=rev(c("Focal trait")),
-                       breaks=1) +
-      facet_wrap(.~facet.name, ncol=2, scale="free_x") +
+                       #limits=c(0.92,1.07),
+                       expand = c(0.01,0.01),
+                       breaks=0) +
+    facet_wrap(.~facet.name, ncol=3, scale="free_x") +
     theme_bw() +
     geom_vline(xintercept=0) + 
-    labs(x="estimate",y="",
-         color="functional trait") +
+    labs(x="Effect size",y="Focal trait",
+         color="Functional trait") +
+    #coord_cartesian(expand=F) +
     guides(color = guide_legend(title.position = "top",
                                 nrow=2)) +
     theme(legend.position="bottom",
-          plot.margin = unit(c(1,ifelse(country=="aus",
-                                        0,3),0,
-                               ifelse(country=="aus",
-                                      3,0)),"cm"),
           strip.text = element_text(size=20),
-          legend.title =element_text(size=18),
+          strip.background = element_rect(fill="grey99"),
+          legend.title =element_text(size=20),
           legend.text =element_text(size=18),
-          axis.title=element_text(size=18),
           axis.text = element_text(size=18),
+          axis.title =element_text(size=20),
           panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
           panel.border = element_rect( color = "grey60"),
           panel.grid.major.y = element_line(colour = 'black', linetype = 'dashed'),
-          panel.grid.minor = element_blank())
+          panel.grid.minor = element_blank(),
+          plot.margin=unit(c(1,0.5,0.5,1),"cm"),
+          panel.spacing = unit(3, "lines"))
   Cool.glm.theory.trait.plotlist[[paste0(country,"_intra")]]
 
 }
@@ -975,7 +982,7 @@ legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
                         #                       each=120)) %>%
                         dplyr::filter(!parameters =="intercept") %>%
                         dplyr::filter(!trait %in% c("Root diameter",
-                                                    "Flower width","Seed mass",
+                                                    #"Flower width","Seed mass",
                                                     "Leaf area index",
                                                     "Canopy shape")) %>%
                         #bind_rows(intercept.df) %>%
@@ -999,24 +1006,26 @@ legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
   guides(shape= guide_legend(nrow=2,byrow=TRUE,
                              override.aes = list(alpha = 1,
                                                  color=c("grey80"))),
-         color= guide_legend(nrow=3,byrow=TRUE)) +
-  labs(x="estimate",
+         color= guide_legend(nrow=4,byrow=TRUE)) +
+  labs(x="Effect size",
        y=paste0(""),
        shape="Model estimates",
-       color="functional trait") +
+       color="Functional trait") +
   theme_few() +
   theme(legend.position="bottom",
         legend.key.size = unit(1, 'cm'),
         legend.title.position = "top",
         legend.title =element_text(size=20),
-        legend.text =element_text(size=16),
-        axis.text = element_text(size=18))
+        legend.text =element_text(size=18),
+        axis.text = element_text(size=18),
+        axis.title =element_text(size=20),
+        plot.margin=unit(c(1,0,0,1),"cm"))
 legend.plot
 
 GLM.traits.INTRA <- plot_grid( ggarrange(Cool.glm.theory.trait.plotlist[[paste0("aus_intra")]],
                                          Cool.glm.theory.trait.plotlist[[paste0("spain_intra")]],
                                          common.legend = T, legend = "none",
-                                         label.x = c(-0.02,0),
+                                         label.x = c(-0.08,-0.06),
                                          label.y = 1.01,align="v",
                                          font.label = list(size = 26, color = "black", 
                                                            face = "bold", family = NULL),
@@ -1029,13 +1038,199 @@ GLM.traits.INTRA
 
 #figures/GLM.traits.INTRA.pdf
 
+#---- 1.5. Make graph for main text -INTRA - LOW TO Lambda ----
 
-#---- 1.4. Make graph for main text ----
+trait.to.remove <- c("Root diameter",
+                     #"Flower width","Seed mass",
+                     "Leaf area index",
+                     "Canopy shape")
+"Intraspecific interaction at\nLow conspecific's density"
+view(Cool.glm.theory.trait.plotlist[[paste0(country,"_intra_diag")]])
+Cool.glm.theory.trait.plotlist[[paste0(country,"_intra_diag")]]  <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i %>%
+  dplyr::filter(density.quantile  %in% c("low") &
+                  parameters == "Focal trait") %>%
+    mutate(parameters="FT") %>%
+    bind_rows( summary.table.for.plot.glm[["aus"]]$Lambda.trait.df.i %>%
+                 dplyr::filter(density.quantile  %in% c("low") &
+                                 parameters == "Focal trait") %>%
+               mutate(parameters="IF")) %>%
+    mutate(country="Australia") %>%
+  bind_rows(summary.table.for.plot.glm[["spain"]]$Intra.trait.df.i %>%
+            dplyr::filter(density.quantile  %in% c("low")&
+                            parameters == "Focal trait") %>%
+            mutate(parameters="FT") %>%
+              bind_rows( summary.table.for.plot.glm[["spain"]]$Lambda.trait.df.i %>%
+                           dplyr::filter(density.quantile  %in% c("low") &
+                                           parameters == "Focal trait") %>%
+                         mutate(parameters="IF")) %>%
+              mutate(country="Spain")) %>%
+  dplyr::filter( outlier== "removed") %>%
+  dplyr::select(-signif) %>%
+  dplyr::filter(!trait %in% trait.to.remove) %>%
+  mutate(trait=factor(trait, 
+                      levels=rev(names(dummy.col)[!names(dummy.col) %in% trait.to.remove]))) %>%
+  pivot_wider(names_from = parameters, 
+              values_from = c('Estimate','Q2.5','Q97.5'), names_sep="") %>%
+  ggplot(aes(y=EstimateIF,
+             x=EstimateFT,
+             color=as.factor(trait),
+             group=as.factor(trait),
+             shape = country )) +
+  #geom_rect(aes(xmin=-Inf, xmax=0, ymin=0, ymax=+Inf), color=NA,
+  #          fill='grey98', alpha=0.98) +
+  #geom_rect(aes(xmin=0, xmax=Inf, ymin=-Inf, ymax=0), color=NA,
+ #           fill='grey98', alpha=0.98) +
+  #shape=density.quantile)) +
+  geom_point( size=8,alpha=1) +
+  geom_pointrange(aes(ymin=Q2.5IF,
+                      ymax=Q97.5IF),
+                  size=2,alpha=0.3) +
+  geom_errorbarh(aes(xmin=Q2.5FT,
+                     xmax=Q97.5FT),
+                 size=1,alpha=0.3,
+                 height=0) +
+  geom_segment(aes(x=0, xend = +0.15 , 
+                   y=0, yend = 0), size=1,
+               arrow = arrow(length = unit(0.6,"cm")),
+               color="black")+
+  geom_segment(aes(x=0, xend =0 , 
+                   y=-1, yend = 1), size=1,
+               arrow = arrow(length = unit(0.6,"cm")),
+               color="black")+
+  geom_segment(aes(x=0, xend = -0.15 , 
+                   y=0, yend = 0), size=1,
+               arrow = arrow(length = unit(0.6,"cm")),
+               color="black")+
+  geom_segment(aes(x=0, xend =0 , 
+                   y=1, yend = -1), size=1,
+               arrow = arrow(length = unit(0.6,"cm")),
+               color="black")+
+  annotate(geom = "text",label="Increases intrinsic fecundity",
+           x=-0.008,y=0.55,size=6,angle=90)+
+  annotate(geom = "text",label="Decreases intrinsic fecundity",
+           x=0.008,y=-0.55,size=6,angle=-90)+
+  annotate(geom = "text",label="Increases self-competition",
+           x=-0.065,y=-0.05,size=6,angle=0)+
+  annotate(geom = "text",label="Increases self-facilitation",
+           x=0.065,y=0.05,size=6,angle=0)+
+  scale_shape_manual(values=c(16:17)) +
+  scale_color_manual(values=dummy.col)+
+  scale_x_continuous(breaks=c(-0.03,0,0.03),
+                     labels=c(-0.03,0,0.03)) +
+  labs(x="Effect size on interactions at Low neighbor's density",
+       y="Effect size on intrinsic fecundity",
+       shape="Community",
+       color="Functional trait") +
+  coord_cartesian( xlim = c(-.15,0.15), ylim = c(-1,1),
+                 expand = F, default = FALSE, clip = "on") +
+  theme_bw() +
+  guides(color = guide_legend(title.position = "top",
+                              ncol=2),
+         shape = guide_legend(title.position = "top",
+                              nrow=2)) +
+  theme(legend.position="bottom",
+        strip.text = element_text(size=18),
+        legend.title =element_text(size=16),
+        legend.text =element_text(size=14),
+        axis.title=element_text(size=20),
+        axis.text = element_text(size=18),
+        panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
+        panel.border = element_blank(),
+        panel.grid.major = element_line( color = "grey80",linetype="dashed"),
+        panel.grid.minor = element_blank())
+Cool.glm.theory.trait.plotlist[[paste0(country,"_intra_diag")]]
+#figures/main/Oblique.INTRA.pdf
+Lambda.trait <- NULL
+for(country in country.list){
+  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
+  if(country=="spain"){
+    competition_df <- get(paste0("clean.data.",country))[[paste0("competition_",country)]]  %>%
+      gather(any_of(Code.focal.list),key="species",value="individuals") %>%
+      mutate(individuals = case_when(focal==species ~ (individuals + 1),
+                                     T~individuals)) %>%
+      mutate(com_id = paste0(plot,"_", subplot)) %>%
+      group_by(species) %>%
+      summarise(low.abundance = as.vector(quantile(individuals[individuals>0],0.1,na.rm=T)),
+                median.abundance = as.vector(quantile(individuals[individuals>0],0.5,na.rm=T)),
+                high.abundance = as.vector(quantile(individuals[individuals>0],0.9,na.rm=T)))
+  }else{
+    competition_df <- get(paste0("clean.data.",country))[[paste0("competition_",country)]]  %>%
+      gather(any_of(Code.focal.list),key="species",value="individuals") %>%
+      mutate(individuals = case_when(focal==species ~ (individuals + 1),
+                                     T~individuals)) %>%
+      mutate(individuals = (individuals/scale)*15) %>%
+      dplyr::rename("com_id"="plot") %>%
+      group_by(species) %>%
+      summarise(low.abundance = as.vector(quantile(individuals[individuals>0],0.1,na.rm=T)),
+                median.abundance = as.vector(quantile(individuals[individuals>0],0.5,na.rm=T)),
+                high.abundance = as.vector(quantile(individuals[individuals>0],0.9,na.rm=T)))
+  }
+  
+alpha_intra.n <- Cool.theory.trait.df[[country]]$trait.value.intra.df %>%
+    mutate(country=country) %>%
+    dplyr::filter(density.quantile=="low") %>%
+    dplyr::select(neigh,country,theoretical.effect) %>%
+    rename("intra.effect"="theoretical.effect") %>%
+    unique()
+
+alpha_inter.n <- Cool.theory.trait.df[[country]]$trait.dist.df %>%
+  mutate(country=country) %>%
+  dplyr::filter(density.quantile=="low") %>%
+  group_by(focal,country) %>%
+  summarise(inter.effect.mean = mean(theoretical.effect,na.rm=T),
+            inter.effect.sd = sd(theoretical.effect,na.rm=T))%>%
+  ungroup()
+Lambda.trait.n <- Cool.theory.trait.df[[country]]$trait.value.lambda.df %>%
+  mutate(country=country) %>%
+  dplyr::filter(density.quantile=="low") %>%
+  dplyr::select(-c('density.quantile', 'receiver.trait.scaled')) %>%
+  spread(trait,receiver.trait) %>%
+  left_join(competition_df  %>%
+              dplyr::rename("focal"="species")) %>%
+  left_join(alpha_intra.n%>%
+  dplyr::rename("focal"="neigh")) %>%
+  left_join(alpha_inter.n) %>%
+  mutate(scaled.lambda= as.vector(scale(lambda)))
+
+
+Lambda.trait <- bind_rows(Lambda.trait,Lambda.trait.n)
+
+}
+view(Lambda.trait)
+str(Lambda.trait)
+Lambda.trait %>%
+  ggplot(aes(x=theoretical.effect, y=scaled.lambda,size=median.abundance)) +
+  geom_point() +
+  theme_bw()+
+  scale_size_continuous(breaks=c(1,2,5,10,14))+
+  geom_hline(yintercept=0)+
+  geom_vline(xintercept=0)+
+  theme(legend.position="bottom",
+        strip.text = element_text(size=18),
+        legend.title =element_text(size=16),
+        legend.text =element_text(size=14),
+        axis.title=element_text(size=20),
+        axis.text = element_text(size=18),
+        panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
+        panel.border = element_blank(),
+        panel.grid.major = element_line( color = "grey80",linetype="dashed"),
+        panel.grid.minor = element_blank())
+
+write.csv(Lambda.trait,
+          file="results/Lambda.trait.abundance.csv")
+View(Lambda.trait)
+ 
+
+#---- 1.4. Make graph for main text -INTER ----
 
 for( country in country.list){
- 
+  trait.to.remove <- c("Root diameter",
+                       #"Flower width","Seed mass",
+                       "Leaf area index",
+                       "Canopy shape")
+  
   intercept.df <- bind_rows(summary.table.for.plot.glm[[country]]$df.i) %>%
-    dplyr::filter(density.quantile %in% c("low","high")) %>%
+    dplyr::filter(density.quantile %in% c("low")) %>%
     #dplyr::filter(!parameters =="intercept") %>%
     dplyr::mutate(trait = case_when(parameters =="intercept" ~ "intercept",
                                     T~trait)) %>%
@@ -1054,23 +1249,18 @@ for( country in country.list){
   Cool.glm.theory.trait.plotlist[[paste0(country,"_inter")]]  <- bind_rows(summary.table.for.plot.glm[[country]]$df.i) %>%
     dplyr::filter( outlier== "removed") %>%
     dplyr::filter(density.quantile  %in% c("low","high")) %>%
-    dplyr::filter(!trait %in% c("Root diameter",
-                                "Flower width","Seed mass",
-                                "Leaf area index",
-                                "Canopy shape"))%>%
+    dplyr::filter(!trait %in% trait.to.remove )%>%
     mutate(pointshape = "Trait effect on interaction") %>%
     #bind_rows(intercept.df) %>%
     mutate(parameters= factor(parameters,
-                              levels=c("Focal trait\non interspecific","Emitter trait\non interspecific",
-                                       "Focal trait -\nEmitter trait\non interspecific",
-                                       "Focal trait\non intraspecific")))%>%
-    mutate(y_numb= case_when(parameters =="Focal trait\non interspecific" ~ 4,
-                             parameters =="Emitter trait\non interspecific"~3,
-                             parameters =="Focal trait -\nEmitter trait\non interspecific" ~2,
-                             parameters =="Focal trait\non intraspecific" ~ 1)) %>%
+                              levels=c("Focal trait","Emitter trait",
+                                       "Focal trait -\nEmitter trait")))%>%
+    mutate(y_numb= case_when(parameters =="Focal trait" ~ 3,
+                             parameters =="Emitter trait"~2,
+                             parameters =="Focal trait -\nEmitter trait" ~1)) %>%
     mutate(trait=factor(trait, 
-                        names(dummy.col))) %>%
-    mutate(y_trait=((as.numeric(trait)-6)*0.04 +y_numb)) %>%
+                        names(dummy.col)[!names(dummy.col) %in%trait.to.remove])) %>%
+    mutate(y_trait=((as.numeric(trait)-6)*0.06 +y_numb)) %>%
     mutate(density.quantile.text = case_when(density.quantile =="low" ~"Low Neighbor's Density",
                                              density.quantile =="high" ~"High Neighbor's Density")) %>%
     mutate(density.quantile.text=factor(density.quantile.text,
@@ -1093,36 +1283,36 @@ for( country in country.list){
               size=10,color="black") +
     scale_color_manual(values=dummy.col)+
     scale_shape_manual(values=c(16:17))+
-    scale_y_continuous(breaks=c(1:4),
+    scale_y_continuous(breaks=c(1:3),
+                       limits=c(0.5,3.5),
                        labels=rev(c("Focal trait",
                                     "Neighbor trait",
-                                    "Focal trait -\nNeighbor trait",
-                                    "Focal trait"))) +
+                                    "Focal trait -\nNeighbor trait"))) +
     theme_bw() +
+    coord_cartesian(xlim=c(-0.04,0.04),clip = "on",expand=F)+
     facet_wrap(.~density.quantile.text,ncol=2) +
     geom_vline(xintercept=0) + 
-    labs(x="estimate",
+    labs(x="Effect size",
          y=paste0(""),
          shape="Model estimates",
-         color="functional trait") +
+         color="Functional trait") +
     guides(color = guide_legend(title.position = "top",
                                 nrow=2),
            shape = guide_legend(title.position = "top",
                                 nrow=2)) +
     theme(legend.position="bottom",
-          plot.margin = unit(c(1,ifelse(country=="aus",
-                                        0,3),0,
-                               ifelse(country=="aus",
-                                      3,0)),"cm"),
-          strip.text = element_text(size=18),
-          legend.title =element_text(size=18),
+          strip.text = element_text(size=20),
+          strip.background = element_rect(fill="grey98"),
+          panel.spacing = unit(3, "lines"),
+          legend.title =element_text(size=20),
           legend.text =element_text(size=18),
-          axis.title=element_text(size=18),
+          axis.title=element_text(size=20),
           axis.text = element_text(size=18),
           panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
           panel.border = element_rect( color = "grey60"),
           panel.grid.major.y = element_line(colour = 'black', linetype = 'dashed'),
-          panel.grid.minor = element_blank())
+          panel.grid.minor = element_blank(),
+          plot.margin=unit(c(1,1,0,1),"cm"))
   Cool.glm.theory.trait.plotlist[[paste0(country,"_inter")]]
   
 
@@ -1137,7 +1327,7 @@ legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
                          #                       each=120)) %>%
                         dplyr::filter(!parameters =="intercept") %>%
                         dplyr::filter(!trait %in% c("Root diameter",
-                                                    "Flower width","Seed mass",
+                                                    #"Flower width","Seed mass",
                                                     "Leaf area index",
                                                     "Canopy shape")) %>%
                         #bind_rows(intercept.df) %>%
@@ -1161,24 +1351,24 @@ legend.plot <- ggplot(data=Cool.theory.trait.df[["aus"]]$Intra.trait.df %>%
   guides(shape= guide_legend(nrow=2,byrow=TRUE,
                              override.aes = list(alpha = 1,
                                                  color=c("grey80"))),
-         color= guide_legend(nrow=3,byrow=TRUE)) +
+         color= guide_legend(nrow=4,byrow=TRUE)) +
   labs(x="estimate",
        y=paste0(""),
        shape="Model estimates",
-       color="functional trait") +
+       color="Functional trait") +
   theme_few() +
   theme(legend.position="bottom",
         legend.key.size = unit(1, 'cm'),
         legend.title.position = "top",
         legend.title =element_text(size=20),
-        legend.text =element_text(size=16),
+        legend.text =element_text(size=18),
         axis.text = element_text(size=18))
 legend.plot
 
 GLM.traits.INTER <- plot_grid( ggarrange(Cool.glm.theory.trait.plotlist[[paste0("aus_inter")]],
            Cool.glm.theory.trait.plotlist[[paste0("spain_inter")]],
            common.legend = T, legend = "none",
-           label.x = c(-0.02,0),
+           label.x = c(-0.05,-.03),
            label.y = 1.01,align="v",
            font.label = list(size = 26, color = "black", 
                              face = "bold", family = NULL),
@@ -1188,21 +1378,399 @@ GLM.traits.INTER <- plot_grid( ggarrange(Cool.glm.theory.trait.plotlist[[paste0(
           rel_heights =c(1,0.2),
           nrow=2,legend="none")
 GLM.traits.INTER
-
+#figures/GLM.traits.INTER.pdf
 ggsave(last_plot(),
        width=15.41,
        height=10.30,
        unit="in",
-       file="figures/GLM.traits.Intercept.pdf")
+       file="figures/GLM.traits.INTER.pdf")
 
 library(grid)
 library(pBrackets) 
 #figures/GLM.traits.INTER.pdf
-#----1.5.Summary across density----
+#---- 1.5. Make graph for main text -INTER - LOW TO HIGH ----
+
+trait.to.remove <- c("Root diameter",
+                       #"Flower width","Seed mass",
+                       "Leaf area index",
+                       "Canopy shape")
+
+Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag_focal")]]  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
+    mutate(country="Australia") %>%
+    bind_rows(summary.table.for.plot.glm[["spain"]]$df.i %>%
+                mutate(country="Spain")) %>%
+    dplyr::filter( outlier== "removed") %>%
+    dplyr::select(-signif) %>%
+    dplyr::filter(density.quantile  %in% c("low","high")) %>%
+    dplyr::filter(!trait %in% trait.to.remove )%>%
+    dplyr::filter(parameters==c("Focal trait")) %>%
+    mutate(trait=factor(trait, 
+                      levels=rev(names(dummy.col)[!names(dummy.col) %in% trait.to.remove]))) %>%
+    mutate(Q2.5 = case_when(Estimate<0 ~ -Q2.5,
+                            T ~ Q2.5),
+           Q97.5 = case_when(Estimate<0 ~ -Q97.5,
+                             T ~ Q97.5)) %>%
+    pivot_wider(names_from = density.quantile, 
+                values_from = c('Estimate','Q2.5','Q97.5'), names_sep="") %>%
+    ggplot(aes(y=abs(Estimatehigh),
+               x=abs(Estimatelow),
+               color=as.factor(trait),
+               group=as.factor(trait),
+               shape = country )) + 
+    #shape=density.quantile)) +
+    geom_point( size=8,alpha=1) +
+    geom_pointrange(aes(ymin=Q2.5high,
+                        ymax=Q97.5high),
+                    size=2,alpha=0.3) +
+    geom_errorbarh(aes(xmin=Q2.5low,
+                        xmax=Q97.5low),
+                    size=1,alpha=0.3,
+                   height=0) +
+    geom_abline(intercept=0,slope=1) +
+    scale_shape_manual(values=c(16:17)) +
+    scale_color_manual(values=dummy.col)+
+    scale_y_continuous(breaks=c(0,0.01,0.03),labels=c(0,0.01,0.03)) +
+    scale_x_continuous(breaks=c(0,0.01,0.03),labels=c(0,0.01,0.03)) +
+    labs(x="Effect size at Low neighbor's density",
+         y="Effect size at High neighbor's density",
+         shape="Community",
+         color="Functional trait") +
+    annotate(geom = "polygon", x = c(Inf, -Inf, -Inf), 
+           y = c(Inf, -Inf, Inf), fill = "grey70", alpha = 0.1 )+
+    annotate(geom = "text",label="Effect size at Low > High",
+           x=0.033,y=0.032,size=6,angle=45)+
+  coord_cartesian( xlim = c(0,0.04), ylim=c(0,0.04),
+                   expand = F, default = FALSE, clip = "on") +
+  theme_bw() +
+    guides(color = guide_legend(title.position = "top",
+                                nrow=3),
+           shape = guide_legend(title.position = "top",
+                                nrow=2)) +
+    theme(legend.position="bottom",
+          plot.margin = unit(c(1,ifelse(country=="aus",
+                                        0,3),0,
+                               ifelse(country=="aus",
+                                      3,0)),"cm"),
+          strip.text = element_text(size=18),
+          legend.title =element_text(size=18),
+          legend.text =element_text(size=16),
+          axis.title=element_text(size=20),
+          axis.text = element_text(size=18),
+          panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
+          panel.border = element_rect( color = "grey60"),
+          panel.grid.major = element_line( color = "grey70",linetype="dashed"),
+          panel.grid.minor = element_blank())
+
+  
+  Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag_neigh")]]  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
+    mutate(country="Australia") %>%
+    bind_rows(summary.table.for.plot.glm[["spain"]]$df.i %>%
+                mutate(country="Spain")) %>%
+    dplyr::filter( outlier== "removed") %>%
+    dplyr::select(-signif) %>%
+    dplyr::filter(density.quantile  %in% c("low","high")) %>%
+    dplyr::filter(!trait %in% trait.to.remove )%>%
+    dplyr::filter(parameters==c("Emitter trait")) %>%
+    mutate(trait=factor(trait, 
+                        levels=rev(names(dummy.col)[!names(dummy.col) %in% trait.to.remove]))) %>%
+    mutate(Q2.5 = case_when(Estimate<0 ~ -Q2.5,
+                            T ~ Q2.5),
+           Q97.5 = case_when(Estimate<0 ~ -Q97.5,
+                             T ~ Q97.5)) %>%
+    pivot_wider(names_from = density.quantile, 
+                values_from = c('Estimate','Q2.5','Q97.5'), names_sep="") %>%
+    ggplot(aes(y=abs(Estimatehigh),
+               x=abs(Estimatelow),
+               color=as.factor(trait),
+               group=as.factor(trait),
+               shape = country )) + 
+    #shape=density.quantile)) +
+    geom_point( size=8,alpha=1) +
+    geom_pointrange(aes(ymin=Q2.5high,
+                        ymax=Q97.5high),
+                    size=2,alpha=0.3) +
+    geom_errorbarh(aes(xmin=Q2.5low,
+                       xmax=Q97.5low),
+                   size=1,alpha=0.3,
+                   height=0) +
+    geom_abline(intercept=0,slope=1) +
+    scale_shape_manual(values=c(16:17)) +
+    scale_color_manual(values=dummy.col)+
+   scale_y_continuous(breaks=c(0,0.01,0.03),labels=c(0,0.01,0.03)) +
+    scale_x_continuous(breaks=c(0,0.01,0.03),labels=c(0,0.01,0.03)) +
+    labs(x="Effect size at Low neighbor's density",
+         y="Effect size at High neighbor's density",
+         shape="Community",
+         color="Functional trait") +
+    annotate(geom = "polygon", x = c(Inf, -Inf, -Inf), 
+             y = c(Inf, -Inf, Inf), fill = "grey70", alpha = 0.1 )+
+    annotate(geom = "text",label="Effect size at Low > High",
+             x=0.033,y=0.032,size=6,angle=45)+
+    coord_cartesian( xlim = c(0,0.04), ylim=c(0,0.04),
+                     expand = F, default = FALSE, clip = "on") +
+    theme_bw() +
+    guides(color = guide_legend(title.position = "top",
+                                nrow=3),
+           shape = guide_legend(title.position = "top",
+                                nrow=2)) +
+    theme(legend.position="bottom",
+          plot.margin = unit(c(1,ifelse(country=="aus",
+                                        0,3),0,
+                               ifelse(country=="aus",
+                                      3,0)),"cm"),
+          strip.text = element_text(size=18),
+          legend.title =element_text(size=18),
+          legend.text =element_text(size=16),
+          axis.title=element_text(size=20),
+          axis.text = element_text(size=18),
+          panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
+          panel.border = element_rect( color = "grey60"),
+          panel.grid.major = element_line( color = "grey70",linetype="dashed"),
+          panel.grid.minor = element_blank())
+  Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag_neigh")]]
+
+  ggarrange(Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag_focal")]],
+             Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag_neigh")]],
+            common.legend = T, legend = "bottom",
+            label.x = c(-0.08,-0.12),
+            label.y = 1.01,align="h",
+            font.label = list(size = 26, color = "black", 
+                              face = "bold", family = NULL),
+             labels=c("a. Focal's trait", "b. Neighbor's trait"),
+             ncol=2)
+  #figures/main/Oblique.INTER.pdf 
+#---- 1.6. Make graph for main text -INTER - INTRA ----
+  
+  trait.to.remove <- c("Root diameter",
+                       #"Flower width","Seed mass",
+                       "Leaf area index",
+                       "Canopy shape")
+ 
+  plot_inter_intra  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
+    mutate(model="inter") %>%
+    bind_rows( summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i %>%
+                 mutate(model="intra")) %>%
+    mutate(country="aus") %>%
+    bind_rows(summary.table.for.plot.glm[["spain"]]$df.i %>%
+                mutate(model="inter") %>%
+                bind_rows( summary.table.for.plot.glm[["spain"]]$Intra.trait.df.i %>%
+                             mutate(model="intra")) %>%
+                mutate(country="spain")) %>%
+    dplyr::filter( outlier== "removed") %>%
+    dplyr::select(-signif) %>%
+    dplyr::filter(density.quantile  %in% c("low")) %>%
+    dplyr::filter(!trait %in% trait.to.remove )%>%
+    dplyr::filter(parameters==c("Focal trait")) %>%
+    mutate(trait=factor(trait, 
+                        levels=rev(names(dummy.col)[!names(dummy.col) %in% trait.to.remove]))) %>%
+    pivot_wider(names_from = model, 
+                values_from = c('Estimate','Q2.5','Q97.5'), names_sep="") %>%
+    ggplot() + 
+    #geom_pointrange(data= Lambda.trait,
+     #               aes(y=inter.effect.mean,
+       #                 x=intra.effect,
+        #                ymin=inter.effect.mean-inter.effect.sd,
+          #              ymax=inter.effect.mean+inter.effect.sd,
+           #             shape = country,
+            #            size=median.abundance),
+             ##       color="black",
+              #      alpha=0.7) +
+    #shape=density.quantile)) +
+    geom_point(aes(y=Estimateinter,
+                   x=Estimateintra,
+                   color=as.factor(trait),
+                   group=as.factor(trait),
+                   shape = country ),
+               size=8,alpha=1) +
+    geom_pointrange(aes(y=Estimateinter,
+                        x=Estimateintra,
+                        color=as.factor(trait),
+                        group=as.factor(trait),
+                        shape = country,
+                        ymin=Q2.5inter,
+                        ymax=Q97.5inter),
+                    size=2,alpha=0.3) +
+    geom_errorbarh(aes(y=Estimateinter,
+                       xmin=Q2.5intra,
+                       xmax=Q97.5intra,
+                       color=as.factor(trait)),
+                   size=1,alpha=0.3,
+                   height=0) +
+    geom_hline(yintercept = 0)+
+    geom_vline(xintercept=0)+
+    #geom_abline(intercept=0,slope=1) +
+    scale_shape_manual(values=c(16,17)) +
+    scale_color_manual(values=dummy.col)+
+    scale_size(range=c(1,2))+
+    scale_y_continuous(breaks=seq(-0.1,0.1,0.025)) +
+    scale_x_continuous(breaks=seq(-0.1,0.1,0.025)) +
+    labs(x="Effect size on INTRA",
+         y="Effect size on INTER",
+         shape="Community",
+         color="Functional trait") +
+    geom_segment(data=NULL,x=0, xend = +0.12 , 
+                     y=0, yend = 0, size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    geom_segment(data=NULL,x=0, xend =0 , 
+                     y=0, yend = 0.05, size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    geom_segment(data=NULL,x=0, xend = -0.12 , 
+                     y=0, yend = 0, size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    geom_segment(data=NULL,x=0, xend =0 , 
+                     y=0, yend = -0.05, size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    annotate(geom = "text",label="Increases competition \nfrom others",
+             x=0.002,y=-0.045,size=6,angle=0)+
+    annotate(geom = "text",label="Increases facilitation \nfrom others",
+             x=0.002,y=0.045,size=6,angle=0)+
+    annotate(geom = "text",label="Increases \nself-competition",
+             x=-0.095,y=0.00,size=6,angle=0)+
+    annotate(geom = "text",label="Increases \nself-facilitation",
+             x=0.095,y=0.00,size=6,angle=0)+
+    coord_cartesian( ylim = c(-0.05,0.05), xlim=c(-0.12,0.12),
+                     expand = F, default = FALSE, clip = "on") +
+    theme_bw() +
+    guides(color = guide_legend(title.position = "top",
+                                nrow=3),
+           shape = guide_legend(title.position = "top",
+                                nrow=2)) +
+    theme(legend.position="bottom",
+          plot.margin = unit(c(1,ifelse(country=="aus",
+                                        0,3),0,
+                               ifelse(country=="aus",
+                                      3,0)),"cm"),
+          strip.text = element_text(size=18),
+          legend.title =element_text(size=18),
+          legend.text =element_text(size=16),
+          axis.title=element_text(size=20),
+          axis.text = element_text(size=18),
+          panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
+          panel.border = element_rect( color = "grey60"),
+          panel.grid.major = element_line( color = "grey70",linetype="dashed"),
+          panel.grid.minor = element_blank())
+  
+  
+  plot_inter_intra
+  #figures/main/Oblique.INTER.INTRA.pdf 
+  #---- 1.7. Make graph for main text -INTER - lambda ----
+  
+  trait.to.remove <- c("Root diameter",
+                       #"Flower width","Seed mass",
+                       "Leaf area index",
+                       "Canopy shape")
+  
+  plot_inter_lambda  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
+    mutate(model="inter") %>%
+    bind_rows( summary.table.for.plot.glm[["aus"]]$Lambda.trait.df.i %>%
+                 mutate(model="lambda")) %>%
+    mutate(country="Australia") %>%
+    bind_rows(summary.table.for.plot.glm[["spain"]]$df.i %>%
+                mutate(model="inter") %>%
+                bind_rows( summary.table.for.plot.glm[["spain"]]$Lambda.trait.df.i %>%
+                             mutate(model="lambda")) %>%
+                mutate(country="Spain")) %>%
+    dplyr::filter( outlier== "removed") %>%
+    dplyr::select(-signif) %>%
+    dplyr::filter(density.quantile  %in% c("low")) %>%
+    dplyr::filter(!trait %in% trait.to.remove )%>%
+    dplyr::filter(parameters==c("Focal trait")) %>%
+    mutate(trait=factor(trait, 
+                        levels=rev(names(dummy.col)[!names(dummy.col) %in% trait.to.remove]))) %>%
+    pivot_wider(names_from = model, 
+                values_from = c('Estimate','Q2.5','Q97.5'), names_sep="") %>%
+    ggplot(aes(y=Estimateinter,
+               x=Estimatelambda,
+               color=as.factor(trait),
+               group=as.factor(trait),
+               shape = country )) + 
+    #shape=density.quantile)) +
+    geom_point( size=8,alpha=1) +
+    geom_pointrange(aes(ymin=Q2.5inter,
+                        ymax=Q97.5inter),
+                    size=2,alpha=0.3) +
+    geom_errorbarh(aes(xmin=Q2.5lambda,
+                       xmax=Q97.5lambda),
+                   size=1,alpha=0.3,
+                   height=0) +
+    geom_hline(yintercept = 0)+
+    geom_vline(xintercept=0)+
+    #geom_abline(intercept=0,slope=1) +
+    scale_shape_manual(values=c(16:17)) +
+    scale_color_manual(values=dummy.col)+
+    #scale_y_continuous(breaks=seq(-0.1,0.1,0.025)) +
+    #scale_x_continuous(breaks=seq(-0.1,0.1,0.05)) +
+    labs(x="Effect size on Lambda",
+         y="Effect size on INTER",
+         shape="Community",
+         color="Functional trait") +
+    geom_segment(aes(x=0, xend = +1.2 , 
+                     y=0, yend = 0), size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    geom_segment(aes(x=0, xend =0 , 
+                     y=0, yend = 0.05), size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    geom_segment(aes(x=0, xend = -1.2 , 
+                     y=0, yend = 0), size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    geom_segment(aes(x=0, xend =0 , 
+                     y=0, yend = -0.05), size=1,
+                 arrow = arrow(length = unit(0.6,"cm")),
+                 color="black")+
+    annotate(geom = "text",label="Increases competition \nfrom others",
+             x=0.002,y=-0.045,size=6,angle=0)+
+    annotate(geom = "text",label="Increases facilitation \nfrom others",
+             x=0.002,y=0.045,size=6,angle=0)+
+    annotate(geom = "text",label="Increases \nintrinsic fecundity",
+             x=0.9,y=0,size=6,angle=0)+
+    annotate(geom = "text",label="Decreases \nintrinsic fecundity",
+             x=-0.9,y=0,size=6,angle=0)+
+    coord_cartesian( ylim = c(-0.05,0.05), xlim=c(-1.2,1.2),
+                     expand = F, default = FALSE, clip = "on") +
+    theme_bw() +
+    guides(color = guide_legend(title.position = "top",
+                                nrow=3),
+           shape = guide_legend(title.position = "top",
+                                nrow=2)) +
+    theme(legend.position="bottom",
+          plot.margin = unit(c(1,ifelse(country=="aus",
+                                        0,3),0,
+                               ifelse(country=="aus",
+                                      3,0)),"cm"),
+          strip.text = element_text(size=18),
+          legend.title =element_text(size=18),
+          legend.text =element_text(size=16),
+          axis.title=element_text(size=20),
+          axis.text = element_text(size=18),
+          panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
+          panel.border = element_rect( color = "grey60"),
+          panel.grid.major = element_line( color = "grey70",linetype="dashed"),
+          panel.grid.minor = element_blank())
+  
+  
+  plot_inter_lambda
+  #figures/main/Oblique.INTER.INTRA.LAMBDA.pdf 
+  ggarrange(plot_inter_intra,
+            plot_inter_lambda,
+            ncol=2,
+            common.legend = T, legend="bottom",
+            label.x= c(-0.28,-0.35),
+            align="h",
+            font.label = list(size = 20, color = "black", 
+                              face = "bold", family = NULL),
+            labels=c("a. Mitigation of competition by self-facilitation",
+                            "b. Mitigation of competitione by high intrinsic fecunidty"))
+#---- 1.6.Summary across density----
 for( country in country.list){
   
-  Cool.glm.theory.trait.plotlist[[paste0(country,"_summary")]]  <- bind_rows(summary.table.for.plot.glm[[country]]$df.i,
-                                                                             summary.table.for.plot.glm[[country]]$Intra.trait.df.i) %>%
+  Cool.glm.theory.trait.plotlist[[paste0(country,"_summary")]]  <- bind_rows(summary.table.for.plot.glm[[country]]$df.i) %>%
     dplyr::filter(!parameters =="intercept")%>%
     mutate(signif = case_when( (round(Q2.5,digits =3) <=0 &
                                   round(Q97.5,digits =3)-0.002 <=0) ~ "*",
@@ -1211,21 +1779,16 @@ for( country in country.list){
                                T ~ "")) %>%
     dplyr::filter(!signif =="")%>%
     dplyr::filter( outlier== "removed") %>% #included
-    dplyr::filter(!trait %in% c("Root diameter",
-                                "Flower width","Seed mass",
-                                "Leaf area index",
-                                "Canopy shape"))%>%
+    dplyr::filter(!trait %in% trait.to.remove)%>%
     mutate(parameters= factor(parameters,
-                              levels=c("Focal trait\non interspecific","Emitter trait\non interspecific",
-                                       "Focal trait -\nEmitter trait\non interspecific",
-                                       "Focal trait\non intraspecific")))%>%
-    mutate(y_numb= case_when(parameters =="Focal trait\non interspecific" ~ 4,
-                             parameters =="Emitter trait\non interspecific"~3,
-                             parameters =="Focal trait -\nEmitter trait\non interspecific" ~2,
-                             parameters =="Focal trait\non intraspecific" ~ 1)) %>%
+                              levels=c("Focal trait","Emitter trait",
+                                       "Focal trait -\nEmitter trait")))%>%
+    mutate(y_numb= case_when(parameters =="Focal trait" ~ 3,
+                             parameters =="Emitter trait"~2,
+                             parameters =="Focal trait -\nEmitter trait" ~1)) %>%
     mutate(trait=factor(trait, 
-                        names(dummy.col))) %>%
-    mutate(y_trait=((as.numeric(trait)-6)*0.04 +y_numb)) %>%
+                        names(dummy.col)[!names(dummy.col) %in% trait.to.remove])) %>%
+    mutate(y_trait=((as.numeric(trait)-6)*0.05 +y_numb)) %>%
     ggplot(aes(y=y_trait,
                x=Estimate,
                color=as.factor(trait),
@@ -1313,45 +1876,12 @@ GLM.traits.summary <- plot_grid( ggarrange(Cool.glm.theory.trait.plotlist[[paste
                                  rel_heights =c(1,0.2),
                                  nrow=2,legend="none")
 GLM.traits.summary
-GLM.traits.summary + annotation_custom(
-  grob = textGrob(label = "Effect on \ninter- \ninteractions",
-                  hjust = 0, gp = gpar(cex = 1.5),rot=0),
-  ymin = 0.82,      # Vertical position of the textGrob
-  ymax = 0.82,
-  xmin = 0.002,         # Note: The grobs are positioned outside the plot area
-  xmax = 0.002)+
-  annotation_custom(grob = textGrob(label = "Effect on \nintra- \ninteractions",
-                                    hjust = 0, gp = gpar(cex = 1.5),rot=0),
-                    ymin = 0.65,      # Vertical position of the textGrob
-                    ymax = 0.65,
-                    xmin = 0.002,         # Note: The grobs are positioned outside the plot area
-                    xmax = 0.002)+ 
-  annotation_custom(
-    grob = textGrob(label = "Effect on \ninter- \ninteractions",
-                    hjust = 0, gp = gpar(cex = 1.5),rot=0),
-    ymin = 0.42,      # Vertical position of the textGrob
-    ymax = 0.42,
-    xmin = 0.002,         # Note: The grobs are positioned outside the plot area
-    xmax = 0.002)+
-  annotation_custom(grob = textGrob(label = "Effect on \nintra- \ninteractions",
-                                    hjust = 0, gp = gpar(cex = 1.5),rot=0),
-                    ymin = 0.25,      # Vertical position of the textGrob
-                    ymax = 0.25,
-                    xmin = 0.002,         # Note: The grobs are positioned outside the plot area
-                    xmax = 0.002)
 
-bottom_x = 115
-library(pBrackets)
-grid.brackets(bottom_x,212, bottom_x,40, lwd=2, col="black")
-grid.brackets(bottom_x,260, bottom_x,214, lwd=2, col="black")
-grid.brackets(bottom_x,504, bottom_x,332, lwd=2, col="black")
-grid.brackets(bottom_x,552, bottom_x,506, lwd=2, col="black")
-#figures/GLM.traits.Intercept.Hight.pdf
-#----1.6. Outliers ----
+#figures/glm/GLM.traits.INTER.Intercept.to.High.pdf
+#---- 1.7. Outliers ----
 for( country in country.list){
 
-  Cool.glm.theory.trait.plotlist[[paste0(country,"_removed.outlier")]]  <- bind_rows(summary.table.for.plot.glm[[country]]$df.i,
-                                                                                     summary.table.for.plot.glm[[country]]$Intra.trait.df.i) %>%
+  Cool.glm.theory.trait.plotlist[[paste0(country,"_removed.outlier")]]  <- bind_rows(summary.table.for.plot.glm[[country]]$df.i) %>%
     dplyr::filter(density.quantile  %in% c("low","high")) %>%
     dplyr::filter(!parameters =="intercept") %>%
     mutate(signif = case_when( (round(Q2.5,digits =3) <=0 &
@@ -1365,13 +1895,11 @@ for( country in country.list){
                                 "Leaf area index",
                                 "Canopy shape")) %>%
     mutate(parameters= factor(parameters,
-                              levels=c("Focal trait\non interspecific","Emitter trait\non interspecific",
-                                       "Focal trait -\nEmitter trait\non interspecific",
-                                       "Focal trait\non intraspecific")))%>%
-    mutate(y_numb= case_when(parameters =="Focal trait\non interspecific" ~ 4,
-                             parameters =="Emitter trait\non interspecific"~3,
-                             parameters =="Focal trait -\nEmitter trait\non interspecific" ~2,
-                             parameters =="Focal trait\non intraspecific" ~ 1)) %>%
+                              levels=c("Focal trait","Emitter trait",
+                                       "Focal trait -\nEmitter trait")))%>%
+    mutate(y_numb= case_when(parameters =="Focal trait" ~ 3,
+                             parameters =="Emitter trait"~2,
+                             parameters =="Focal trait -\nEmitter trait" ~1)) %>%
     mutate(trait=factor(trait, 
                         names(dummy.col))) %>%
     mutate(y_trait=((as.numeric(trait)-6)*0.035 +y_numb)) %>%
@@ -1389,11 +1917,10 @@ for( country in country.list){
                     size=2,alpha=0.7,
                     position=position_dodge2(width=0.5)) +
     scale_color_manual(values=dummy.col)+
-    scale_y_continuous(breaks=c(1:4),
+    scale_y_continuous(breaks=c(1:3),
                        labels=rev(c("Focal trait",
                                     "Neighbor trait",
-                                    "Focal trait -\nNeighbor trait",
-                                    "Focal trait"))) +
+                                    "Focal trait -\nNeighbor trait"))) +
     theme_bw() +
     facet_wrap(.~density.quantile, ncol=2) +
     geom_vline(xintercept=0) + 
@@ -1421,570 +1948,10 @@ Cool.glm.theory.trait.plotlist[[paste0("spain_removed.outlier")]]#figures/glm/GL
 
 
 
-#---- 1.4.PCA axes----
-PCA.trait.df <- list()
-density.quantile.name <- c("intercept","low","medium","high")
-data_normalized <- list()
-res.traits <- list()
-country="aus"
-library(FactoMineR)
-library(factoextra)
-for( country in country.list){
-  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  # make trait data frame
-  trait.df <- get(paste0("clean.data.",country))[["plant_traits"]] %>%
-    dplyr::select(-c("Mean fecundity"))
-  library(vegan)
-  specific.trait.dist  <- NULL
-  for( i in names(trait.df)){
-    specific.trait.dist.n <- outer(trait.df[,i], trait.df[,i], '-') %>%
-      as.data.frame() %>%
-      gather(.,key="neigh",value="trait.dist") %>%
-      mutate(trait.dist=trait.dist,
-             scaled.trait.dist=as.vector(scale(trait.dist)),
-             trait=i,
-             neigh= rep(rownames(trait.df),each=length(Code.focal.list)),
-             focal= rep(rownames(trait.df),times=length(Code.focal.list))) %>%
-      left_join(trait.df %>% dplyr::select(all_of(i)) %>% 
-                  rownames_to_column("focal") %>% dplyr::rename("receiver.trait"=i) %>%
-                  mutate(receiver.trait = as.vector(scale(receiver.trait))))%>%
-      left_join(trait.df %>% dplyr::select(all_of(i)) %>%
-                  rownames_to_column("neigh") %>% dplyr::rename("emitter.trait"=i)%>%
-                  mutate(emitter.trait = as.vector(scale(emitter.trait))))
-    
-    # specific.trait.dist.n <- as.data.frame(as.matrix(vegdist(trait.df %>% dplyr::select(i) %>% 
-    #                                                       scale() %>% as.data.frame(),
-    #                                                  na.rm = T,method="euclidean",diag=T))) %>%
-    
-    specific.trait.dist <- bind_rows(specific.trait.dist,specific.trait.dist.n)
-    
-    
-  }
-  if(country=="aus"){
-    specific.trait.dist <- specific.trait.dist %>%
-      mutate(trait = factor(trait, levels=c("SRL","Root tips","Root mass density","Root length",
-                                            "Mean fecundity","C13 water use efficiency","Flower width","Seed mass",
-                                            "Canopy shape","SLA","Stem height"))) 
-    toremove <- c("Root diameter",
-                  "Flower width","Seed mass",
-                  "Leaf area index",
-                  "Canopy shape","SRA","Root tips")
-  }
-  if(country=="spain"){
-    specific.trait.dist <- specific.trait.dist %>%
-      mutate(trait = factor(trait, levels=c("SRL","Root diameter","Root mass density","SRA",
-                                            "Mean fecundity","C13 water use efficiency","Leaf C to N ratio","Leaf area index",
-                                            "Canopy shape","SLA","Stem height"))) 
-    toremove <- c("Root diameter",
-                  "Flower width","Seed mass",
-                  "Leaf area index",
-                  "Canopy shape","Root tips")
-  }
-  #country="aus"
-  #country="spain"
- 
-  
-  data_normalized[[country]] <- specific.trait.dist %>% 
-    dplyr::select(trait,receiver.trait,focal) %>%
-    dplyr::filter(!trait %in% toremove ) %>%
-    unique()%>%
-    spread(trait,receiver.trait) %>%
-    column_to_rownames("focal")
-  data_normalized[[country]] 
-
-  #data_normalized[["spain"]] 
-  #data_normalized[["aus"]] 
-  #https://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/116-mfa-multiple-factor-analysis-in-r-essentials/
-  ifelse(country=="aus",c(2,3,1),c(3,2,1))
-  res.traits[[country]] <- MFA(data_normalized[[country]], 
-                        group = if(country=="aus"){c(3,2,1)}else{c(3,3,1)},#(1,1,1,1,1,1,1,1,1,1), 
-                        type = c("s","s","s"),#c("n","n","n","s","s","s","s","s","n","n"),
-                        name.group = c("Root cooperation spectrum",
-                                       "Drought sensitivity",
-                                       "Plant size"),
-                        graph = T)
-  
-  #FactoMineR::PCA(data_normalized[[country]])
-  
-  #country="aus"
-  #country="spain"
-  eig.val <- get_eigenvalue(res.traits[[country]])
-  head(eig.val)
- # pdf(paste0("figures/pca/",country,"PCAaxes.pdf"))
-  chart.Correlation(  data_normalized[[country]], histogram=TRUE, pch=19)
-  
-  fviz_contrib(res.traits[[country]],
-               choice = "quanti.var", axes = 1, top = 20,palette = "jco")
-  fviz_contrib(res.traits[[country]], choice = "quanti.var",
-               axes = 2, top = 20,palette = "jco")
-  fviz_contrib(res.traits[[country]], choice = "quanti.var", axes = 3, top = 20,palette = "jco")
-  fviz_mfa_var(res.traits[[country]], "quanti.var", palette = "jco", 
-               col.var.sup = "violet", repel = TRUE)
-  
-  fviz_mfa_ind(res.traits[[country]], col.ind = "cos2", 
-               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-               repel = TRUE)
-  #dev.off()
-  # cluster analysis
-  library(vegan)
-  if(country=="spain"){
-  PCA.trait.df[[country]]  <-  data.frame("BelowGroundStrategy"=res.traits[[country]]$ind$coord[,1],
-                                          "PlantSize"=res.traits[[country]]$ind$coord[,2],
-                                          "AboveGroundStrategy"=res.traits[[country]]$ind$coord[,3],
-                                          "BelowGroundTrait"=data_normalized[[country]]$SRA,
-                                          "PlantSizeTrait"=data_normalized[[country]]$`Stem height`,
-                                          "AboveGroundTrait"=-1*data_normalized[[country]]$SLA)# negative sign to be in parrallel with SPAIN
-  }
-  
-  if(country=="aus"){
-    PCA.trait.df[[country]]  <-  data.frame("PlantSize"=-1*res.traits[[country]]$ind$coord[,1],
-                                            "AboveGroundStrategy"=-1*res.traits[[country]]$ind$coord[,2],
-                                            "BelowGroundStrategy"=res.traits[[country]]$ind$coord[,3],
-                                            "BelowGroundTrait"=data_normalized[[country]]$`Root length`,
-                                            "PlantSizeTrait"=data_normalized[[country]]$`Stem height`,
-                                            "AboveGroundTrait"=data_normalized[[country]]$`C13 water use efficiency`) 
-  }
-}
-
-#---- 1.5.PCA GLM- FOCAL----
-glm.trait.pca.list <- list()
-glm.trait.list <- list()
-glm.new.data.list <- list()
-glm.new.data.trait.list<- list()
-for( country in country.list){
-  
-trait.pca.df <- Theoretical.Int.list[[country]] %>%
-  dplyr::filter(!neigh ==focal) %>% 
-  left_join(as.data.frame(PCA.trait.df[[country]] %>%
-                            rownames_to_column("focal")),
-            relationship ="many-to-many")
-
-glm.trait.pca.df <- NULL
-glm.trait.df <- NULL
-glm.new.data.df <- NULL
-glm.new.data.trait.df <- NULL
-#glm.new.data.df.3D <- NULL
-#glm.new.data.df.3D.i <- data.frame(AboveGroundStrategy = c(0,seq(min(trait.pca.df$AboveGroundStrategy),max(trait.pca.df$AboveGroundStrategy),by=(max(trait.pca.df$AboveGroundStrategy)-min(trait.pca.df$AboveGroundStrategy))/100)),
-#                                   BelowGroundStrategy = c(0,seq(min(trait.pca.df$BelowGroundStrategy),max(trait.pca.df$BelowGroundStrategy),by=(max(trait.pca.df$BelowGroundStrategy)-min(trait.pca.df$BelowGroundStrategy))/100)))
-#glm.new.data.df.3D.i <- expand.grid(glm.new.data.df.3D.i)
-#glm.new.data.df.3D.i$PlantSize <- glm.new.data.df.3D.i$AboveGroundStrategy + glm.new.data.df.3D.i$BelowGroundStrategy
-#glm.new.data.df.3D.i <- glm.new.data.df.3D.i %>%
-#  dplyr::filter(PlantSize>min(trait.pca.df$PlantSize) &
- #          PlantSize < max(trait.pca.df$PlantSize))
-#glm.new.data.df.i <- data.frame(PlantSize=c(0,seq(min(trait.pca.df$PlantSize),max(trait.pca.df$PlantSize),by=(max(trait.pca.df$PlantSize)-min(trait.pca.df$PlantSize))/100)),# interaction Size-Above
-#                                AboveGroundStrategy = c(0,seq(min(trait.pca.df$AboveGroundStrategy),max(trait.pca.df$AboveGroundStrategy),by=(max(trait.pca.df$AboveGroundStrategy)-min(trait.pca.df$AboveGroundStrategy))/100)),
-#                                BelowGroundStrategy = c(0,seq(min(trait.pca.df$BelowGroundStrategy),max(trait.pca.df$BelowGroundStrategy),by=(max(trait.pca.df$BelowGroundStrategy)-min(trait.pca.df$BelowGroundStrategy))/100)))
-
-#glm.new.data.df.i <- expand.grid(glm.new.data.df.i)
-
-glm.new.data.df.i <- data.frame(PlantSize=c(runif(50000,min = min(trait.pca.df$PlantSize), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
-                                            #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
-                                            runif(50000,min = 0, max = max(trait.pca.df$PlantSize))),# interaction Size-Above # quantile(trait.pca.df$PlantSize,0.66)
-                                AboveGroundStrategy = runif(100000, min =min(trait.pca.df$AboveGroundStrategy),
-                                                            max=max(trait.pca.df$AboveGroundStrategy)),
-                                BelowGroundStrategy = runif(100000, min =min(trait.pca.df$BelowGroundStrategy),
-                                                            max=max(trait.pca.df$BelowGroundStrategy)),
-                                PlantSizeCat =rep(c("BelowAverage","AboveAverage"),each=50000),
-                                BelowGroundTrait=runif(100000, min =min(trait.pca.df$BelowGroundTrait,na.rm=T),
-                                                       max=max(trait.pca.df$BelowGroundTrait,na.rm=T)),
-                                PlantSizeTrait=c(runif(50000,min = min(trait.pca.df$PlantSizeTrait,na.rm=T), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
-                                                 #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
-                                                 runif(50000,min = 0, max = max(trait.pca.df$PlantSizeTrait))),
-                                AboveGroundTrait=runif(100000, min =min(trait.pca.df$AboveGroundTrait,na.rm=T),
-                                                       max=max(trait.pca.df$AboveGroundTrait,na.rm=T))) #"AroundAverage",
-glm.new.data.df.i <- glm.new.data.df.i %>%
-  dplyr::filter(PlantSize>min(trait.pca.df$PlantSize) &
-          PlantSize < max(trait.pca.df$PlantSize))
-
-
-for(n in density.quantile.name){
-    trait.pca.df.i <-  trait.pca.df %>%
-      dplyr::filter(density.quantile==n) %>%
-      dplyr::select(focal,theoretical.effect,density.quantile,
-                    PlantSize,AboveGroundStrategy,BelowGroundStrategy,
-                    BelowGroundTrait,PlantSizeTrait,AboveGroundTrait) %>%
-      mutate(focal=as.factor(focal))
-    
-    glm.trait.pca.i <- glmmTMB(theoretical.effect ~  PlantSize*AboveGroundStrategy*BelowGroundStrategy, 
-                                      trait.pca.df.i,
-                                      family="gaussian")
-    summary(glm.trait.pca.i)
-    glm.trait.pca.df.i <- as.data.frame(confint(glm.trait.pca.i)) %>%
-      mutate(density.quantile=n) %>%
-      rownames_to_column("parameters") %>%
-      dplyr::rename("Q2.5"="2.5 %",
-             "Q97.5"="97.5 %") %>%
-      mutate(trait=trait.i,
-             density.quantile=n,
-             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
-                              (Q2.5>0 & Q97.5>0 )~"*",
-                              T~""))
-    
-    glm.trait.pca.df <- bind_rows(glm.trait.pca.df,glm.trait.pca.df.i)
-
-    
-    glm.new.data.df.i$theoretical.effect.pca <- predict(glm.trait.pca.i,
-                                                glm.new.data.df.i)
-    
-    glm.trait.i <- glmmTMB(theoretical.effect ~  PlantSizeTrait*AboveGroundTrait*BelowGroundTrait, 
-                               trait.pca.df.i,
-                               family="gaussian")
-    summary(glm.trait.i)
-    glm.trait.df.i <- as.data.frame(confint(glm.trait.i)) %>%
-      rownames_to_column("parameters") %>%
-      dplyr::rename("Q2.5"="2.5 %",
-                    "Q97.5"="97.5 %") %>%
-      mutate(density.quantile=n,
-             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
-                              (Q2.5>0 & Q97.5>0 )~"*",
-                              T~""))
-    
-    glm.trait.df <- bind_rows(glm.trait.df,glm.trait.df.i)
-    
-    
-    glm.new.data.df.i$theoretical.effect <- predict(glm.trait.i,
-                                                    glm.new.data.df.i)
-    glm.new.data.df <- bind_rows( glm.new.data.df, glm.new.data.df.i%>%
-                                    mutate(density.quantile=n))
-
-    
-}
-glm.trait.pca.list[[country]] <-  glm.trait.pca.df
-glm.trait.list[[country]] <-  glm.trait.df
-glm.new.data.list[[country]] <-glm.new.data.df
-glm.new.data.trait.list[[country]] <- glm.new.data.trait.df
-}
-view(glm.trait.pca.list[["aus"]])  
-view(glm.trait.pca.list[["spain"]])
-view(glm.trait.list[["aus"]])  
-view(glm.trait.list[["spain"]])
-#---- 1.6.PCA plot glm-FOCAL----
-# Above ground and below ground
-glm.plot.list <- list()
-# for focal species
-for( country in country.list){
-  if(country=="aus"){
-    limits.vec = c(-0.4,0.4)
-    ylabname = "WUE (13C)"
-    xlabname = "Root length"
-  }else{limits.vec = c(-0.4,0.4)
-  ylabname = "WUE (13C, inversed SLA)"
-  xlabname = "SRA"}
-    focal.pca.df.i <- Theoretical.Int.list[[country]] %>%
-      dplyr::filter(!neigh ==focal) %>% 
-      aggregate(theoretical.effect~ focal, median) %>%
-      left_join(as.data.frame(PCA.trait.df[[country]] %>%
-                                rownames_to_column("focal")))%>%
-      mutate(PlantSizeCat = case_when(PlantSizeTrait < 0 ~ "BelowAverage", #quantile(trait.pca.df$PlantSize,0.33)
-                                      PlantSizeTrait > 0 ~ "AboveAverage", #quantile(trait.pca.df$PlantSize,0.66)
-                                      T~"AroundAverage"))
-    
-    glm.new.data.df.i <- glm.new.data.list[[country]]%>%
-      filter(theoretical.effect  > min(Theoretical.Int.list[[country]]$theoretical.effect) &
-               theoretical.effect < max(Theoretical.Int.list[[country]]$theoretical.effect))
-glm.plot.list[[country]] <-glm.new.data.df.i  %>%
-  dplyr::filter(density.quantile %in%c("intercept"))%>%
-  ggplot(aes(y=AboveGroundTrait, #Strategy,
-             x=BelowGroundTrait, #Strategy,
-             fill=theoretical.effect)) +
-  geom_tile(width = 0.04,
-              height = 0.04,
-            alpha=0.8)+
-  geom_point(data=focal.pca.df.i,
-            aes(y=AboveGroundTrait, #Strategy,
-                x=BelowGroundTrait, #Strategy,
-                fill=theoretical.effect),
-            shape=21,size=3) +
-  geom_text(data=focal.pca.df.i,
-             aes(y=AboveGroundTrait, #Strategy, 
-                 x=BelowGroundTrait, #Strategy,
-                 label=focal),
-            size=4,hjust=0.5,vjust=-0.5) +
-  scale_fill_gradientn(colours = rev(wes_palette("Zissou1", 
-                                             101, 
-                                             type = "continuous")),
-                       limits=limits.vec)+
-  facet_wrap(density.quantile~PlantSizeCat,nrow=1)+
-  theme_clean()+
-  labs(title=country,
-       y =   ylabname, #"Above ground strategy, \nfrom less to more drought sensitive",
-       x =   xlabname, #"Below ground strategy, \nfrom more to less cooperative",
-       subtitle = "Plant height", #"Plant size, from high/fast to small/slow growing",
-       fill="Predicted interaction effect on \nof focal species with that trait combinaison")+
-  theme(legend.position="bottom",
-        legend.key.size = unit(1, 'cm'),
-        legend.background = element_blank(),
-        plot.background = element_blank(),
-        axis.text =element_text(size=20),
-        axis.title =element_text(size=20),
-        panel.grid.minor.y = element_blank(),
-        panel.grid.major.y = element_blank(),
-        legend.title.position = "top",
-        legend.title =element_text(size=20),
-        legend.text =element_text(size=20))
-
-glm.plot.list[[country]]
-
- 
-}
-
-glm.plot.list[["spain"]] # figures/pca/Flat3D.focal.spain.pdf
-glm.plot.list[["aus"]] # figures/pca/Flat3D.focal.aus.pdf
-
-ggarrange(glm.plot.list[["spain"]],
-          glm.plot.list[["aus"]],
-          common.legend = T,legend="bottom",
-          nrow=2, 
-          labels=c("a. Spain","b. Australia"),
-          font.label = list(size = 20, color = "black", 
-                            face = "bold", family = NULL))
-# figures/pca/Flat3D.focal.intercept.pdf
-levels(as.factor(Chapt1_Parameters_values$parameter))
-names(Chapt1_Parameters_values)
-ParameterValuesForJurg <- Chapt1_Parameters_values %>%
-  filter(parameter %in% c("Intraspecific","Plant - plant") &
-           year== "2021" &
-           complexity.plant =="family") %>%
-  dplyr::rename("Iterations"="X" ) %>%
-  dplyr::select(Iterations,focal,lambdas,parameter,estimate) %>%
-  spread(parameter,estimate)
-  view(ParameterValuesForJurg)
-  write.csv(ParameterValuesForJurg,
-            file="/Users/lisabuche/Downloads/ParameterValuesForJurg")
-#---- 1.7.PCA  GLM-NEIGH----
-glm.trait.pca.neigh.list <- list()
-glm.trait.neigh.list <- list()
-glm.new.data.neigh.list <- list()
-glm.new.data.neigh.3D.list<- list()
-for( country in country.list){
-  
-  trait.pca.df <- Theoretical.Int.list[[country]] %>%
-    dplyr::filter(!neigh ==focal) %>% 
-    left_join(as.data.frame(PCA.trait.df[[country]] %>%
-                              rownames_to_column("neigh")),
-              relationship ="many-to-many")
-  
-  
-  glm.new.data.df.i <- data.frame(PlantSize=c(runif(50000,min = min(trait.pca.df$PlantSize), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
-                                              #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
-                                              runif(50000,min = 0, max = max(trait.pca.df$PlantSize))),# interaction Size-Above # quantile(trait.pca.df$PlantSize,0.66)
-                                  AboveGroundStrategy = runif(100000, min =min(trait.pca.df$AboveGroundStrategy),
-                                                              max=max(trait.pca.df$AboveGroundStrategy)),
-                                  BelowGroundStrategy = runif(100000, min =min(trait.pca.df$BelowGroundStrategy),
-                                                              max=max(trait.pca.df$BelowGroundStrategy)),
-                                  PlantSizeCat =rep(c("BelowAverage","AboveAverage"),each=50000),
-                                  BelowGroundTrait=runif(100000, min =min(trait.pca.df$BelowGroundTrait,na.rm=T),
-                                                         max=max(trait.pca.df$BelowGroundTrait,na.rm=T)),
-                                  PlantSizeTrait=c(runif(50000,min = min(trait.pca.df$PlantSizeTrait,na.rm=T), max=0), #max = quantile(trait.pca.df$PlantSize,0.33)),
-                                                   #runif(50000,min = quantile(trait.pca.df$PlantSize,0.33), max = quantile(trait.pca.df$PlantSize,0.66)),
-                                                   runif(50000,min = 0, max = max(trait.pca.df$PlantSizeTrait))),
-                                  AboveGroundTrait=runif(100000, min =min(trait.pca.df$AboveGroundTrait,na.rm=T),
-                                                         max=max(trait.pca.df$AboveGroundTrait,na.rm=T))) #"AroundAverage",
-  glm.new.data.df.i <- glm.new.data.df.i %>%
-    dplyr::filter(PlantSize>min(trait.pca.df$PlantSize) &
-                    PlantSize < max(trait.pca.df$PlantSize))
-  
-  glm.trait.df <- NULL
-  glm.trait.pca.df<- NULL
-  glm.new.data.df <- NULL
-  for(n in density.quantile.name){
-    trait.pca.df.i <-  trait.pca.df %>%
-      dplyr::filter(density.quantile==n) %>%
-      dplyr::select(neigh,theoretical.effect,density.quantile,
-                    PlantSize,AboveGroundStrategy,BelowGroundStrategy,
-                    PlantSizeTrait,AboveGroundTrait,BelowGroundTrait) %>%
-      mutate(neigh=as.factor(neigh))
-    
-    glm.trait.pca.i <- glmmTMB(theoretical.effect ~  PlantSize*AboveGroundStrategy*BelowGroundStrategy, 
-                               trait.pca.df.i,
-                               family="gaussian")
-    summary(glm.trait.pca.i)
-    glm.trait.pca.df.i <- as.data.frame(confint(glm.trait.pca.i)) %>%
-      mutate(density.quantile=n) %>%
-      rownames_to_column("parameters") %>%
-      dplyr::rename("Q2.5"="2.5 %",
-                    "Q97.5"="97.5 %") %>%
-      mutate(trait=trait.i,
-             density.quantile=n,
-             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
-                              (Q2.5>0 & Q97.5>0 )~"*",
-                              T~""))
-    
-    glm.trait.pca.df <- bind_rows(glm.trait.pca.df,glm.trait.pca.df.i)
-    
-    
-    glm.new.data.df.i$theoretical.effect.pca <- predict(glm.trait.pca.i,
-                                                    glm.new.data.df.i)
-    glm.trait.i <- glmmTMB(theoretical.effect ~  PlantSizeTrait*AboveGroundTrait*BelowGroundTrait, 
-                           trait.pca.df.i,
-                           family="gaussian")
-    summary(glm.trait.i)
-    glm.trait.df.i <- as.data.frame(confint(glm.trait.i)) %>%
-      mutate(density.quantile=n) %>%
-      rownames_to_column("parameters") %>%
-      dplyr::rename("Q2.5"="2.5 %",
-                    "Q97.5"="97.5 %") %>%
-      mutate(trait=trait.i,
-             density.quantile=n,
-             signif=case_when((Q2.5<0 & Q97.5<0 )~"*",
-                              (Q2.5>0 & Q97.5>0 )~"*",
-                              T~""))
-    
-    glm.trait.df <- bind_rows(glm.trait.df,glm.trait.df.i)
-    
-    
-    glm.new.data.df.i$theoretical.effect <- predict(glm.trait.i,
-                                                    glm.new.data.df.i)
-    glm.new.data.df <- bind_rows( glm.new.data.df, glm.new.data.df.i%>%
-                                    mutate(density.quantile=n))
-  }
-  glm.trait.pca.neigh.list[[country]] <-  glm.trait.pca.df
-  glm.trait.neigh.list[[country]] <-  glm.trait.df
-  glm.new.data.neigh.list[[country]] <-glm.new.data.df
-}
-#---- 1.8.PCA plot glm-NEIGH----
-glm.plot.neigh.list <- list()
-for( country in country.list){
-  if(country=="aus"){
-    limits.vec = c(-0.4,0.4)
-    ylabname = "13C, WUE"
-    xlabname = "Root length"
-  }else{limits.vec = c(-0.4,0.4)
-  ylabname = "SLA - Inversed 13C, WUE"
-  xlabname = "SRA"}
-  neigh.pca.df.i <- Theoretical.Int.list[[country]] %>%
-    dplyr::filter(!neigh ==focal) %>% 
-    aggregate(theoretical.effect~ neigh , median) %>%
-    left_join(as.data.frame(PCA.trait.df[[country]] %>%
-                              rownames_to_column("neigh")))%>%
-    mutate(PlantSizeCat = case_when(PlantSizeTrait < 0 ~ "BelowAverage",
-                                    PlantSizeTrait > 0 ~ "AboveAverage",
-                                    T~"AroundAverage"))
-  
-  glm.new.data.df.i <- glm.new.data.neigh.list[[country]]%>%
-    filter(theoretical.effect  > min(Theoretical.Int.list[[country]]$theoretical.effect) &
-             theoretical.effect < max(Theoretical.Int.list[[country]]$theoretical.effect))
-  
-  glm.plot.neigh.list[[country]] <-glm.new.data.df.i  %>%
-    dplyr::filter(density.quantile %in%c("intercept"))%>%
-    ggplot(aes(y=AboveGroundTrait, #Strategy, 
-               x=BelowGroundTrait, #Strategy, 
-               fill=theoretical.effect)) +
-    geom_tile(width = 0.04,
-              height = 0.04,
-              alpha=0.8)+
-    geom_point(data= neigh.pca.df.i,
-               aes(y=AboveGroundTrait, #Strategy, 
-                   x=BelowGroundTrait, #Strategy, 
-                   fill=theoretical.effect),
-               shape=21,size=3) +
-    geom_text(data= neigh.pca.df.i,
-              aes(y=AboveGroundTrait, #Strategy,  
-                  x=BelowGroundTrait, #Strategy, 
-                  label=neigh),
-              size=4,hjust=0.5,vjust=-0.5) +
-    scale_fill_gradientn(colours = rev(wes_palette("Zissou1", 
-                                                   101, 
-                                                   type = "continuous")),
-                         limits=limits.vec)+
-    facet_wrap(density.quantile~PlantSizeCat,nrow=1)+
-    theme_clean()+
-    labs(title=country,
-         y = ylabname, #"Above ground strategy, \nfrom less to more drought sensitive",
-         x =  xlabname, #"Below ground strategy, \nfrom more to less cooperative",
-         subtitle = "Plant height",#"Plant size, from high/fast to small/slow growing",
-         fill="Predicted interaction effect on \nof focal species with that trait combinaison")+
-    theme(legend.position="bottom",
-          legend.key.size = unit(2, 'cm'),
-          legend.background = element_blank(),
-          plot.background = element_blank(),
-          axis.text =element_text(size=20),
-          axis.title =element_text(size=20),
-          panel.grid.minor.y = element_blank(),
-          panel.grid.major.y = element_blank(),
-          legend.title.position = "top",
-          legend.title =element_text(size=20),
-          legend.text =element_text(size=20))
-  
-  glm.plot.neigh.list[[country]]
-  
-  
-}
-glm.plot.neigh.list[["aus"]]# figures/pca/Flat3D.neigh.aus.pdf
-glm.plot.neigh.list[["spain"]]# figures/pca/Flat3D.neigh.spain.pdf
-
-ggarrange(glm.plot.neigh.list[["spain"]],
-          glm.plot.neigh.list[["aus"]],
-          common.legend = T,legend="bottom",
-          nrow=2, 
-          #labels=c("a. Spain","b. Australia"),
-          font.label = list(size = 20, color = "black", 
-                            face = "bold", family = NULL))
-# figures/pca/Flat3D.neigh.intercept.pdf
-
-#----Not use----
-data.3d <- glm.new.data.3D.list[[country]]%>%
-  dplyr::filter(density.quantile=="intercept") %>%
-  dplyr::select(-density.quantile) %>%
-  as.matrix()%>%
-  as.data.frame()%>%
-  mutate_all(function(x) as.numeric(x))
-
-str(data.3d)
-ThreeDfig <- plot_ly(x=~PlantSize, y= ~AboveGroundStrategy, 
-                     z=~BelowGroundStrategy, data=data.3d,
-                     #type="scatter3d", mode="markers", 
-                     #color=~theoretical.effect)
-                     type='mesh3d',
-                     flatshading=T,
-                     intensity =~theoretical.effect,
-                     colors=colorRamp(rev(wes_palette("Zissou1", 
-                                                      round(max(abs(min(data.3d[,4])),max(data.3d[,4]))*200)+1, 
-                                                      type = "continuous")))) %>%
-  add_trace(x=~PlantSize, y= ~AboveGroundStrategy, 
-            z=~BelowGroundStrategy, data=focal.pca.df.i,
-            color= ~theoretical.effect,mode = "markers",
-            type = "scatter3d",
-            marker = list(size = 5),
-            colors=colorRamp(rev(wes_palette("Zissou1", 
-                                             round(max(abs(min(data.3d[,4])),max(data.3d[,4]))*200)+1, 
-                                             type = "continuous"))))
-ThreeDfig
-library(scatterplot3d)
-focal.pca.df.i <-  PCA.trait.df[[country]] %>%
-  rownames_to_column("focal")
-
-colors.gradient <- rev(wes_palette("Zissou1", 
-                                   round(max(abs(min(data.3d[,4])),max(data.3d[,4]))*200)+1, 
-                                   type = "continuous"))
-focal.colors.gradient <- colors.gradient[(round(focal.pca.df.i$theoretical.effect*100)+round(max(abs(min(data.3d[,4])),max(data.3d[,4]))*100)+1)]
-colors.gradient <- colors.gradient[(round(data.3d[,4]*100)+round(max(abs(min(data.3d[,4])),max(data.3d[,4]))*100)+1)]
-
-
-s3d <- scatterplot3d(data.3d[,1:3], angle = 60,
-                     pch = 16, color=colors.gradient,
-                     grid=TRUE,
-                     main=country,
-                     xlab = "Above ground strategy, from less to more drought sensitive",
-                     ylab = "Below ground strategy, from more to less cooperative",
-                     zlab = "Plant size, from small/slow to high/fast growing")
-
-s3d$points3d(focal.pca.df.i$AboveGroundStrategy,
-             focal.pca.df.i$BelowGroundStrategy,
-             focal.pca.df.i$PlantSize, 
-             col = focal.colors.gradient , type = "h", pch = 8)
-
-text(s3d$xyz.convert(focal.pca.df.i$AboveGroundStrategy,
-                     focal.pca.df.i$BelowGroundStrategy,
-                     focal.pca.df.i$PlantSize)
-     labels=focal.pca.df.i$focal,
-     col='tomato', cex=2)
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#---- 2. Supp figures----
+#---- 1.8. Supp figures----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#---- 2.1. Trait Density figures----
+#---- 2.1. Observed Trait Density figures----
 
     trait.density.plot <- Cool.theory.trait.df[["spain"]]$trait.dist.df %>%
       bind_rows( Cool.theory.trait.df[["aus"]]$trait.dist.df) %>%
@@ -2013,9 +1980,6 @@ dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","R
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
                "SLA"="#59A14FFF","Stem height"="#FED789FF",
                "intercept"="black")
-plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
-                              header = T, stringsAsFactors = F, sep=",",
-                              na.strings = c("","NA"))
 plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
                               header = T, stringsAsFactors = F, sep=",",
                               na.strings = c("","NA"))
@@ -2077,3 +2041,12 @@ get(paste0("clean.data.spain"))[["plant_traits"]] %>%
 library(paletteer)
 #figures/Traits.density.pdf
 
+#---- 2.2. Scaled Trait Density figures----
+
+trait.density.df <- Cool.theory.trait.df[["spain"]]$trait.dist.df %>%
+  bind_rows( Cool.theory.trait.df[["aus"]]$trait.dist.df) %>%
+  ggplot(aes(group = country, color=country))
+trait.density.df %>%
+ggplot() +
+  geom_density_ridges(aes(x=trait.emmiter))
++facet_grid(country~trait,nrow=2)
