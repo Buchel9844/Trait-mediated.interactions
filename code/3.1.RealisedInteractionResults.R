@@ -60,13 +60,6 @@ areaplot = 15
 # for median of individuals 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  #abundance_df <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] %>%
-  abundance_df  <- read.csv(paste0("results/Abundance.corrected.",country,".csv")) %>%
-   rename("obs.individuals"="individuals")%>%
-    rename("individuals"="corrected.density")%>%
-    aggregate(individuals ~ year + species + com_id, sum) %>% 
-    mutate(individuals = individuals *areaplot) %>%
-    spread(species, individuals) 
   
   competition_df <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] 
     if(country=="aus"){
@@ -405,6 +398,7 @@ net.country[[paste0("spain_",density.quantile.name[4])]]#figures/networks/Spain_
 #---- 3.3. Table sum up for intra vs inter ----
 str(Realised.Int.list)
 sum.up.df <- NULL
+std <- function(x) sd(x)/sqrt(length(x))
 for(country in country.list){
   
   sum.up.intra.df.n <- Theoretical.Int.list[[country]] %>%
@@ -413,7 +407,7 @@ for(country in country.list){
     group_by(density.quantile) %>%
     summarise(mean.effect = (mean(sigmoid)),
               median.effect = (median(sigmoid)),
-              var.effect = (var(sigmoid)),
+              std.effect = (std(sigmoid)),
               max.positive.effect = (max(sigmoid)),
               max.negative.effect = (min(sigmoid)),
               count.positive = length(sigmoid[sigmoid >0.001]),
@@ -438,7 +432,7 @@ for(country in country.list){
     group_by(density.quantile) %>%
     summarise(mean.effect = (mean(sigmoid)),
               median.effect = (median(sigmoid)),
-              var.effect = (var(sigmoid)),
+              std.effect = (std(sigmoid)),
               max.positive.effect = (max(sigmoid)),
               max.negative.effect = (min(sigmoid)),
               count.positive = length(sigmoid[sigmoid >0]),
@@ -463,6 +457,38 @@ for(country in country.list){
   
 }
 
+write.csv(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv")) %>%
+  mutate(country="Australia") %>%
+  bind_rows(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv"))%>%
+              mutate(country="Spain")) %>%
+  dplyr::select(density.quantile.number,country,density.quantile,interaction,proportion.positive,proportion.negative,
+                mean.effect,std.effect) %>%
+  mutate(proportion.positive = round(proportion.positive, digits = 2),
+         proportion.negative= round(proportion.negative, digits = 2),
+         mean.effect= round(mean.effect, digits = 3),
+         std.effect= round(std.effect, digits = 3),
+         interaction = case_when(interaction=="intra"~"con-",
+                                 interaction=="inter"~"hetero-"),
+         density.quantile.number= case_when(country=="Spain"~ density.quantile.number+8,
+                                            T ~density.quantile.number)),
+  file=paste0(home.dic,"results/SUPP.SUM.UP.csv"))
 
+
+# side figure for FIG3
+color.vec <- c(proportion.positive =wes_palette("Zissou1", 2, type = "continuous")[1],
+               proportion.negative =wes_palette("Zissou1", 2, type = "continuous")[2])
+country="aus"
+read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv")) %>%
+  dplyr::filter(density.quantile %in% c("low","high"))%>%
+  gather(proportion.positive,proportion.negative,
+         key="proportion",value="prop") %>%
+  ggplot(aes(group=proportion,fill=proportion, 
+             y= prop, x=interaction)) +
+  geom_bar(stat="identity",position="stack") +
+  facet_grid(density.quantile~.) +
+  scale_fill_manual(values=color.vec)
+  
+  
+  
 
 
