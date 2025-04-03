@@ -396,6 +396,8 @@ net.country[[paste0("spain_",density.quantile.name[4])]]#figures/networks/Spain_
 
 
 #---- 3.3. Table sum up for intra vs inter ----
+density.quantile.name <- c("intercept","low","medium","high") 
+
 str(Realised.Int.list)
 sum.up.df <- NULL
 std <- function(x) sd(x)/sqrt(length(x))
@@ -459,7 +461,7 @@ for(country in country.list){
 
 write.csv(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv")) %>%
   mutate(country="Australia") %>%
-  bind_rows(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv"))%>%
+  bind_rows(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.spain.csv"))%>%
               mutate(country="Spain")) %>%
   dplyr::select(density.quantile.number,country,density.quantile,interaction,proportion.positive,proportion.negative,
                 mean.effect,std.effect) %>%

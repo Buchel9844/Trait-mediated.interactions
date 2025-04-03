@@ -391,30 +391,34 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
 
 #---- 3.0 Trait----
 #---- 3.1 Export and exploration Trait----
-plant_traits_spain <- read.csv("data/spain_trait_df.csv",
+Flower_traits_spain <- read.csv("data/spain_rawdata/spain_flower_trait.csv",
                                header = T, stringsAsFactors = F, sep=",",
-                               na.strings = c("","NA"))%>%
+                               na.strings = c("","NA")) %>%
+  dplyr::select(species,code.plant,code.analysis,flowerwidth) %>% 
+  left_join(plant_code_spain %>% dplyr::select(code.plant,code.analysis)) 
+
+Seed_traits_spain <- read.csv( "data/spain_rawdata/spain_seed_mass.txt",
+                                header = T, stringsAsFactors = F, sep="\t",
+                                na.strings = c("","NA")) %>%
+  rename("seed.mass"="mean.seed.mass..100.seeds.aprox.",
+         "code.plant"="code")%>%
+  dplyr::select(species,code.plant,seed.mass) %>% 
+  left_join(plant_code_spain %>% dplyr::select(code.plant,code.analysis)) 
+
+plant_traits_spain <- read.csv("data/spain_rawdata/spain_trait_df.csv",
+                               header = T, stringsAsFactors = F, sep=",",
+                               na.strings = c("","NA")) %>%
   rename("code.plant"="code") %>%
   left_join(plant_code_spain %>% dplyr::select(code.plant,code.analysis),
             by="code.plant") %>%
+  full_join(Flower_traits_spain) %>%
+  full_join(Seed_traits_spain ) %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
   dplyr::select(-c(code.plant,species)) %>%
-  gather(c("C13",
-    #"N15",
-    "C.N",
-    "CS",
-    "DR",
-    "heigh",
-    "TDMr",
-    "LAI",
-     "SLA",
-     "SRL",
-     "SRA"),key="trait",value="value") %>%
+  gather(c("C13","seed.mass", "flowerwidth","C.N", "CS","DR","heigh",
+    "TDMr","LAI","SLA","SRL","SRA"),key="trait",value="value") %>%
   aggregate(value ~ trait + code.analysis, mean) %>%
   spread(trait,value) %>%
-  left_join(numb.seed.spain %>%
-              aggregate(total.seeds ~ focal.analysis, function(x)mean(x,na.rm=T)) %>%
-              rename("code.analysis"="focal.analysis")) %>%
   column_to_rownames("code.analysis") %>%
   rename("Leaf C to N ratio" ="C.N",
          "C13 water use efficiency"="C13",
@@ -422,27 +426,15 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
          "Root diameter"="DR",
          "Stem height"="heigh",
          "Leaf area index"="LAI",
+         "Flower width"="flowerwidth",
+         "Seed mass"= "seed.mass",
          #"Leaf area"="LeafArea",
          #"Leaf nitrogen cc"="N15",
-         "Root mass density"="TDMr",
-         "Mean fecundity"="total.seeds") 
-  head(plant_traits_spain )
+         "Root mass density"="TDMr") 
+  view(plant_traits_spain )
   #---- 3.1.1 Data specific to PAIN----
   # Data from https://uol.de/en/landeco/research/leda/data-files
   #The LEDA Traitbase: A database of life-history traits of Northwest European flora. Journal of Ecology 96: 1266-1274.
-  seed_mass <- read_delim("data/spain_rawdata/PAIN_traits/seed.mass.csv", 
-                          delim = ";", escape_double = FALSE, trim_ws = TRUE, 
-                          skip = 3) %>%
-    rename("species"="SBS name") %>%
-    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
-                    str_detect(species, "^Parapholis")) %>%
-    dplyr::select(c("species","single value [mg]","mean SM [mg]")) %>% as.data.frame() %>%
-    rename("value"="single value [mg]",
-           "mean.value"="mean SM [mg]") %>% 
-    mutate(mean.value = coalesce(mean.value, value)) %>%
-    mutate(trait = "SeedMass") %>%
-    group_by( species,trait) %>%
-    summarise(value.trait = mean(mean.value)/100)
   
   LS <- read_delim("data/spain_rawdata/PAIN_traits/LA.csv", delim = ";", escape_double = FALSE, 
                    trim_ws = TRUE, skip = 3) %>%
@@ -505,7 +497,8 @@ plant_traits_spain <- read.csv("data/spain_trait_df.csv",
     mutate(code="PAIN") %>%
     column_to_rownames("code")
   
-  plant_traits_spain <- plant_traits_spain %>% bind_rows(PAIN_traits)
+  plant_traits_spain["PAIN","SLA"] <-PAIN_traits$SLA
+  plant_traits_spain["PAIN","Stem height"] <-PAIN_traits$'Stem height'
   view(plant_traits_spain)
 #---- 4. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%

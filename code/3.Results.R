@@ -145,7 +145,8 @@ for(country in country.list){
 widthplot = 25*25
 abundance_plotlist <- NULL
 
-country ="aus"     
+country ="aus"    
+richness_df <- NULL
 for(country in country.list){
   #abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".preclean")]]
   abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
@@ -163,13 +164,29 @@ for(country in country.list){
                      mutate(individuals.plot = individuals*widthplot),
                    list(year,species)))
   df.bb <- lapply( df.split, function(x) smean.cl.boot(x$individuals.plot,
-                                                       conf.int=0.90, B=100,na.rm=TRUE, reps=T))
+                                                       conf.int=0.90, 
+                                                       B=100,
+                                                       na.rm=TRUE, reps=T))
   abundance_summary.for.ribbon <- do.call(rbind,df.bb) %>%
     unlist() %>%
     as.data.frame() %>%
     rownames_to_column("var.to.sep") %>%
     tidyr::separate(col="var.to.sep",into=c("year","species"),
-                     extra = "merge")
+                     extra = "merge") 
+   
+
+  richness_df[[country]] <- abundance_summary %>% 
+    mutate(individuals.plot = individuals*widthplot) %>%
+    filter(individuals.plot>0) %>%
+    group_by(year, com_id) %>%
+    summarise(n.richness = nlevels(as.factor(species))) %>%
+    ungroup() %>%
+    group_by(year) %>%
+    summarise(richness.mean = mean(n.richness),
+              richness.sd = sd(n.richness),
+              richness.min = quantile(n.richness,0),
+              richness.max = quantile(n.richness,1)) 
+  
   #view(abundance_summary.for.ribbon)
   #view(abundance_summary %>%
    # aggregate(individuals ~ year + species, function(x) mean(x*widthplot)))
@@ -216,6 +233,13 @@ abundance_plotlist[[country]]
 }
 abundance_plotlist[["spain"]] # figures/Abundance_spain.pdf
 abundance_plotlist[["aus"]] #figures/Abundance_aus.pdf
+
+write.csv(bind_rows(richness_df[["spain"]] %>%
+          mutate(country="Spain"),
+          richness_df[["aus"]]%>%
+            mutate(country="Australia")),
+          file="results/richness.df.csv")
+
 #---- 1.3. Competition data ----
 competition.plot.list <- list()
 for(country in country.list){

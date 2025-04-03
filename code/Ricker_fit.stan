@@ -23,7 +23,8 @@ parameters{
   vector<lower=-1,upper =0>[S] alpha_slope; // decay - impact of the addition of one individual of j, on the fecundity of i. 
 
   vector[S] alpha_initial; // initial effect of j on i - when Nj is minimal
-
+  vector<upper=0>[1] alpha_init_intra;
+  
   vector<lower=0>[S] N_opt_i; 
   
   vector<lower=0>[1] disp_dev; // species-specific dispersion deviation parameter,
@@ -52,7 +53,7 @@ transformed parameters{
     lambda_ei[n] = (lambda_mean[1] + lambda_sd[year[n]]);
 
     for(s in 1:S){
-    alpha_value[n,s] = alpha_initial[s] + (c[s]*(1 - exp( alpha_slope[s]*(SpMatrix[n,s]-N_opt_i[s]))))/(1+exp(alpha_slope[s]*(SpMatrix[n,s]-N_opt_i[s])));
+    alpha_value[n,s] = (1-Intra[s])*alpha_initial[s] + (Intra[s])*alpha_init_intra[1] + (c[s]*(1 - exp( alpha_slope[s]*(SpMatrix[n,s]-N_opt_i[s]))))/(1+exp(alpha_slope[s]*(SpMatrix[n,s]-N_opt_i[s])));
     }
     
     interaction_effects[n] = sum(alpha_value[n,] .* SpMatrix[n,]);
