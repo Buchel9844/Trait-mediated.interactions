@@ -187,7 +187,7 @@ load(paste0(project.dic,"results/Theoretical.Int.list.RData"))
 #---- 3. Display Interactions  ----
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 
-#---- 3.1. Network fucnction ----
+#---- 3.1. Network function ----
 plot.network.gradient.int <- function(ratio.mat,strength.mat,
                                       title.y,minimum.stength){
   alphamat.pos <- unname(abs(round(strength.mat,3))) %>%

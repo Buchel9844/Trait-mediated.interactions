@@ -199,7 +199,7 @@ for( country in country.list){
   }
   Cool.theory.trait.df[[country]]$trait.dist.df <- specific.trait.dist
 }
-#---- 1.1.2 Run lamba regression----
+#---- 1.1.2 Run lambda regression----
 country ="spain"
 for( country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
@@ -478,6 +478,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
                  "SLA"="Specific leaf area","Stem height"="Stem height")
+
 
 for( country in country.list){
   for(n in c("low","high")){
@@ -1758,7 +1759,7 @@ Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal trait -\nEmi
                      y=0, yend = -1), size=1,
                  arrow = arrow(length = unit(0.6,"cm")),
                  color="black")+
-    annotate(geom = "text",label="Darwinien demon: \n both parameters have \na positive impact fitness",
+    annotate(geom = "text",label="Both parameters have \na positive impact fitness",
              x=0.5,y=0.5,size=6,angle=0)+
     annotate(geom = "text",label="Both parameters have \na negative impact fitness",
              x=-0.5,y=-0.5,size=6,angle=0)+
@@ -1796,7 +1797,8 @@ Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal trait -\nEmi
             common.legend = T, legend="bottom",
             label.x= c(-0.28,-0.4,
                        -0.42,-0.42),
-            label.y= c(1.01),
+            label.y= c(1.01,1.01,
+                       1.02,1.02),
             align="hv",
             font.label = list(size = 20, color = "black", 
                               face = "bold", family = NULL),
@@ -2205,7 +2207,52 @@ chart.Correlation(trait.df, histogram=TRUE, pch=19)
   dev.off()
 
 }
-#---- 2.4. Species observations fecundity and in neighbours----
+#----2.4. Trait coefficeint with intercept----
+for( country in country.list){
+  for(n in c("low")){
+    
+    Inter.trait.df.i  <- Cool.theory.trait.df[[country]]$Inter.trait.df %>%
+      dplyr::filter(density.quantile %in% c(n)) %>%
+      mutate(trait= factor(trait ,levels=names(dummy.names) )) %>%
+      group_by(trait,density.quantile,rhat,num.div,rhat.dist) %>%
+      summarise(median.intercept.model.1 = median(Intercept),
+                CI.intercept.model.1 = paste0("[",paste(round(quantile(Intercept,c(0.1,0.9)),digits=3),
+                                                        collapse = ";"),"]"),
+                median.emitter.trait.model.1 = median(Emitter.trait.scaled),
+                CI.emitter.trait.model.1 = paste0("[",paste(round(quantile(Emitter.trait.scaled,c(0.1,0.9)),digits=3),
+                                                            collapse = ";"),"]"),
+                median.receiver.trait.model.1 = median(Receiver.trait.scaled),
+                CI.receiver.trait.model.1 = paste0("[", paste(round(quantile(Receiver.trait.scaled,c(0.1,0.9)),digits=3),
+                                                              collapse = ";"),"]"),
+                median.intercept.model.2= median(Intercept.dist),
+                CI.intercept.model.2 = paste0("[",paste(round(quantile(Intercept.dist,c(0.1,0.9)),digits=3),
+                                                        collapse = ";"),"]"),
+                median.dist.trait.model.2= median(Scaled.trait.dist),
+                CI.dist.trait.model.2 =paste0("[",paste(round(quantile(Scaled.trait.dist,c(0.1,0.9)),digits=3),
+                                                        collapse = ";"),"]"))%>%
+      mutate(interactions="Heterospecific")
+    
+    Intra.trait.df.i <- Cool.theory.trait.df[[country]]$Intra.trait.df %>%
+      dplyr::filter(density.quantile %in% c(n)) %>%
+      mutate(trait= factor(trait ,levels=names(dummy.names) )) %>%
+      group_by(trait,density.quantile,rhat,num.div) %>%
+      summarise(median.intercept = median(Intercept),
+                CI.intercept = paste0("[",paste(round(quantile(Intercept,c(0.1,0.9)),digits=3),
+                                                collapse = ";"),"]"),
+                median.receiver.trait = median(Receiver.trait.scaled),
+                CI.receiver.trait = paste0("[",paste(round(quantile(Receiver.trait.scaled,c(0.1,0.9)),digits=3),
+                                                     collapse = ";"),"]"),) %>%
+      mutate(interactions="Conspecific")
+    
+    write.csv(Inter.trait.df.i,
+              file=paste0("results/Inter.trait.coeff.",country,".csv"))
+    write.csv(Intra.trait.df.i,
+              file=paste0("results/Intra.trait.coeff.",country,".csv"))
+    
+  }
+}
+
+#---- 2.5. Species observations fecundity and in neighbours----
 # for median of individuals 
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]

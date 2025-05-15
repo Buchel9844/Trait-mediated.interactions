@@ -51,6 +51,9 @@ Param.sigm.df.aus <- read.csv(paste0(project.dic,"results/Param.sigmoid.aus.csv.
 Param.sigm.df.spain <- read.csv(paste0(project.dic,"results/Param.sigmoid.spain.csv.gz"))
 Param.sigm.df$spain <- Param.sigm.df.spain
 Param.sigm.df$aus<- Param.sigm.df.aus
+save(Param.sigm.df,
+     file=paste0(project.dic,"results/Param.sigm.df.RData"))
+load(paste0(project.dic,"results/Param.sigm.df.RData"))
 # realised interactions across time
 load(paste0(project.dic,"results/Realised.Int.list.RData"))
 
@@ -87,7 +90,8 @@ for(country in country.list){
   Realised.Int.Year.focal<- list()
   Realised.Int.Year.country.df <- NULL
   for(Code.focal in Code.focal.list){ #focal.levels
-    
+    lambda = median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1], na.rm=T)
+  
     df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
     
     print(paste0(country,Code.focal))
@@ -137,7 +141,11 @@ for(country in country.list){
                                                     df_neigh_n$density,
                                                     df_neigh_n$N_opt_mean)
           
+          df_neigh_n[,"sigmoid.std"] <- (df_neigh_n$sigmoid)/log(lambda)
+          
           df_neigh_n[,"realised.effect"] <- exp(df_neigh_n$sigmoid*df_neigh_n$density)
+          df_neigh_n[,"realised.effect.std"] <- (df_neigh_n$sigmoid*df_neigh_n$density)/log(lambda)
+          
           df_neigh_n$year <- as.numeric(y)
           
           test.sigmoid <- bind_rows(test.sigmoid,df_neigh_n)
@@ -170,7 +178,7 @@ load(paste0(project.dic,
 sum.up.time.df <- NULL
 Ratio.Year.list <- NULL
 Ratio.Year.Plot <- NULL
-country ="aus"
+country ="spain"
 for(country in country.list){
   
   sum.up.df.n <- Realised.Int.Obs.list[[country]] %>%
@@ -227,7 +235,7 @@ for(country in country.list){
            effect ="received") %>%
     rename(species = "focal")
   
-  year.levels <-levels(as.factor(Realised.Int.Year.list[[country]]$year))
+  year.levels <-levels(as.factor(Realised.Int.Obs.list[[country]]$year))
   
   
   env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
@@ -247,18 +255,18 @@ for(country in country.list){
     left_join(env_pdsi)
   
   write.csv( Ratio.Year.list[[country]] ,
-             file=paste0(home.dic,"results/Sum.up.species",country,".csv"))
+            file=paste0(home.dic,"results/Sum.up.species",country,".csv"))
   # Asymmetry  plot 
   strength.df <- Realised.Int.Obs.list[[country]] %>%
     group_by(year,com_id,neigh,focal) %>%
-    summarize(mean.effect = mean(realised.effect))
+    summarize(mean.effect = median(sigmoid))
   # plot 
-  #sym.df <- symmetry.with.positive.for.df(strength.df) 
-  #group_by(focal,symmetry) %>%
-  #tally() %>%
-  #save( sym.df,
-  #         file=paste0(home.dic,"results/Sym.df.",country,".Rdata"))
-  load(paste0(home.dic,"results/Sym.df.",country,".Rdata"))
+  sym.df <- symmetry.with.positive.for.df(strength.df) 
+    #group_by(focal,symmetry) %>%
+    #tally() %>%
+   save( sym.df,
+            file=paste0(home.dic,"results/Sym.df.",country,".Rdata"))
+   load(paste0(home.dic,"results/Sym.df.",country,".Rdata"))
   yuplim <- data.frame(country=c("aus","spain"),
                        up =c(1,1))
   sym.sum.df <- sym.df %>%
@@ -281,7 +289,7 @@ for(country in country.list){
     mutate(symmetry= factor(symmetry, levels=c("+-","++","-+","--","00",
                                                "-0","0-","+0","0+"))) %>%
     ggplot(aes(x=as.numeric(year),y=percentage)) +
-    stat_summary(fun.y = mean,aes(color=symmetry),
+     stat_summary(fun.y = mean,aes(color=symmetry),
                  fun.ymin = function(x) quantile(x,0.05), 
                  fun.ymax = function(x) quantile(x,0.95), 
                  geom = "pointrange",size=1) +
@@ -357,8 +365,8 @@ for(country in country.list){
                   color=proportion.negative),
               alpha=0.2) +
     scale_color_gradientn(colours = wes_palette("Zissou1", 
-                                                101, 
-                                                type = "continuous"),
+                                               101, 
+                                               type = "continuous"),
                           limits = c(0, 1)) +
     labs(y="Percentage of Intrisic fitness changed by\n
          the effect of i on j",
@@ -405,14 +413,14 @@ for(country in country.list){
     scale_y_continuous(expand = c(0, 0)) +
     theme_bw()+
     theme(axis.title = element_text(size=14),
-          axis.text = element_text(size=14),
+             axis.text = element_text(size=14),
           panel.grid.minor = element_blank())
   
   Ratio.Year.Plot[[country]]  <- ggarrange(ratio.plot,strength.plot,asym.plot,pdsi.plot,
-                                           ncol=2,nrow=2)
+            ncol=2,nrow=2)
   Ratio.Year.Plot[[country]] 
   ggsave(ggarrange(ratio.plot,strength.plot,asym.plot,pdsi.plot,
-                   ncol=2,nrow=2),
+            ncol=2,nrow=2),
          width=35,
          height = 25,
          units = "cm",
@@ -519,94 +527,94 @@ for( country in country.list){
   Realised.Int.Year.df <- Realised.Int.Year.list[[country]] %>%
     filter(realised.effect<1000)
   Realised.Int.Year.sum <- Realised.Int.Year.df  %>%
-    group_by(neigh,focal,year)%>%
-    summarise(RE.neg= length(realised.effect[realised.effect<1]),
-              RE.total = length(realised.effect),# high mean high competition
-              RE.mean = mean(realised.effect, na.rm = T),
-              RE.sd = sd(realised.effect,na.rm = T),
-              RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
-              RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
-              RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
-    ungroup() %>%
-    mutate(RE.ratio = RE.neg/RE.total) %>%
-    as.data.frame() 
-  
-  
-  Realised.Int.Year.neigh <- Realised.Int.Year.df %>%
-    group_by(neigh,year)%>%
-    summarise(RE.neg= length(realised.effect[realised.effect<1]),
-              RE.total = length(realised.effect),# high mean high competition
-              RE.mean = mean(realised.effect, na.rm = T),
-              RE.sd = sd(realised.effect,na.rm = T),
-              RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
-              RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
-              RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
-    ungroup() %>%
-    mutate(RE.ratio = RE.neg/RE.total,
-           focal = "total") %>%
-    as.data.frame() 
-  
-  Realised.Int.Year.focal <- Realised.Int.Year.df %>%
-    group_by(focal,year)%>%
-    summarise(RE.neg= length(realised.effect[realised.effect<1]),
-              RE.total = length(realised.effect),# high mean high competition
-              RE.mean = mean(realised.effect, na.rm = T),
-              RE.sd = sd(realised.effect,na.rm = T),
-              RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
-              RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
-              RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
-    ungroup() %>%
-    mutate(RE.ratio = RE.neg/RE.total,
-           neigh="total") %>%
-    as.data.frame() 
-  
-  Realised.Int.Year.total <- Realised.Int.Year.df %>%
-    group_by(year) %>%
-    summarise(RE.neg= length(realised.effect[realised.effect<1]),
-              RE.total = length(realised.effect),# high mean high competition
-              RE.mean = mean(realised.effect, na.rm = T),
-              RE.sd = sd(realised.effect,na.rm = T),
-              RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
-              RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
-              RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
-    ungroup() %>%
-    mutate(RE.ratio = RE.neg/RE.total,
-           focal ="total",
-           neigh="total") %>%
-    as.data.frame() 
-  
-  head(Realised.Int.Year.sum)
-  Realised.Int.Year.plotlist[[country]] <- Realised.Int.Year.sum %>%
-    bind_rows(Realised.Int.Year.neigh,
-              Realised.Int.Year.focal,
-              Realised.Int.Year.total) %>%
-    mutate(neigh=factor(neigh, levels=c(Code.focal.list,"total")),
-           focal = factor(focal,levels=c("total",rev(Code.focal.list)))) %>%
-    mutate(year=as.numeric(year)) %>%
-    left_join(env_pdsi_dflist[[country]]) %>%
-    ggplot(aes(x =neigh,y =focal)) + 
-    geom_tile(aes(fill = RE.ratio,
-                  alpha=abs(RE.mean-1))) + 
-    scale_fill_gradientn(colours = wes_palette("Zissou1", 
-                                               101, 
-                                               type = "continuous"))   +
-    theme_few() +
-    annotate("rect",xmin = 0.5, xmax = 13.5, ymin = 1- .5,
-             ymax = 1 + .5, color="black",fill="transparent") + 
-    annotate("rect",ymin = 0.5, ymax = 13.5, xmin = 13- .5,
-             xmax = 13 + .5, color="black",fill="transparent") + 
-    labs(alpha ="Mean effect",
-         fill="Ratio of Comp/Fac",
-         x="neihg",y="focal") +
-    scale_alpha(range=c(0.5,1)) +
-    facet_wrap(.~ year,nrow=2 ) +
-    #facet_wrap(.~ PDSI.mean,nrow=2 ) +
-    theme(legend.position ="bottom",
-          axis.title = element_blank(),
-          axis.text.x=element_text(angle=90,size=14),
-          axis.text.y=element_text(size=14),
-          axis.ticks =element_blank(),
-          axis.line = element_blank())
+   group_by(neigh,focal,year)%>%
+  summarise(RE.neg= length(realised.effect[realised.effect<1]),
+            RE.total = length(realised.effect),# high mean high competition
+       RE.mean = mean(realised.effect, na.rm = T),
+       RE.sd = sd(realised.effect,na.rm = T),
+       RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
+       RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
+       RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
+  ungroup() %>%
+  mutate(RE.ratio = RE.neg/RE.total) %>%
+  as.data.frame() 
+
+
+Realised.Int.Year.neigh <- Realised.Int.Year.df %>%
+  group_by(neigh,year)%>%
+  summarise(RE.neg= length(realised.effect[realised.effect<1]),
+            RE.total = length(realised.effect),# high mean high competition
+            RE.mean = mean(realised.effect, na.rm = T),
+            RE.sd = sd(realised.effect,na.rm = T),
+            RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
+            RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
+            RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
+  ungroup() %>%
+  mutate(RE.ratio = RE.neg/RE.total,
+         focal = "total") %>%
+  as.data.frame() 
+
+Realised.Int.Year.focal <- Realised.Int.Year.df %>%
+  group_by(focal,year)%>%
+  summarise(RE.neg= length(realised.effect[realised.effect<1]),
+            RE.total = length(realised.effect),# high mean high competition
+            RE.mean = mean(realised.effect, na.rm = T),
+            RE.sd = sd(realised.effect,na.rm = T),
+            RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
+            RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
+            RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
+  ungroup() %>%
+  mutate(RE.ratio = RE.neg/RE.total,
+         neigh="total") %>%
+  as.data.frame() 
+
+Realised.Int.Year.total <- Realised.Int.Year.df %>%
+  group_by(year) %>%
+  summarise(RE.neg= length(realised.effect[realised.effect<1]),
+            RE.total = length(realised.effect),# high mean high competition
+            RE.mean = mean(realised.effect, na.rm = T),
+            RE.sd = sd(realised.effect,na.rm = T),
+            RE.Q1 = quantile(realised.effect, c(0.1), na.rm = T),
+            RE.Q5 = quantile(realised.effect, c(0.5), na.rm = T),
+            RE.Q9 = quantile(realised.effect,c(0.9),  na.rm = T)) %>%
+  ungroup() %>%
+  mutate(RE.ratio = RE.neg/RE.total,
+         focal ="total",
+         neigh="total") %>%
+  as.data.frame() 
+
+head(Realised.Int.Year.sum)
+Realised.Int.Year.plotlist[[country]] <- Realised.Int.Year.sum %>%
+  bind_rows(Realised.Int.Year.neigh,
+            Realised.Int.Year.focal,
+            Realised.Int.Year.total) %>%
+  mutate(neigh=factor(neigh, levels=c(Code.focal.list,"total")),
+         focal = factor(focal,levels=c("total",rev(Code.focal.list)))) %>%
+  mutate(year=as.numeric(year)) %>%
+  left_join(env_pdsi_dflist[[country]]) %>%
+  ggplot(aes(x =neigh,y =focal)) + 
+  geom_tile(aes(fill = RE.ratio,
+                alpha=abs(RE.mean-1))) + 
+  scale_fill_gradientn(colours = wes_palette("Zissou1", 
+                                             101, 
+                                             type = "continuous"))   +
+  theme_few() +
+  annotate("rect",xmin = 0.5, xmax = 13.5, ymin = 1- .5,
+           ymax = 1 + .5, color="black",fill="transparent") + 
+  annotate("rect",ymin = 0.5, ymax = 13.5, xmin = 13- .5,
+           xmax = 13 + .5, color="black",fill="transparent") + 
+  labs(alpha ="Mean effect",
+       fill="Ratio of Comp/Fac",
+       x="neihg",y="focal") +
+  scale_alpha(range=c(0.5,1)) +
+  facet_wrap(.~ year,nrow=2 ) +
+  #facet_wrap(.~ PDSI.mean,nrow=2 ) +
+  theme(legend.position ="bottom",
+        axis.title = element_blank(),
+        axis.text.x=element_text(angle=90,size=14),
+        axis.text.y=element_text(size=14),
+        axis.ticks =element_blank(),
+        axis.line = element_blank())
 }
 Realised.Int.Year.plotlist[["aus"]] # figures/Heatmap.PDSI.aus.pdf
 Realised.Int.Year.plotlist[["spain"]] # figures/Heatmap.PDSI.spain.pdf
@@ -687,68 +695,68 @@ symmetry.with.positive.for.df <- function(strength.df){
     comlevels <- levels(as.factor(strength.df.n$com_id))
     for(comi in comlevels){
       #print(comi)
-      strength.df.n <- strength.df %>%
-        dplyr::filter(year == as.numeric(y)) %>%
-        dplyr::filter(com_id == comi) %>%
-        right_join(df.all.comb %>% mutate(year=as.numeric(y),
-                                          com_id = comi ),
-                   multiple = "all") %>%
-        spread(neigh,mean.effect) %>%
-        column_to_rownames("focal") %>%
-        dplyr::select(-year)  %>%
-        mutate_all( ~replace(., is.na(.), 0))
-      sym.mat.n <- data.frame(focal = rep(names.sp , each=length(names.sp )),
-                              neigh = rep(names.sp , times=length(names.sp )),
-                              year= as.numeric(y),
-                              com_id = comi)
-      for(i in 1:nrow(strength.df.n)){
-        for(j in (i+1):nrow(strength.df.n)){ # just to have the upper levels
-          if(j>nrow(strength.df.n))next
-          # print(paste0(i,j))
-          sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                     sym.mat.n$neigh==names.sp[j])] <-NA
-          if(i==j) next
-          if(is.na(strength.df.n[i,j])) next
-          if(is.na(strength.df.n[j,i])) next
-          if(strength.df.n[i,j] > 1 & strength.df.n[j,i]>1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "++"
-          }
-          if(strength.df.n[i,j] > 1 & strength.df.n[j,i]<1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "+-"
-          }
-          if(strength.df.n[i,j] < 1 & strength.df.n[j,i]>1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "-+"
-          }
-          if(strength.df.n[i,j] > 1 & strength.df.n[j,i]==1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "+0"
-          }
-          if(strength.df.n[i,j] < 1 & strength.df.n[j,i]==1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "-0"
-          }
-          if(strength.df.n[i,j] == 1 & strength.df.n[j,i]>1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "0+"
-          }
-          if(strength.df.n[i,j] == 1 & strength.df.n[j,i]<1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "0-"
-          }
-          if(strength.df.n[i,j] < 1 & strength.df.n[j,i]<1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "--"
-          }
-          if(strength.df.n[i,j] == 1 & strength.df.n[j,i]==1){
-            sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
-                                       sym.mat.n$neigh==names.sp[j])] <- "00"
-          }
-        }
+    strength.df.n <- strength.df %>%
+      dplyr::filter(year == as.numeric(y)) %>%
+      dplyr::filter(com_id == comi) %>%
+      right_join(df.all.comb %>% mutate(year=as.numeric(y),
+                                        com_id = comi ),
+                 multiple = "all") %>%
+      spread(neigh,mean.effect) %>%
+      column_to_rownames("focal") %>%
+      dplyr::select(-year)  %>%
+      mutate_all( ~replace(., is.na(.), 0))
+    sym.mat.n <- data.frame(focal = rep(names.sp , each=length(names.sp )),
+                            neigh = rep(names.sp , times=length(names.sp )),
+                            year= as.numeric(y),
+                            com_id = comi)
+  for(i in 1:nrow(strength.df.n)){
+    for(j in (i+1):nrow(strength.df.n)){ # just to have the upper levels
+      if(j>nrow(strength.df.n))next
+     # print(paste0(i,j))
+      sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                 sym.mat.n$neigh==names.sp[j])] <-NA
+      if(i==j) next
+      if(is.na(strength.df.n[i,j])) next
+      if(is.na(strength.df.n[j,i])) next
+      if(strength.df.n[i,j] > 1 & strength.df.n[j,i]>1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                 sym.mat.n$neigh==names.sp[j])] <- "++"
       }
-      sym.mat <- bind_rows(sym.mat,sym.mat.n)
+      if(strength.df.n[i,j] > 1 & strength.df.n[j,i]<1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                 sym.mat.n$neigh==names.sp[j])] <- "+-"
+      }
+      if(strength.df.n[i,j] < 1 & strength.df.n[j,i]>1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                 sym.mat.n$neigh==names.sp[j])] <- "-+"
+      }
+      if(strength.df.n[i,j] > 1 & strength.df.n[j,i]==1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                   sym.mat.n$neigh==names.sp[j])] <- "+0"
+      }
+      if(strength.df.n[i,j] < 1 & strength.df.n[j,i]==1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                   sym.mat.n$neigh==names.sp[j])] <- "-0"
+      }
+      if(strength.df.n[i,j] == 1 & strength.df.n[j,i]>1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                   sym.mat.n$neigh==names.sp[j])] <- "0+"
+      }
+      if(strength.df.n[i,j] == 1 & strength.df.n[j,i]<1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                   sym.mat.n$neigh==names.sp[j])] <- "0-"
+      }
+      if(strength.df.n[i,j] < 1 & strength.df.n[j,i]<1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                 sym.mat.n$neigh==names.sp[j])] <- "--"
+      }
+      if(strength.df.n[i,j] == 1 & strength.df.n[j,i]==1){
+        sym.mat.n$symmetry[which(sym.mat.n$focal==names.sp[i] &
+                                   sym.mat.n$neigh==names.sp[j])] <- "00"
+      }
+      }
+    }
+    sym.mat <- bind_rows(sym.mat,sym.mat.n)
     }
   }
   return(sym.mat)
