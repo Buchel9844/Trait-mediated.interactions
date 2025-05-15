@@ -175,7 +175,6 @@ write.csv(abundance_spain.summary.df,
 head(abundance_spain.summary.df)
 #---- 2.3. Import competition data -----
 competition.spain <- read.csv("data/spain_rawdata/competition.csv")
-# maybe can add 2022 and 2023 later
 str(competition.spain)
 species.neigh <- names(competition.spain)
 species.neigh  <- species.neigh[!species.neigh %in% c("day","month","year","plot","subplot","focal","fruit","comments",
@@ -509,12 +508,8 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       abundance_spain.summary=abundance_spain.summary,
                       seed_germination_spain =seed_germination_spain,
                       seed_survival_spain = seed_survival_spain,
-                      plant_traits =plant_traits_spain,
-                      trait.dist_spain.df = trait.dist_spain.df)
-#load("data/clean.data.spain.RData")
-clean.data.spain$plant_traits <- plant_traits_spain
-## clean.data.spain$trait.dist_spain.df  <- trait.dist_spain.df 
-#clean.data.spain$abundance_spain.summary <- abundance_spain.summary
+                      plant_traits =plant_traits_spain)
+
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
@@ -1037,19 +1032,8 @@ clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       species_aus = final.species.list.aus,
                       competition_aus =competition_aus,
                       abundance_aus.summary=abundance_aus.clean,
-                      #abundance_aus.preclean = abundance_aus.preclean,
-                      aus_above_grouping = aus_above_grouping,
-                      aus_pol_grouping =aus_pol_grouping,
-                      aus_below_grouping = aus_below_grouping,
-                      plant_pol.traits_aus.dist = plant_pol.traits_aus.dist,
-                      trait.dist_aus.df  =trait.dist_aus.df,
                       plant_traits = plant_traits_aus)
-load("data/clean.data.aus.RData")
-#clean.data.aus$abundance_aus.summary <- abundance_aus.summary
-#clean.data.aus$aus_above_grouping <-aus_above_grouping
-#clean.data.aus$aus_pol_grouping <-aus_pol_grouping
-#clean.data.aus$aus_below_grouping <-aus_below_grouping
-#clean.data.aus$trait.dist_aus.df <-trait.dist_aus.df
-clean.data.aus$plant_traits <-plant_traits_aus
+
+
 save(clean.data.aus,
      file="data/clean.data.aus.RData")
