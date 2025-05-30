@@ -32,7 +32,7 @@ library(igraph)
 library(statnet)
 library(intergraph)
 library(ggraph)
-install.packages("ggraph")
+#install.packages("ggraph")
 library(Polychrome)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
@@ -76,10 +76,7 @@ for(country in country.list){
     lambda = median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1], na.rm=T)
     
     df_alpha_generic_param = Parameters[[paste(country,"_",Code.focal)]]$df_alpha_generic_param
-    
-    abundance_short_focal_df <-  abundance_df %>%
-      filter(Code.focal > 0 & !is.na(Code.focal)) %>%
-      mutate_at(Code.focal.list,as.numeric)
+  
     
     competition_short_focal_df <-   competition_df%>%
       filter(focal ==Code.focal) %>%
@@ -91,11 +88,7 @@ for(country in country.list){
     test.sigmoid  <- NULL
       for( neigh.sp in  SpNames){
         print(paste(Code.focal,neigh.sp))
-        
-        neigh.abundance <- abundance_short_focal_df %>%
-          dplyr::select(neigh.sp) %>%
-          dplyr::filter(!is.na(get(neigh.sp)))%>%
-          dplyr::filter(get(neigh.sp) > 0)
+
         
         
         neigh.abundance <- competition_short_focal_df %>%
@@ -316,6 +309,7 @@ plot.legend <- ggplot(data.frame(x=rep(c(1,2,3),
 plot.legend 
 
 #---- 3.2. Network per density ----
+net.country <- list()
 density.quantile.name <- c("intercept","low","medium","high")
 for(country in country.list){
   for(dq in density.quantile.name){
@@ -462,17 +456,17 @@ for(country in country.list){
 write.csv(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv")) %>%
   mutate(country="Australia") %>%
   bind_rows(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.spain.csv"))%>%
-              mutate(country="Spain")) %>%
-  dplyr::select(density.quantile.number,country,density.quantile,interaction,proportion.positive,proportion.negative,
-                mean.effect,std.effect) %>%
-  mutate(proportion.positive = round(proportion.positive, digits = 2),
-         proportion.negative= round(proportion.negative, digits = 2),
-         mean.effect= round(mean.effect, digits = 3),
-         std.effect= round(std.effect, digits = 3),
-         interaction = case_when(interaction=="intra"~"con-",
-                                 interaction=="inter"~"hetero-"),
-         density.quantile.number= case_when(country=="Spain"~ density.quantile.number+8,
-                                            T ~density.quantile.number)),
+              mutate(country="Spain"))%>%
+    dplyr::select(density.quantile.number,country,density.quantile,interaction,proportion.positive,proportion.negative,
+                  mean.effect,std.effect) %>%
+    mutate(proportion.positive = round(proportion.positive, digits = 2),
+           proportion.negative= round(proportion.negative, digits = 2),
+           mean.effect= round(mean.effect, digits = 3),
+           std.effect= round(std.effect, digits = 3),
+           interaction = case_when(interaction=="intra"~"con-",
+                                   interaction=="inter"~"hetero-"),
+           density.quantile.number= case_when(country=="Spain"~ density.quantile.number+8,
+                                              T ~density.quantile.number)),
   file=paste0(home.dic,"results/SUPP.SUM.UP.csv"))
 
 
@@ -484,13 +478,29 @@ read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv")) %>%
   dplyr::filter(density.quantile %in% c("low","high"))%>%
   gather(proportion.positive,proportion.negative,
          key="proportion",value="prop") %>%
+  mutate(label.position = case_when(proportion=="proportion.positive" ~ prop/2,
+                                    T ~ 0)) %>%
+  mutate(label.text = case_when((proportion=="proportion.positive" & prop>0) ~ paste(as.character(round(prop,digits = 2)),"%"), 
+                                    T ~ "")) %>%
+  filter(density.quantile=="low")%>%
   ggplot(aes(group=proportion,fill=proportion, 
              y= prop, x=interaction)) +
   geom_bar(stat="identity",position="stack") +
-  facet_grid(density.quantile~.) +
-  scale_fill_manual(values=color.vec)
-  
-  
+  geom_text(aes(label=label.text ,
+                y=label.position,
+                x=interaction),
+            size=20) +
+  scale_x_discrete(labels=c("Hetero-","Con-")) +
+  scale_fill_manual(values=color.vec) +
+  theme_void() +
+  theme(axis.text.x=element_text(size=65),
+        legend.position = "none",
+        strip.text=element_blank())
+
+#figures/networks/bar_aus_high.png
+#figures/networks/bar_aus_low.png
+#figures/networks/bar_spain_high.png
+#figures/networks/bar_spain_low.png  
   
 
 

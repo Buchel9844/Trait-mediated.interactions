@@ -499,7 +499,12 @@ plant_traits_spain <- read.csv("data/spain_rawdata/spain_trait_df.csv",
   plant_traits_spain["PAIN","SLA"] <-PAIN_traits$SLA
   plant_traits_spain["PAIN","Stem height"] <-PAIN_traits$'Stem height'
   view(plant_traits_spain)
-#---- 4. Save data SPAIN ----
+  
+#----4. Intrinsic fecundity from Garcia-Callejas, Nat com, 2022 ----
+spain_intrinsic_fecun <- read.csv("data/spain_rawdata/spain.intrinsic.fecun.csv")  %>%
+    aggregate(lambda ~ sp, mean)
+  
+#----5. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
   rename("focal"="focal.analysis") 
 
@@ -508,8 +513,11 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       abundance_spain.summary=abundance_spain.summary,
                       seed_germination_spain =seed_germination_spain,
                       seed_survival_spain = seed_survival_spain,
-                      plant_traits =plant_traits_spain)
+                      plant_traits =plant_traits_spain,
+                      intrinsic_fecun = aus_intrinsic_fecun)
 
+#load( file="data/clean.data.spain.RData")
+view(clean.data.spain$intrinsic_fecun)
 save(clean.data.spain,
      file="data/clean.data.spain.RData")
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
@@ -1027,13 +1035,16 @@ plant_traits_aus <- aus_traits_df %>%
   column_to_rownames("final.code") 
 view(plant_traits_aus)
 
-# ---- 5. Save data AUS ----
+# ---- 5. Intrinsic fecundity from Garcia-Callejas, Nat com, 2022 ----
+aus_intrinsic_fecun <- read.csv("data/aus_rawdata/Aus.intrinsic.fecun.csv")  
+
+# ---- 6. Save data AUS ----
 clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       species_aus = final.species.list.aus,
                       competition_aus =competition_aus,
                       abundance_aus.summary=abundance_aus.clean,
-                      plant_traits = plant_traits_aus)
-
-
+                      plant_traits = plant_traits_aus,
+                      intrinsic_fecun = aus_intrinsic_fecun)
+load(     file="data/clean.data.aus.RData")
 save(clean.data.aus,
      file="data/clean.data.aus.RData")

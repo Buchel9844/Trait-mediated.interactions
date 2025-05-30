@@ -388,7 +388,20 @@ env_pdsi_med_list <- list()
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   competition_df <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] 
-    
+  lambda_df <- get(paste0("clean.data.",country))[[paste0("intrinsic_fecun")]] 
+  
+  if(country=="spain"){
+    lambda_df <- lambda_df %>%
+      add_row(sp="ME.sp", lambda=median(lambda_df$lambda[which(lambda_df$sp=="MEEL")],
+                                        lambda_df$lambda[which(lambda_df$sp=="MESU")])) %>%
+      add_row(sp="Po.sp", lambda=median(lambda_df$lambda[which(lambda_df$sp=="POMO")],
+                                        lambda_df$lambda[which(lambda_df$sp=="POMA")]))
+  }else{
+    lambda_df <- lambda_df %>%
+      mutate(sp = case_when(sp=="VERO"~ "GORO",
+                            sp=="POCA"~ "POAR",
+                            T~sp))
+  }
   
   for(Code.focal in Code.focal.list){ #focal.levels
     mean.fecundity <- competition_df %>% 
@@ -404,7 +417,9 @@ for(country in country.list){
       geom_boxplot(width=0.2) +
       geom_hline(yintercept=median(mean.fecundity$seed),
                  color="red") +
-      geom_hline(yintercept=median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1])) + 
+      geom_hline(yintercept=median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1])) +
+      geom_hline(yintercept = lambda_df$lambda[which(lambda_df$sp==Code.focal)],
+                 color="blue")+
       labs(title = Code.focal, #title="Intrinsic growth rate of LEMA across years,\n as their mean PDSI",
            x= "year",
            y="Estimated intrinsic fecundity") +
@@ -473,21 +488,21 @@ for(country in country.list){
     
     for( neigh in Sp.names){
       # print(country)
-      alpha_initial = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
-                                             neigh]
+      alpha_initial = median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_initial"),
+                                             neigh])
       
-      alpha_slope = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
-                                           neigh]
+      alpha_slope = median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="alpha_slope"),
+                                           neigh])
       
-      alpha_c = df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
-                                       neigh]
+      alpha_c = median(df_alpha_generic_param[which(df_alpha_generic_param$parameter =="c"),
+                                       neigh])
       
       param.neigh <- data.frame(neigh = neigh, 
                                 country = country,
                                 alpha_initial = alpha_initial,
                                 alpha_slope = alpha_slope,
                                 alpha_c=  alpha_c,
-                                N_opt_mean = Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh],
+                                N_opt_mean = median(Parameters[[paste(country,"_",Code.focal)]]$df_N_opt[,neigh]),
                                 focal=Code.focal)
       
       for (n in 1:nrow(param.neigh)){

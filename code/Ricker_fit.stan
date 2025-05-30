@@ -6,7 +6,8 @@ data{
   int<lower = 1> S; // Number of plant species (same across years for consistency)
   int<lower = 1> year[N]; // Indicator variable for the year each observations
   int<lower = 1> Y; // number of years
-  real lambda_prior;
+  int<lower = 1> lambda_max; // max fecundity expected
+  int<lower = 0> lambda_min; // min fecundity expected
   real N_opt_prior[S];
   int Fecundity[N];  // Fecundity of the focal species in each observation
   matrix[N,S] SpMatrix;  // Matrix of abundances for each species (nncluding abundances of non-focal individuals of the focal species)
@@ -15,16 +16,15 @@ data{
 }
 
 parameters{
-  vector<lower=0>[1] lambda_mean;
+  vector<lower=lambda_min,upper=lambda_max>[1] lambda_mean;
   vector[Y] lambda_sd;
 
-  vector<upper =0>[S] c; //stretching parameters
+  vector<lower=-1,upper =0>[S] c; //stretching parameters
 
   vector<lower=-1,upper =0>[S] alpha_slope; // decay - impact of the addition of one individual of j, on the fecundity of i. 
 
-  vector[S] alpha_initial; // initial effect of j on i - when Nj is minimal
+  vector<lower=-1,upper =1>[S] alpha_initial; // initial effect of j on i - when Nj is minimal
   vector<upper=0>[1] alpha_init_intra;
-  
   vector<lower=0>[S] N_opt_i; 
   
   vector<lower=0>[1] disp_dev; // species-specific dispersion deviation parameter,
@@ -43,7 +43,7 @@ transformed parameters{
   //vector[N] pollinator_effects;
   
   // loop parameters
-  vector[N] lambda_ei;
+  vector<lower=lambda_min,upper=lambda_max>[N] lambda_ei;
   matrix[N,S] alpha_value;
   
 
@@ -69,13 +69,14 @@ model{
   }
   
   alpha_initial ~ normal(0,0.1);
+  alpha_init_intra ~ normal(-0.1,0.1);
   alpha_slope ~ normal(-0.2,0.2);
   c ~ normal(0,0.1);
 
-  lambda_mean ~ normal(lambda_prior, 10);
+  lambda_mean ~ cauchy(0,10); //normal(lambda_prior, lambda_prior_sd);
     
    for(y in 1:Y){
-     lambda_sd[y] ~ normal(0, 1);
+     lambda_sd[y] ~  normal(0,10); //normal(0, lambda_prior_sd);
     }
     
  for(n in 1:N){

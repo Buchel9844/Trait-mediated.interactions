@@ -22,8 +22,8 @@ library(tidyr) #fill is part of tidyr
 library(lme4)
 library(car)
 library(loo)
-library(wesanderson) # for color palette
-library(ggthemes) 
+#library(wesanderson) # for color palette
+#library(ggthemes) 
 library(grid)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
@@ -35,16 +35,15 @@ project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 run.diagnostic =1
 run.fit = 1
-#grouping ="family"
-#year.int = "All"    
 #Code.focal = "LEMA"
 #country ="aus"
 args <- commandArgs(trailingOnly = TRUE)
-#country.list <- as.character(args[1]) #c("aus","spain")
+country.list <- as.character(args[1]) #c("aus","spain")
+#plot <- as.numeric(args[2])
 country.list <- c("spain","aus") #aus
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
-
+country="aus"
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   
@@ -138,9 +137,8 @@ for(country in country.list){
     
     DataVec <- list(N=N, 
                     S=S,
-                    lambda_prior = quantile(Fecundity,c(0.75)),
-                    lambda_prior_sd = quantile(Fecundity,c(0.5))-quantile(Fecundity,c(0.25)),
-                    lambda_upper = 2*max(Fecundity),
+                    lambda_max = round(1.5*max(Fecundity)),
+                    lambda_min = max(round(min(Fecundity)/1.5),0),
                     N_opt_prior = N_opt_prior,
                     year= year.vec,
                     Y = nlevels(as.factor(year.vec)),
@@ -161,7 +159,7 @@ for(country in country.list){
     set.seed(1616)
     std.error <- function(x) sd(x)/sqrt(length(x))
     
-    list.init <- function(...)list(lambda_mean= array(DataVec$lambda_prior, 
+    list.init <- function(...)list(lambda_mean= array(quantile(Fecundity,c(0.75)), 
                                                       dim = 1),
                                    N_opt_mean= array(as.numeric(DataVec$Nmax), 
                                                      dim = DataVec$S))
@@ -174,8 +172,8 @@ for(country in country.list){
                        data = DataVec,
                        init =list.init, # all initial values are 0 
                        control=list(max_treedepth=15),
-                       warmup = 1000,
-                       iter = 3000, 
+                       warmup = 2000,
+                       iter = 8000, 
                        init_r = 2,
                        chains = 4,
                        seed= 1616) 
@@ -223,7 +221,7 @@ for(country in country.list){
                       Code.focal," and ",country))
     
     # plot the corresponding graphs
-    param <- c("alpha_initial[1]","alpha_slope[1]","c[1]",
+    param <- c("alpha_initial[1]","alpha_init_intra[1]","alpha_slope[1]","c[1]",
                "lambda_mean","lambda_sd[1]",
                "N_opt_i[1]")
     
@@ -245,6 +243,10 @@ for(country in country.list){
     #---- Generic parameters---
     
     df_parameter_n <-NULL
+    
+    df_lambda_mean <- ModelfitPosteriors$lambda_mean %>% 
+      as.data.frame() %>%
+      setNames(Code.focal)
     
     df_lambda_mean <- ModelfitPosteriors$lambda_mean %>% 
       as.data.frame() %>%

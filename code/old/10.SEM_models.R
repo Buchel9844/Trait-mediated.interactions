@@ -7,7 +7,7 @@ library(lavaan)
 #install.packages("emmeans")
 library(emmeans)
 #packageurl <- "https://cran.r-project.org/src/contrib/Archive/piecewiseSEM/piecewiseSEM_2.1.0.tar.gz"
-#install.packages(packageurl, repos=NULL, type="source",dependencies = T)
+#install.packages(packageurl, repos=NULL, type="source",dependencies = F)
 library(piecewiseSEM)
 
 home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
