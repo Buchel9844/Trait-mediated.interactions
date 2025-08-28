@@ -37,8 +37,8 @@ library(Polychrome)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
 project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
-project.dic <- ""
-home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
+project.dic <- "/Users/lisabuche/Documents/Projects/Trait-mediated.interactions/"
+home.dic <- "/Users/lisabuche/Documents/Projects/Trait-mediated.interactions/"
 
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
@@ -199,11 +199,11 @@ plot.network.gradient.int <- function(ratio.mat,strength.mat,
   width.edge[lwd.mat <=0.01] <- 0.5 #1
   
   width.arrow <- lwd.mat
-  width.arrow[lwd.mat <=0.05] <- 0.3#0.3
-  width.arrow[lwd.mat >0.05 & lwd.mat <=0.1] <- 0.6#1
-  width.arrow[lwd.mat >0.1 & lwd.mat <=0.25] <- 1
-  width.arrow[lwd.mat >0.25 & lwd.mat <=0.5] <- 1.5
-  width.arrow[lwd.mat >0.5] <- 2
+  width.arrow[lwd.mat <=0.05] <- 0.1#0.3
+  width.arrow[lwd.mat >0.05 & lwd.mat <=0.1] <- 0.3#1
+  width.arrow[lwd.mat >0.1 & lwd.mat <=0.25] <- 0.6
+  width.arrow[lwd.mat >0.25 & lwd.mat <=0.5] <- 1
+  width.arrow[lwd.mat >0.5] <- 1.5
   
   
   #width.arrow[lwd.mat <=summary(lwd.mat)["1st Qu."]] <- 0.2
@@ -336,7 +336,7 @@ for(country in country.list){
   strength.mat <- Theoretical.Int.list[[country]]  %>%
     dplyr::filter(density.quantile==dq) %>%
     dplyr::rename("sigmoid"="theoretical.effect") %>%
-    aggregate(sigmoid ~ focal + neigh, function(x) abs(median(x))) %>%
+    aggregate(sigmoid ~ focal + neigh, function(x) abs(exp(median(x))-1)) %>%
     spread(neigh,sigmoid) %>%
     dplyr::select(-focal) %>%
     as.matrix()
@@ -365,7 +365,7 @@ for(country in country.list){
     strength.mat <- Theoretical.Int.list[[country]]  %>%
       dplyr::filter(density.quantile==dq) %>%
       dplyr::rename("sigmoid"="theoretical.effect") %>%
-      aggregate(sigmoid ~ focal + neigh, function(x) abs(mean(x))) %>%
+      aggregate(sigmoid ~ focal + neigh, function(x) abs(exp(median(x))-1)) %>%
       right_join(df.all.comb) %>%
       spread(neigh,sigmoid) %>%
       dplyr::select(-focal) %>%
@@ -401,11 +401,12 @@ for(country in country.list){
     dplyr::filter(neigh==focal)%>%
     dplyr::rename("sigmoid"="theoretical.effect")%>%
     group_by(density.quantile) %>%
-    summarise(mean.effect = (mean(sigmoid)),
-              median.effect = (median(sigmoid)),
-              std.effect = (std(sigmoid)),
-              max.positive.effect = (max(sigmoid)),
-              max.negative.effect = (min(sigmoid)),
+    mutate(sigmoid.perc = exp(sigmoid)-1) %>%
+    summarise(mean.effect = (mean(sigmoid.perc)),
+              median.effect = (median(sigmoid.perc)),
+              std.effect = (std(sigmoid.perc)),
+              max.positive.effect = (max(sigmoid.perc)),
+              max.negative.effect = (min(sigmoid.perc)),
               count.positive = length(sigmoid[sigmoid >0.001]),
               count.negative = length(sigmoid[sigmoid  <0.001]),
               count.total = length(sigmoid)) %>%
@@ -426,11 +427,12 @@ for(country in country.list){
     dplyr::filter(!neigh==focal)%>%
     dplyr::rename("sigmoid"="theoretical.effect")%>%
     group_by(density.quantile) %>%
-    summarise(mean.effect = (mean(sigmoid)),
-              median.effect = (median(sigmoid)),
-              std.effect = (std(sigmoid)),
-              max.positive.effect = (max(sigmoid)),
-              max.negative.effect = (min(sigmoid)),
+    mutate(sigmoid.perc = exp(sigmoid)-1) %>%
+    summarise(mean.effect = (mean(sigmoid.perc)),
+              median.effect = (median(sigmoid.perc)),
+              std.effect = (std(sigmoid.perc)),
+              max.positive.effect = (max(sigmoid.perc)),
+              max.negative.effect = (min(sigmoid.perc)),
               count.positive = length(sigmoid[sigmoid >0]),
               count.negative = length(sigmoid[sigmoid  <0]),
               count.total = length(sigmoid)) %>%
