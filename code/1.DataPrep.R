@@ -393,7 +393,7 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
 Flower_traits_spain <- read.csv("data/spain_rawdata/spain_flower_trait.csv",
                                header = T, stringsAsFactors = F, sep=",",
                                na.strings = c("","NA")) %>%
-  dplyr::select(species,code.plant,code.analysis,flowerwidth) %>% 
+  dplyr::select(species,code.plant,code.analysis,floret.mm) %>% 
   left_join(plant_code_spain %>% dplyr::select(code.plant,code.analysis)) 
 
 Seed_traits_spain <- read.csv( "data/spain_rawdata/spain_seed_mass.txt",
@@ -414,7 +414,7 @@ plant_traits_spain <- read.csv("data/spain_rawdata/spain_trait_df.csv",
   full_join(Seed_traits_spain ) %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
   dplyr::select(-c(code.plant,species)) %>%
-  gather(c("C13","seed.mass", "flowerwidth","C.N", "CS","DR","heigh",
+  gather(c("C13","seed.mass", "floret.mm","C.N", "CS","DR","heigh",
     "TDMr","LAI","SLA","SRL","SRA"),key="trait",value="value") %>%
   aggregate(value ~ trait + code.analysis, mean) %>%
   spread(trait,value) %>%
@@ -425,7 +425,7 @@ plant_traits_spain <- read.csv("data/spain_rawdata/spain_trait_df.csv",
          "Root diameter"="DR",
          "Stem height"="heigh",
          "Leaf area index"="LAI",
-         "Flower width"="flowerwidth",
+         "Floret width"="floret.mm",
          "Seed mass"= "seed.mass",
          #"Leaf area"="LeafArea",
          #"Leaf nitrogen cc"="N15",
@@ -515,7 +515,7 @@ clean.data.spain = list(species_spain = final.species.list.spain,
                       seed_survival_spain = seed_survival_spain,
                       plant_traits =plant_traits_spain,
                       intrinsic_fecun = aus_intrinsic_fecun)
-
+clean.data.spain$plant_traits =plant_traits_spain
 #load( file="data/clean.data.spain.RData")
 view(clean.data.spain$intrinsic_fecun)
 save(clean.data.spain,
@@ -917,7 +917,8 @@ seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedger
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #----4.1 Regroup trait dataset----
-#Web traits
+#Web traits)
+install.packages("austraits")
 library(austraits) 
 austraits <- load_austraits("10.5281/zenodo.11188867")
 
@@ -1001,7 +1002,7 @@ plant_traits_aus <- aus_traits_df %>%
          height.mm = height.mm/10, # to have cm
          Root.mass.density =root.biomass/(total.root.volume.cm3*1000)) %>% # convert to mg/cm3
   dplyr::select(final.code,
-                flower.size.numb,
+                floret.mm,
                 Fecundity,
                 #surv,
                 mean.seed.mass.mg,
@@ -1029,7 +1030,7 @@ plant_traits_aus <- aus_traits_df %>%
          "Seed mass"= "mean.seed.mass.mg",
          "Root tips"="number.of.root.tips",
          "Root mass density"="Root.mass.density",
-         "Flower width"="flower.size.numb" ,
+         "Floret width"="floret.mm" ,
          "Mean fecundity" ="Fecundity") %>%
   #dplyr::filter(!final.code %in% c("ARCA","PEAI")) %>%
   column_to_rownames("final.code") 
@@ -1046,5 +1047,6 @@ clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       plant_traits = plant_traits_aus,
                       intrinsic_fecun = aus_intrinsic_fecun)
 load(     file="data/clean.data.aus.RData")
+clean.data.aus$plant_traits = plant_traits_aus
 save(clean.data.aus,
      file="data/clean.data.aus.RData")
