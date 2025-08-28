@@ -1,0 +1,17 @@
+"","density.quantile.number","country","density.quantile","interaction","proportion.positive","proportion.negative","mean.effect","std.effect"
+"1",4,"Australia","high","con-",0,100,-0.01,0.002
+"2",1,"Australia","intercept","con-",66.67,33.33,0.004,0.002
+"3",2,"Australia","low","con-",33.33,66.67,0.001,0.001
+"4",3,"Australia","medium","con-",8.33,91.67,-0.004,0.002
+"5",8,"Australia","high","hetero-",33.86,66.14,-0.023,0.005
+"6",5,"Australia","intercept","hetero-",60.63,39.37,0.016,0.006
+"7",6,"Australia","low","hetero-",54.33,45.67,0.007,0.005
+"8",7,"Australia","medium","hetero-",44.88,55.12,-0.004,0.005
+"9",12,"Spain","high","con-",0,100,-0.012,0.004
+"10",9,"Spain","intercept","con-",75,25,0.009,0.004
+"11",10,"Spain","low","con-",16.67,83.33,0.004,0.003
+"12",11,"Spain","medium","con-",16.67,83.33,0,0.004
+"13",16,"Spain","high","hetero-",48.48,51.52,-0.013,0.008
+"14",13,"Spain","intercept","hetero-",63.64,36.36,0.021,0.009
+"15",14,"Spain","low","hetero-",58.33,41.67,0.012,0.009
+"16",15,"Spain","medium","hetero-",57.58,42.42,0.006,0.008
