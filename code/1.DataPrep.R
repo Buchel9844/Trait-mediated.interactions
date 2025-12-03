@@ -917,31 +917,6 @@ seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedger
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #----4.1 Regroup trait dataset----
-#Web traits)
-install.packages("austraits")
-library(austraits) 
-austraits <- load_austraits("10.5281/zenodo.11188867")
-
-aus.names <- plant_code_aus %>%
-  filter(code %in% final.species.list.aus) %>%
-  select(name) %>%
-  unlist() %>%
-  as.vector()
-trait.of.interest.aus <- c("plant_height","seed_dry_mass","seed_germination",
-                           "root_diameter","root_distribution_coefficient")
-web.traits <- austraits$traits %>%
-  filter(taxon_name  %in% c(aus.names,"Velleia rosea","Podolepis canescence")) %>%
-  filter(trait_name %in% trait.of.interest.aus) %>%
-  mutate(value = as.numeric(value)) %>% 
-  aggregate(value ~ taxon_name + trait_name + unit,mean) %>%
-  dplyr::select(taxon_name,trait_name,value) %>%
-  spread(trait_name,value) %>%
-  mutate(taxon_name=case_when(taxon_name == "Velleia rosea"~"Goodenia rosea",
-                              T~taxon_name)) %>%
-  rename("species"="taxon_name")
-
-view(web.traits)
-# internal dataset
 OG.plant_traits_aus <- read.csv("data/aus_rawdata/Traits_database.csv",
                              header = T, stringsAsFactors = F, sep=",",
                              na.strings = c("","NA"))
