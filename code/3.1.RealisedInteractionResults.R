@@ -176,6 +176,13 @@ save(Theoretical.Int.list,
 
 
 load(paste0(project.dic,"results/Theoretical.Int.list.RData"))
+
+Theoretical.Int.list[["aus"]] %>%
+  dplyr::filter(density.quantile =="low") %>%
+  summary(density)
+Theoretical.Int.list[["spain"]] %>%
+  dplyr::filter(density.quantile =="low") %>%
+  summary(density)
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 3. Display Interactions  ----
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
@@ -277,13 +284,20 @@ plot.network.gradient.int <- function(ratio.mat,strength.mat,
 colours  <- wes_palette("Zissou1", 101, type = "continuous")
 
 plot.legend <- ggplot(data.frame(x=rep(c(1,2,3),
-                                       times=50),
-                                 y=1:150),
+                                       times=40),
+                                 col.x=rep(c(1,2),
+                                       times=60),
+                                 y=1:120),
                       aes(as.factor(x),
-                          y,fill=x)) +
+                          y,fill=x,
+                          color=as.factor(col.x))) +
   geom_point() +
   geom_line(aes(linewidth=as.factor(x), alpha=as.factor(x))) + 
-
+  scale_color_manual("Sign of \ninteractions",#"Ratio of facilitation and competitive effect",
+                       values= c(wes_palette("Zissou1", 2, type = "continuous")[1],
+                                 wes_palette("Zissou1", 2, type = "continuous")[2]),
+                       labels=c("Facilitation",
+                                "Competition")) +
   scale_fill_gradientn("Sign of interactions",#"Ratio of facilitation and competitive effect",
                        colours = colours,
                        breaks=c(1,51,101),
@@ -291,20 +305,28 @@ plot.legend <- ggplot(data.frame(x=rep(c(1,2,3),
                                 "50/50",
                                 "100% \nCompetition"),
                        limits=c(1,101)) +
-  scale_linewidth_manual("Strength of interactions",#"Standardized median effect",
-                         values=c(0.5,1,1.5),#,2,3),
-                         labels=c("< 5%","5%-10%","10%-25%"))+#,"25%-50%",">50%")) +
-  scale_alpha_manual("Strength of interactions",#"Standardized median effect",
+  scale_linewidth_manual("Strength of \ninteractions",#"Standardized median effect",
+                         values=c(1,1.5,2)*2,#,2,3),
+                         labels=c("< 5%","5%-10%","10%-25%")) +#,"25%-50%",">50%")) +
+  scale_alpha_manual("Strength of \ninteractions",#"Standardized median effect",
                      values=c(0.2,0.4,0.6),#,0.8,1),
                      labels=c("< 5%","5%-10%","10%-25%"))+#,"25%-50%",">50%")) +
-  guides(fill= guide_colourbar(title.position="top", title.hjust = 0.5),
+  guides(#fill= guide_colourbar(title.position="top", title.hjust = 0.5),
+         fill="none",
          linewidth = guide_legend(title.position="top", 
                                   title.hjust = 0,
-                                  nrow=2)) +
+                                  nrow=3),
+         color=guide_legend(title.position="top", 
+                            title.hjust = 0,
+                            nrow=2,
+                            override.aes=list(
+                              alpha=0.8,
+                              size=0,
+                              linewidth=4))) +
   theme_bw() +
   theme(legend.key.size = unit(1, 'cm'),
-        legend.position = "bottom",
-        legend.text = element_text(size=16),
+        legend.position = "right",
+        legend.text = element_text(size=18),
         legend.title = element_text(size=20))
 plot.legend 
 
@@ -477,25 +499,27 @@ color.vec <- c(proportion.positive =wes_palette("Zissou1", 2, type = "continuous
                proportion.negative =wes_palette("Zissou1", 2, type = "continuous")[2])
 country="aus"
 read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv")) %>%
-  dplyr::filter(density.quantile %in% c("low","high"))%>%
+  dplyr::filter(density.quantile %in% c("low","high")) %>%
+  mutate(label.position.positive =proportion.positive/2,
+         label.position.negative =proportion.positive + proportion.negative/2) %>%
   gather(proportion.positive,proportion.negative,
          key="proportion",value="prop") %>%
-  mutate(label.position = case_when(proportion=="proportion.positive" ~ prop/2,
-                                    T ~ 0)) %>%
-  mutate(label.text = case_when((proportion=="proportion.positive" & prop>0) ~ paste(as.character(round(prop,digits = 2)),"%"), 
+  mutate(label.position = ifelse(proportion=="proportion.positive",label.position.positive,label.position.negative)) %>%
+  mutate(label.text = case_when((proportion=="proportion.positive" & prop>0) ~ paste(as.character(round(prop,digits = 0)),"%"),
+                                (proportion=="proportion.negative" & prop>0) ~ paste(as.character(round(prop,digits = 0)),"%"),
                                     T ~ "")) %>%
-  filter(density.quantile=="low")%>%
+  filter(density.quantile=="high")%>%
   ggplot(aes(group=proportion,fill=proportion, 
              y= prop, x=interaction)) +
-  geom_bar(stat="identity",position="stack") +
+  geom_bar(stat="identity",position="stack",alpha=0.8) +
   geom_text(aes(label=label.text ,
                 y=label.position,
                 x=interaction),
             size=20) +
-  scale_x_discrete(labels=c("Hetero-","Con-")) +
+  scale_x_discrete(labels=c("Heterospecific","Conspecific")) +
   scale_fill_manual(values=color.vec) +
   theme_void() +
-  theme(axis.text.x=element_text(size=65),
+  theme(axis.text.x=element_text(size=40,angle=45),
         legend.position = "none",
         strip.text=element_blank())
 
