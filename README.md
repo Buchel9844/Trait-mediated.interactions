@@ -1,5 +1,6 @@
 Read me file for the article entitled 
-"Trait-mediated interactions drive local diversity"
+"Trait-mediated interactions drive local diversity" 
+TIDE framework
 by
 Lisa Buche, Oscar Godoy, Lauren Shoemaker, Lauren Hallett, Courtney Taylor, Wing Man Siu, Manuel Sevenello, Peter Vesk, and Margie Mayfield 
 Published in 
