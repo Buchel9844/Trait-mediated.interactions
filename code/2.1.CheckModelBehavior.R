@@ -1,7 +1,6 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 1. SET UP: Import data, create df with competiton and seed distributions----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-rm(list = ls())
 
 #---- 1.1. Import packages ----
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
