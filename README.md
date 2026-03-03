@@ -25,7 +25,7 @@ Details of R script and their function in the folder CODE:
 
 
 2.NaturalDataFit.R - Fits the bayesian model contained in ("Ricker_fit.stan") stan scripts for each focal species and country. Creates a list object for each fit (i.e., results/Parameters_",Code.focal,"_",country,".Rdata") countianing the fitted paramters and model behavior check. 
-      2.1.CheckModelBehavior.R - Extracts the models' convergence, Posterior    predictive distribution of the model fit and explanatory power of the fitted models, which were evaluated according to Root mean squared deviance and the leave-one-out approximation (see Appendix section "Model behavior of species interactions" and Tab S5). 
+      2.1.CheckModelBehavior.R - Extracts the models' convergence, Posterior    predictive distribution of the model fit and explanatory power of the fitted models, which were evaluated according to Root mean squared deviance and the leave-one-out approximation (see Appendix section "Model behavior of species interactions" and Tab S5). See also the google drive with the     figures of model check for each species "https://drive.google.com/drive/folders/1F__CAzD53vnkYFPqcXKY1mn5poa2nNzD?usp=drive_link". 
 
 3.Results.R - Makes some supplementary figures of abundance over time for the appendix (e.g., Fig S1-S3). Gather the parameter's fit into one dataset for each country (i.e.,"results/Param.sigmoid.",country,".csv.gz"). Contains the code to produce some supplementary figures of the estimated intrinsic growth rates of each species over time (Fig S9-S10) and the raw sigmoid (Fig S11-S12).
 
