@@ -225,6 +225,7 @@ ggsave(paste0("figures/supp/observations.spain.pdf"),
        units = c("cm"),
        comp.plot)
 
+
 #---- 2.4. Seed production -----
 
 numb.seed.spain <- read.csv("data/spain_rawdata/number_seed.csv")
@@ -335,6 +336,15 @@ ggsave(paste0("figures/supp/Seed.per.ind.spain.pdf"),
        height = 16,
        units = c("cm"),
        focal.comp.seed.plot)
+
+summary.fec.spain.df <- focal.comp.seed.plot%>%
+  group_by(focal.analysis,year) %>%
+  summarise( n.obs = n(),
+             mean.ind.seed = mean(seed),
+             sd.ind.seed =sd(seed)) 
+write.csv(summary.fec.spain.df,
+          "results/summary.fec.spain.df.csv")
+
 #---- 2.6. Seed germination and survival -----
 
 seed_germination_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"),
@@ -875,7 +885,7 @@ summary_table_aus <- bind_rows(as.data.frame(table(Martyn2016$focal)) %>%
     ) %>%
   rename("focal"="Var1") %>%
   mutate(focal = case_when(focal=="VERO"~"GORO",
-                           focal=="POGN"~"POAR",
+                           focal=="POCA"~"POAR",
                            focal=="VECY"~"GOCY",
                            T~focal)) %>%
   filter(focal %in% final.species.list.aus)  %>%
@@ -896,14 +906,34 @@ ggplot(summary_table_aus[which(summary_table_aus$year=="Total"),]%>%
 #---- 3.8. Merge ----
 competition_aus <- bind_rows(Martyn2016,Wainwright2014,Wainwright2015,
                              Pastore2017,Taylor2023,
-                             Sevenello2022) 
+                             Sevenello2022) %>%
+  mutate(focal = case_when(focal=="VERO"~"GORO",
+                           focal=="POCA"~"POAR",
+                           focal=="VECY"~"GOCY",
+                           T~focal))
 
 
 head(competition_aus)
 str(competition_aus)
 names(competition_aus)
 
-
+summary.fec.aus.df <- competition_aus %>%
+  mutate(focal = case_when(focal=="VERO"~"GORO",
+                           focal=="POCA"~"POAR",
+                           focal=="VECY"~"GOCY",
+                           T~focal)) %>%
+  filter( focal %in% final.species.list.aus) %>%
+  aggregate(seed ~ focal + year + plot + scale + main.collector , sum) %>%
+  rename("code"=focal) %>%
+  left_join(plant_code_aus, by="code") %>%
+  group_by(code,name, family, main.collector,year,scale) %>%
+  summarise( n.obs = n(),
+             mean.ind.seed = mean(seed),
+             sd.ind.seed=sd(seed)) 
+view(summary.fec.aus.df)
+write.csv(summary.fec.aus.df,
+          "results/summary.fec.aus.df.csv")
+            
 #----3.9. Seed survival and germination----
 View(plant_code_aus)
 seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedgermss_aus.csv"),
