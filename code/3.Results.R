@@ -39,11 +39,6 @@ library(Hmisc)
 library(Polychrome)
 library(knitr)
 write_bib(x="stats") # creates citation bib
-write_bib(x="PerformanceAnalytics")
-write_bib(x="brms")
-#setwd("/home/lbuche/Eco_Bayesian/chapt3")
-project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
-home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
 home.dic <- ""
 project.dic <- ""
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
@@ -54,20 +49,14 @@ load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 country.list <- c("aus","spain")
 
-#-----1.1. Corrected abundance df ----
+#-----1.1. Envrionmental data----
 country="aus"
 area.plot = pi*7.5^2
+env_pdsi_list <- list()
 for(country in country.list){
-  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]]
-  Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
-  
-  
-  year.levels <-levels(as.factor( abundance_summary$year))
-  col.df <- data.frame(color.name = unname(kelly.colors())[3:(length(Code.focal.list)+2)],
-                       neigh = Code.focal.list)
-  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) 
+  env_pdsi <- read.csv(paste0(home.dic,"data/",country,"_env_pdsi.csv")) 
   year.levels.all <-levels(as.factor(env_pdsi$year))
-  env_pdsi <- read.csv(paste0(home.dic,"results/",country,"_env_pdsi.csv")) %>%
+  env_pdsi <- read.csv(paste0(home.dic,"data/",country,"_env_pdsi.csv")) %>%
     mutate(year.thermique= as.numeric(factor(year))) %>% 
     mutate(year.thermique.2 = case_when(month > 9 ~ year.thermique + 1,
                                         T ~ year.thermique)) %>%
@@ -87,60 +76,24 @@ for(country in country.list){
     as.data.frame() %>%
     mutate(year=as.numeric(year))
   
-  #abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".preclean")]]
-  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] %>%
-    mutate(year=as.numeric(year)) %>%
-    left_join(env_pdsi) %>%
-    mutate(year=factor(year,levels=year.levels))  %>%
-    dplyr::filter(!is.na(species)) %>%
-    dplyr::filter(individuals>=0) %>%
-    mutate(individuals.at.plot=individuals * area.plot)
-  #group_by(year)
-  ggplot( abundance_summary, aes(x=individuals.at.plot)) + geom_density()+
-    facet_wrap(year~.,scale="free")
-  
-  # the coefficient if the sampling  effort differences between the years
-  Correction.model.year <-  as.data.frame(confint(glmmTMB(individuals.at.plot ~ year + (1|species), 
-                                                          data=abundance_summary,
-                                                          family=nbinom2))) %>%
-    as.data.frame() %>%
-    mutate(year=c(year.levels,"random.factor")) %>%
-    rownames_to_column("to.deleted") %>%
-    dplyr::rename("Coef.year"="Estimate") %>%
-    dplyr::filter(!year=="random.factor") %>%
-    dplyr::select(year,Coef.year) %>%
-    mutate(year=as.numeric(year)) 
-  Correction.model.year$Coef.year[2:length(year.levels)] <- Correction.model.year$Coef.year[2:length(year.levels)] + Correction.model.year$Coef.year[1]
-  
-  
-  abundance_summary <- get(paste0("clean.data.",country))[[paste0("abundance_",country,".summary")]] %>%
-    mutate(year=as.numeric(year))
-  
-  abundance_summarycorrected <- abundance_summary %>%
-    mutate(year=as.numeric(year)) %>%
-    left_join(Correction.model.year) %>%
-    mutate(individuals.at.plot =individuals * widthplot,
-           corrected.density.at.plot = case_when(individuals > 0 ~ (individuals.at.plot-Coef.year),
-                                         T ~ 0)) %>%
-    mutate(corrected.density = corrected.density.at.plot/widthplot) %>%
-    left_join(env_pdsi)
-  write.csv(abundance_summarycorrected,
-            file=paste0("results/Abundance.corrected.",country,".csv"))
-  
-  plot.abundance.density <- data.frame(
-    abundance=c(abundance_summarycorrected$corrected.density,
-                abundance_summary$individuals),
-    year=c(abundance_summarycorrected$year,
-           abundance_summary$year),
-    nameab = c(rep("corrected", each=nrow(abundance_summarycorrected)),
-               rep("observed", each=nrow(abundance_summary)))
-  ) %>%
-    ggplot( aes(x=abundance,fill=nameab,y=nameab)) +
-    geom_density_ridges2(scale=1) +
-    facet_wrap(year~.,scale="free")+
-    theme_bw()
-  plot.abundance.density
+  env_pdsi_list[[country]] <-   ggplot(  env_pdsi, aes(y=Precip.extrem, x=year)) +
+    geom_line(size=3) +
+    geom_hline(yintercept=0,linetype="dashed",size=2) +
+    theme_bw() +
+    labs(y="Precipitation \n extreme(mm)")+
+    theme( strip.text = element_text(size=28),
+          legend.text=element_text(size=14),
+          legend.title=element_blank(),
+           axis.text= element_text(size=20),
+          axis.title.x= element_blank(),
+          axis.title.y= element_text(size=18),
+          title=element_text(size=16),
+          plot.margin=unit(c(1,1,0,0),"cm"))
+ 
+  env_pdsi_list[[country]] 
 }
+env_pdsi_list[["spain"]] # figures/Prep_extre_spain.pdf
+env_pdsi_list[["aus"]] # figures/Prep_extre_spain.pdf
 #---- 1.2 Abundances over time ----
 widthplot = 25*25
 abundance_plotlist <- NULL
@@ -234,11 +187,6 @@ abundance_plotlist[[country]]
 abundance_plotlist[["spain"]] # figures/Abundance_spain.pdf
 abundance_plotlist[["aus"]] #figures/Abundance_aus.pdf
 
-write.csv(bind_rows(richness_df[["spain"]] %>%
-          mutate(country="Spain"),
-          richness_df[["aus"]]%>%
-            mutate(country="Australia")),
-          file="results/richness.df.csv")
 
 #---- 1.3. Competition data ----
 competition.plot.list <- list()
@@ -259,7 +207,9 @@ competition_df <- get(paste0("clean.data.",country))[[paste0("competition_",coun
   mutate(individuals = case_when(focal==species ~ (individuals + 1),
                                  T~individuals)) %>%
   mutate(individuals = (individuals/scale)*15) %>%
-  dplyr::rename("com_id"="plot") %>%
+  group_by(year,plot,main.collector,focal) %>%
+  mutate(subplot=row_number()) %>%
+  mutate(com_id = paste0(plot,"_", subplot)) %>%
   aggregate(individuals ~ year + com_id + species, sum) 
 }
 
@@ -368,7 +318,7 @@ for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   for(Code.focal in Code.focal.list){ #focal.levels
     
-    load(file =paste0(project.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"))
+    load(file =paste0("results/stan/parameter/Parameters_",Code.focal,"_",country,".Rdata"))
     #assign(paste0("parameter_",Code.focal),
     #       parameter)
     Parameters[[paste(country,"_",Code.focal)]] <- parameter
@@ -376,8 +326,8 @@ for(country in country.list){
 }
 
 save(Parameters,
-     file=paste0(home.dic,"results/Parameters_alpha.RData"))
-load(paste0(home.dic,"results/Parameters_alpha.RData"))
+     file=paste0(home.dic,"results/sigmoid-output/Parameters_alpha.RData"))
+load(paste0(home.dic,"results/sigmoid-output/Parameters_alpha.RData"))
 
 
 #---- 2.1 Lambda ----
@@ -396,11 +346,6 @@ for(country in country.list){
                                         lambda_df$lambda[which(lambda_df$sp=="MESU")])) %>%
       add_row(sp="Po.sp", lambda=median(lambda_df$lambda[which(lambda_df$sp=="POMO")],
                                         lambda_df$lambda[which(lambda_df$sp=="POMA")]))
-  }else{
-    lambda_df <- lambda_df %>%
-      mutate(sp = case_when(sp=="VERO"~ "GORO",
-                            sp=="POCA"~ "POAR",
-                            T~sp))
   }
   
   for(Code.focal in Code.focal.list){ #focal.levels
@@ -557,8 +502,8 @@ for(country in country.list){
              axis.title.y= element_blank(),#element_text(size=12),
              title=element_text(size=12))
     
-    write.csv(test.sigmoid,
-              file=paste0("results/Param.sigmoid.",country,",",Code.focal,".csv"))
+    #write.csv(test.sigmoid,
+     #         file=paste0("results/sigmoid-output/Param.sigmoid.",country,".",Code.focal,".csv"))
     
     Param.sigm.country.df <- bind_rows( Param.sigm.country.df,test.sigmoid)
   }
@@ -566,18 +511,18 @@ for(country in country.list){
   #sigmoid.list[[country]] <- sigmoid.list.focal
   Param.sigm.df[[country]] <- Param.sigm.country.df
   write.csv(Param.sigm.country.df,
-            file=paste0(project.dic,"results/Param.sigmoid.",country,".csv.gz"))
+            file=paste0(project.dic,"results/sigmoid-output/Param.sigmoid.",country,".csv.gz"))
 }
 
 
 write.csv(Param.sigm.df$aus,
-          file=paste0(project.dic,"results/Param.sigmoid.aus.csv.gz"))
+          file=paste0(project.dic,"results/sigmoid-output/Param.sigmoid.aus.csv.gz"))
 write.csv(Param.sigm.df$spain,
-          file=paste0(project.dic,"results/Param.sigmoid.spain.csv.gz"))
+          file=paste0(project.dic,"results/sigmoid-output/Param.sigmoid.spain.csv.gz"))
 
 
-Param.sigm.df.aus <- read.csv(paste0(project.dic,"results/Param.sigmoid.aus.csv.gz"))
-Param.sigm.df.spain <- read.csv(paste0(project.dic,"results/Param.sigmoid.spain.csv.gz"))
+Param.sigm.df.aus <- read.csv(paste0(project.dic,"results/sigmoid-output/Param.sigmoid.aus.csv.gz"))
+Param.sigm.df.spain <- read.csv(paste0(project.dic,"results/sigmoid-output/Param.sigmoid.spain.csv.gz"))
 Param.sigm.df$spain <- Param.sigm.df.spain
 Param.sigm.df$aus<- Param.sigm.df.aus
 
@@ -589,7 +534,7 @@ safe_colorblind_palette <- c("#88CCEE", "#CC6677", "#DDCC77", "#117733", "#33228
 
 sigmoid.list <- list()
 legend.plot.list <- list()
-for(country in "aus"){
+for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   sigmoid.list.focal<- list()
   Param.sigm.country.df <- NULL
@@ -611,7 +556,7 @@ for(country in "aus"){
                              title.hjust = 0.1)) 
   legend.plot.list[[country]] <- get_legend(legend.plot)
   
-  for(Code.focal in c("TRCY","WAAC","POLE")){ #Code.focal.list
+  for(Code.focal in Code.focal.list){ #Code.focal.list
     print(paste(Code.focal))
     test.sigmoid <- Param.sigm.df[[country]] %>%
       filter(focal ==Code.focal)
@@ -660,12 +605,6 @@ for(country in "aus"){
   sigmoid.list[[country]] <-  sigmoid.list.focal
 }
 
-ggarrange(sigmoid.list[["aus"]]$POLE,sigmoid.list[["aus"]]$TRCY,sigmoid.list[["aus"]]$WAAC,
-          #labels=species.spain,
-          common.legend = F,
-          legend="none",nrow=1) #preso_sigmoid.pdf
-
-
 AUS.sigmoid<- ggarrange(ggarrange(plotlist =   sigmoid.list[["aus"]],
                                   #labels=species.spain,
                                   common.legend = F,
@@ -679,7 +618,7 @@ ggsave(AUS.sigmoid,
        heigh=25,
        width=30,
        units = "cm",
-       file=paste0(home.dic,"figures/AUS.sigmoid.pdf"))
+       file=paste0(home.dic,"figures/supp/AUS.sigmoid.pdf"))
 
 SPAIN.sigmoid<- ggarrange(ggarrange(plotlist =   sigmoid.list[["spain"]],
                                     #labels=species.spain,
@@ -694,7 +633,7 @@ ggsave(SPAIN.sigmoid,
        heigh=25,
        width=30,
        units = "cm",
-       file=paste0(home.dic,"figures/SPAIN.sigmoid.pdf"))
+       file=paste0(home.dic,"figures/supp/SPAIN.sigmoid.pdf"))
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

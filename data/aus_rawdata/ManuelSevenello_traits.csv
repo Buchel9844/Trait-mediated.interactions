@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 species,final.code,type,Growth form,Life Form,flower.size,flower.colour,plant.height,flowers.per.plant,family,pollination.synd,native,height,seed dry mass,floret.mm,notes
+=======
+species,final.code,type,Growth form,Life Form,flower.size,flower.colour,plant.height,flowers.per.plant,family,pollination.synd,native,height,seed dry mass,flower.mm,notes
+>>>>>>> Stashed changes
 Arctotheca calendula,ARCA,forb,Annual herb,Decumbent,large,yellow,medium,many,Asteraceae,self.animal,no,0.182,1.12,45,
 Goodenia berardiana,GOBE,forb,Annual herb,Erect,small,yellow,medium,many,Goodeniaceae,self.animal,yes,0.246,2.13,13.5,
 Goodenia rosea,GORO,forb,Annual herb,Erect,large,white,short,many,Goodeniaceae,self.animal,yes,0.26,2.73,22.5,

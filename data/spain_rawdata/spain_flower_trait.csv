@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 species,code.plant,code.analysis,flowerwidth_range_mm,inflorenscence.cm,floret.mm,seed_size_range_long_wide_mm,seed_size_longest,comments
+=======
+species,code.plant,code.analysis,flowerwidth_range_mm,inflorenscence.cm,flower.mm,seed_size_range_long_wide_mm,seed_size_longest,comments
+>>>>>>> Stashed changes
 beta_macrocarpa,BEMA,BEMA,1.5_3 ,2.25,2.25,,,
 centaurium_tenuiflorum,CETE,CETE,13_15,,12,0.25_0.40,0.325,
 chamaemelum_fuscatum,CHFU,CHFU,24_30,,27,񁤿.3,,capitulum

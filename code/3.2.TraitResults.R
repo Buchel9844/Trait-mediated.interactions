@@ -57,14 +57,7 @@ load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 country.list <- c("aus","spain")
 # parameter from models
 load(paste0(home.dic,"results/parameters_alpha.RData")) 
-# Raw sigmoid
-load(paste0(project.dic,"results/Param.sigm.df.RData"))
-# realised interactions for each year
-load(paste0(project.dic,"results/Theoretical.Int.list.RData")) 
 
-# PDSI
-env_pdsi_aus <- read.csv(paste0(home.dic,"results/aus_env_pdsi.csv")) 
-env_pdsi_spain <- read.csv(paste0(home.dic,"results/spain_env_pdsi.csv")) 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 1.Looking at trait-mediated interactions----
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
@@ -118,8 +111,8 @@ for( country in country.list){
 }
 
 save(taxize_dist.list,
-     file="results/taxize_dist.list.RData")
-load(file="results/taxize_dist.list.RData")
+     file="results/trait-related/taxize_dist.list.RData")
+load(file="results/trait-related/taxize_dist.list.RData")
 
 #---- 1.1. Make data df ----
 Cool.theory.trait.df <- list()
@@ -183,27 +176,27 @@ for( country in country.list){
   if(country=="aus"){
     specific.trait.dist <- specific.trait.dist %>%
       dplyr::filter(trait %in% c("SRL","Root tips","Root mass density","Root length",
-                      "C13 water use efficiency","Flower width","Seed mass",
+                      "C13 water use efficiency","Floret width","Seed mass",
                       "Stem height","SLA"))%>%
       mutate(trait = factor(trait, levels=c("SRL","Root tips","Root mass density","Root length",
-                                            "C13 water use efficiency","Flower width","Seed mass",
+                                            "C13 water use efficiency","Floret width","Seed mass",
                                             "Stem height","SLA"))) 
   }
   if(country=="spain"){
     specific.trait.dist <- specific.trait.dist %>%
       dplyr::filter(trait %in% c("SRL","Root diameter","Root mass density","SRA",
                       "C13 water use efficiency","Leaf C to N ratio",#"Leaf area index",
-                      "Flower width","Seed mass","Stem height","SLA"))%>%
+                      "Floret width","Seed mass","Stem height","SLA"))%>%
       mutate(trait = factor(trait, levels=c("SRL","Root diameter","Root mass density","SRA",
                                         "C13 water use efficiency","Leaf C to N ratio",#"Leaf area index",
-                                            "Flower width","Seed mass","Stem height","SLA"))) 
+                                            "Floret width","Seed mass","Stem height","SLA"))) 
   }
   Cool.theory.trait.df[[country]]$trait.dist.df <- specific.trait.dist
 }
-
+levels(as.factor(Cool.theory.trait.df[["spain"]]$trait.dist.df$trait)) %in% levels(as.factor(Cool.theory.trait.df[["aus"]]$trait.dist.df$trait))
 #---- 1.1.2 Run lambda regression----
 
-for( country in country.list){
+for( country in "aus"){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   trait.df <- get(paste0("clean.data.",country))[["plant_traits"]] %>%
     dplyr::select(-any_of(c("Canopy shape","Mean fecundity","Leaf area index")))
@@ -218,7 +211,7 @@ for( country in country.list){
               relationship ="many-to-many")
   Lambda.trait.df <- NULL
   glm.lambda.trait.summary <- NULL
-  #trait.i = "Flower width"
+  #trait.i = "Floret width"
   #n ="low"
   for( trait.i in names(trait.df)){
     for(n in c("low","high")){
@@ -264,12 +257,12 @@ for( country in country.list){
   Cool.theory.trait.df[[country]]$Lambda.trait.df <- Lambda.trait.df
 
 }
-Lambda.trait.df <- Cool.theory.trait.df[[country]]$Lambda.trait.df
+
 save(Cool.theory.trait.df,
-     file="results/Cool.theory.trait.df.Rdata")
+     file="results/trait-related/Cool.theory.trait.df.Rdata")
 #---- 1.1.3 Run INTRA regression----
 
-for( country in country.list){
+for( country in "aus"){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   trait.df <- get(paste0("clean.data.",country))[["plant_traits"]] %>%
     dplyr::select(-any_of(c("Canopy shape","Mean fecundity","Leaf area index")))
@@ -283,7 +276,7 @@ for( country in country.list){
   Intra.trait.df <- NULL
   glm.intra.trait.summary <- NULL
   #trait.i = "SLA"
-  #trait.i = "Flower width"
+  #trait.i = "Floret width"
   for( trait.i in names(trait.df)){
     print(trait.i)
     for(n in c("low","high")){#density.quantile.name){
@@ -332,11 +325,11 @@ for( country in country.list){
   Cool.theory.trait.df[[country]]$Intra.trait.df  <- Intra.trait.df 
 }
 save(Cool.theory.trait.df,
-     file="results/Cool.theory.trait.df.Rdata")
+     file="results/trait-related/Cool.theory.trait.df.Rdata")
 
 #---- 1.1.3 Run INTER regression----
-country="spain"
-for( country in country.list){
+
+for( country in "aus"){
     Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
     trait.df <- get(paste0("clean.data.",country))[["plant_traits"]] %>%
       dplyr::select(-any_of(c("Canopy shape","Mean fecundity","Leaf area index")))
@@ -358,6 +351,7 @@ for( country in country.list){
   # n ="low"
     for( trait.i in names(trait.df)){ #names(trait.df)){
       for(n in c("low","high")){
+        print(paste0(country,trait.i,n))
       trait.dist.df.i <-  trait.dist.df %>%
         dplyr::filter(trait==trait.i) %>%
         dplyr::filter(density.quantile==n) %>%
@@ -373,7 +367,8 @@ for( country in country.list){
       
       if(i %in% c("C13 water use efficiency")){
         trait.dist.df.i <-    trait.dist.df.i %>%
-          dplyr::select(-c('receiver.trait.scaled','emitter.trait.scaled','scaled.trait.dist','trait.dist')) %>%
+          dplyr::select(-c('receiver.trait.scaled','emitter.trait.scaled',
+                           'scaled.trait.dist','trait.dist')) %>%
           dplyr::rename("receiver.trait.scaled" ="receiver.trait.log.scaled",
                         "emitter.trait.scaled" ="emitter.trait.log.scaled",
                         "scaled.trait.dist" ="scaled.trait.ratio",
@@ -398,7 +393,8 @@ for( country in country.list){
                                            prior =  set_prior("normal(0,0.1)",
                                                                   class = "b", 
                                                                   lb = -1, ub=1),
-                                           warmup = floor(2000/2))
+                                           warmup = floor(2000/2),
+                                       silent = 1)
     
 
       #summary(glm.inter.trait.outlier.i)
@@ -424,7 +420,8 @@ for( country in country.list){
                                        prior =  set_prior("normal(0,0.1)",
                                                           class = "b", 
                                                           lb = -1, ub=1),
-                                       warmup = floor(2000/2))
+                                       warmup = floor(2000/2),
+                                    silent = 1)
       
       Inter.trait.df.dist.i <- as.data.frame(glm.inter.trait.dist.i,
                                         variable =c("b_Intercept",
@@ -446,12 +443,12 @@ for( country in country.list){
   Cool.theory.trait.df[[country]]$trait.dist.df  <-  trait.dist.df 
   Cool.theory.trait.df[[country]]$Inter.trait.df  <- Inter.trait.df
   save(Cool.theory.trait.df,
-       file="results/Cool.theory.trait.df.Rdata")
+       file="results/trait-related/Cool.theory.trait.df.Rdata")
 }
 save(Cool.theory.trait.df,
-     file="results/Cool.theory.trait.df.Rdata")
+     file="results/trait-related/Cool.theory.trait.df.Rdata")
 
-load("results/Cool.theory.trait.df.Rdata")
+load("results/trait-related/Cool.theory.trait.df.Rdata")
 
 view(Cool.theory.trait.df[[country]]$Inter.trait.df)
 str(Cool.theory.trait.df[[country]])
@@ -468,7 +465,7 @@ density.quantile.name <- c("low","high")
 country="aus"
 dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","Root tips"="#512DA8FF" ,
                "Root diameter"="#F28E2BFF" , "Root mass density"="#ED645AFF",
-               "Flower width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
+               "Floret width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
                "C13 water use efficiency"="#9C755FFF",
                "Leaf C to N ratio"= "#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
@@ -479,14 +476,13 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
+                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
                  "SLA"="Specific leaf area","Stem height"="Stem height")
 
 country="spain"
-
 n="low"
 for( country in country.list){
   for(n in c("low","high")){
@@ -832,7 +828,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Floret width"= "Flower width" ,"Seed mass"="Seed mass",
+                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
@@ -988,7 +984,7 @@ data.subpanel.label <- data.frame(country=c(rep("Australia",18),rep("Spain",18))
                             "m.","n.","o.",
                             "p.","q.","r.", rep("",18)),
              trait.names = rep(rep(c("Specific leaf area","Water use efficiency",
-                                     "Flower width","Stem height",
+                                     "Floret width","Stem height",
                                      "Specific root length","Root tissue density"),each=3),times=2),
              parameters = rep(c("Focal trait","Emitter trait","Focal trait -\nEmitter trait"),times=12))
   
@@ -1007,7 +1003,7 @@ data.subpanel.label <- data.frame(country=c(rep("Australia",18),rep("Spain",18))
     mutate(y_numb =case_when(country=="Spain" ~0.4, T~0),
            y_trait=((as.numeric(trait))+y_numb)) %>%
     left_join(result.ks.test, by=c("parameters","trait.names")) %>%
-    mutate(rect.color=case_when(`Estimate % of overlap`<0.5 ~ "Opposite",
+    mutate(rect.color=case_when('Estimate % of overlap'<0.5 ~ "Opposite",
                                  T~"Consistent")) %>%
     ggplot(aes(y=factor(country,levels=c("Spain","Australia")),
                x=estimate,
@@ -1023,7 +1019,7 @@ data.subpanel.label <- data.frame(country=c(rep("Australia",18),rep("Spain",18))
               "Positively correlated with facilitation"))+
     facet_grid(factor(addline_format(trait.names),
                       addline_format(c("Specific leaf area","Water use efficiency",
-                                       "Flower width","Stem height",
+                                       "Floret width","Stem height",
                                        "Specific root length","Root tissue density"))) ~ factor(parameters, 
                                                                              c("Focal trait","Emitter trait","Focal trait -\nEmitter trait"))) +
     geom_vline(xintercept=0) + 
@@ -1157,7 +1153,7 @@ intra.plot <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i %>%
                        labels=c("Negatively correlated with facilitation","Neutre",
                                 "Positively correlated with facilitation"))+
   facet_grid(factor(addline_format(trait.names),
-                    addline_format(c("Flower width","Stem height",
+                    addline_format(c("Floret width","Stem height",
                                      "Specific leaf area","Water use efficiency",
                                      "Specific root length","Root tissue density"))) ~ factor(parameters, 
                                                                                               c("Focal trait"))) +
@@ -1504,7 +1500,7 @@ ggarrange(Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal tr
 #---- 1.6.3. FIG R3 -Make graph for main text -INTER - LAMBDA ----
   
   trait.to.remove <- c(#"Root diameter",
-                       #"Flower width","Seed mass",
+                       #"Floret width","Seed mass",
                        "Leaf area index",
                        "Canopy shape")
   
@@ -1608,7 +1604,7 @@ ggarrange(Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal tr
 #---- 1.6.4. FIG R3 -Make graph for main text -INTRA - LAMBDA ----
   
   trait.to.remove <- c(#"Root diameter",
-    #"Flower width","Seed mass",
+    #"Floret width","Seed mass",
     "Leaf area index",
     "Canopy shape")
   
@@ -1819,7 +1815,7 @@ dummy.names <- list("SRL"="SRL (cm/g)","SRA"="SRA (cm^2/g)" ,"Root length"="Root
                  "Root tips"="Root tips" ,
                  "Root diameter"="Root diameter \n(mm)" ,
                  "Root mass density"="Root mass \ndensity \n(mg/mm3)",
-                 "Flower width"= "Flower width \n(mm)" ,"Seed mass"="Seed mass \n(mg)",
+                 "Floret width"= "Flower width \n(mm)" ,"Seed mass"="Seed mass \n(mg)",
                  "C13 water use efficiency"="C13 water \nuse efficiency \n(per ml)",
                  "Leaf C to N ratio"= "Leaf C to N ratio" ,
                  "Leaf area index"="Leaf area index" ,
@@ -2004,8 +2000,8 @@ inter.plot <- summary.table.for.plot.glm[["aus"]]$df.i %>%
   mutate(trait.names=dummy.names[trait]) %>%
   mutate(y_numb =case_when(country=="Spain" ~0.4, T~0),
          y_trait=((as.numeric(trait))+y_numb)) %>%
-  mutate(rect.color=case_when((trait=="Flower width" & parameters=="Focal trait")~ "Consistent",
-                              (trait=="Flower width" & parameters=="Emitter trait")~ "Consistent",
+  mutate(rect.color=case_when((trait=="Floret width" & parameters=="Focal trait")~ "Consistent",
+                              (trait=="Floret width" & parameters=="Emitter trait")~ "Consistent",
                               (trait=="Stem height" & parameters=="Focal trait")~ "Consistent",
                               (trait=="SLA" & !parameters=="Focal trait") ~ "Consistent",
                               (trait=="C13 water use efficiency" & parameters=="Focal trait") ~ "Opposite",
@@ -2316,7 +2312,7 @@ dummy.names <- c("C13 water use efficiency"="Water use efficiency",
                "SRL"="Specific root length")
 dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","Root tips"="#512DA8FF" ,
                "Root diameter"="#F28E2BFF" , "Root mass density"="#ED645AFF",
-               "Flower width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
+               "Floret width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
                "C13 water use efficiency"="#9C755FFF",
                "Leaf C to N ratio"= "#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
@@ -2326,7 +2322,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-               "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
+               "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
                "C13 water use efficiency"="Water use efficiency",
                "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
@@ -2471,7 +2467,7 @@ density.quantile.name <- c("low","high")
 country="aus"
 dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","Root tips"="#512DA8FF" ,
                "Root diameter"="#F28E2BFF" , "Root mass density"="#ED645AFF",
-               "Flower width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
+               "Floret width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
                "C13 water use efficiency"="#9C755FFF",
                "Leaf C to N ratio"= "#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
@@ -2482,7 +2478,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
+                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",

@@ -35,11 +35,8 @@ library(ggraph)
 #install.packages("ggraph")
 library(Polychrome)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
-project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
-home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
-project.dic <- "/Users/lisabuche/Documents/Projects/Trait-mediated.interactions/"
-home.dic <- "/Users/lisabuche/Documents/Projects/Trait-mediated.interactions/"
-
+project.dic <- ""
+home.dic <- ""
 load(file=paste0(home.dic,"data/clean.data.aus.RData"))
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
 country.list <- c("aus","spain")
@@ -163,7 +160,7 @@ for(country in country.list){
     Theoretical.Int.country.df <- bind_rows( Theoretical.Int.country.df,test.sigmoid)
     
     save(Theoretical.Int.country.df,
-         file=paste0(project.dic,"results/Theoretical.Int.df_",country,".RData"))
+         file=paste0(project.dic,"results/sigmoid-output/Theoretical.Int.df_",country,".RData"))
     
   }
   
@@ -172,10 +169,10 @@ for(country in country.list){
 }
 
 save(Theoretical.Int.list,
-     file=paste0(project.dic,"results/Theoretical.Int.list.RData"))
+     file=paste0(project.dic,"results/sigmoid-output/Theoretical.Int.list.RData"))
 
 
-load(paste0(project.dic,"results/Theoretical.Int.list.RData"))
+load(paste0(project.dic,"results/sigmoid-output/Theoretical.Int.list.RData"))
 
 Theoretical.Int.list[["aus"]] %>%
   dplyr::filter(density.quantile =="low") %>%
@@ -473,13 +470,13 @@ for(country in country.list){
   write.csv(bind_rows(sum.up.intra.df.n,sum.up.inter.df.n) %>%
               mutate(proportion.positive = round(proportion.positive*100,digits=3),
                      proportion.negative= round(proportion.negative*100,digits=3)),
-            file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv"))
+            file=paste0(home.dic,"results/sigmoid-output/Sum.up.Intra.Inter.",country,".csv"))
   
 }
 
-write.csv(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv")) %>%
+write.csv(read.csv(file=paste0(home.dic,"results/sigmoid-output/Sum.up.Intra.Inter.aus.csv")) %>%
   mutate(country="Australia") %>%
-  bind_rows(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.spain.csv"))%>%
+  bind_rows(read.csv(file=paste0(home.dic,"results/sigmoid-output/Sum.up.Intra.Inter.spain.csv"))%>%
               mutate(country="Spain"))%>%
     dplyr::select(density.quantile.number,country,density.quantile,interaction,proportion.positive,proportion.negative,
                   mean.effect,std.effect) %>%
@@ -491,14 +488,14 @@ write.csv(read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.aus.csv")) %
                                    interaction=="inter"~"hetero-"),
            density.quantile.number= case_when(country=="Spain"~ density.quantile.number+8,
                                               T ~density.quantile.number)),
-  file=paste0(home.dic,"results/SUPP.SUM.UP.csv"))
+  file=paste0(home.dic,"results/sigmoid-output/SUPP.SUM.UP.csv"))
 
 
 # side figure for FIG3
 color.vec <- c(proportion.positive =wes_palette("Zissou1", 2, type = "continuous")[1],
                proportion.negative =wes_palette("Zissou1", 2, type = "continuous")[2])
 country="aus"
-read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv")) %>%
+read.csv(file=paste0(home.dic,"results/sigmoid-output/Sum.up.Intra.Inter.",country,".csv")) %>%
   dplyr::filter(density.quantile %in% c("low","high")) %>%
   mutate(label.position.positive =proportion.positive/2,
          label.position.negative =proportion.positive + proportion.negative/2) %>%
@@ -508,7 +505,7 @@ read.csv(file=paste0(home.dic,"results/Sum.up.Intra.Inter.",country,".csv")) %>%
   mutate(label.text = case_when((proportion=="proportion.positive" & prop>0) ~ paste(as.character(round(prop,digits = 0)),"%"),
                                 (proportion=="proportion.negative" & prop>0) ~ paste(as.character(round(prop,digits = 0)),"%"),
                                     T ~ "")) %>%
-  filter(density.quantile=="high")%>%
+  filter(density.quantile=="low")%>%
   ggplot(aes(group=proportion,fill=proportion, 
              y= prop, x=interaction)) +
   geom_bar(stat="identity",position="stack",alpha=0.8) +

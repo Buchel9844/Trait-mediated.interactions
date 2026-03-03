@@ -13,13 +13,13 @@ number,species,family,code.plant,class,Native.sp,rareORabundant,code.analysis
 7,Hordeum marinum,Poaceae,HOMA,Grass,Native Annual Grass,abundant,HOMA
 8,Leontodon maroccanus,Asteraceae,LEMA,Forb,Native Annual Forb,abundant,LEMA
 9,Lythrum tribracteatum,Lythraceae,LYTR,Forb,Native Annual Forb,rare,rare
-10,Melilotus elengans,Fabaceae,MEEL,Forb,Native Annual Forb,rare,ME.sp
+10,Melilotus elegans,Fabaceae,MEEL,Forb,Native Annual Forb,rare,ME.sp
 25,NA,Fabaceae,MEPO,Forb,NA,rare,rare
 11,Melilotus sulcatus,Fabaceae,MESU,Forb,Native Annual Forb,rare,ME.sp
 29,NA,Poaceae,NEWGRASS,Grass,NA,NA,rare
 16,Parapholis incurva,Poaceae,PAIN,Grass,Native Annual Grass,abundant,PAIN
 12,Plantago coronopus,Plantaginaceae,PLCO,Forb,Native Annual Forb,rare,PLCO
-14,Polypogon martinus,Poaceae,POMA,Grass,Native Annual Grass,abundant,PO.sp
+14,Polypogon maritimus,Poaceae,POMA,Grass,Native Annual Grass,abundant,PO.sp
 13,Polypogon monspeliensis,Poaceae,POMO,Grass,Native Annual Grass,rare,PO.sp
 15,Pulicaria paludosa,Asteraceae,PUPA,Forb,Native Annual Forb,abundant,rare
 22,Ranunculus peltatus,Ranunculuc,RAPE,Forb,Native Annual Forb,rare,rare
