@@ -2,7 +2,6 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #---- 1. SET UP: Import data, create df with competiton and seed distributions----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-rm(list = ls())
 
 #---- 1.1. Import packages ----
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
@@ -178,22 +177,22 @@ for(country in country.list){
                        chains = 4,
                        seed= 1616) 
       
-      save(file= paste0(project.dic,"results/Modelfit_",Code.focal,"_",country,".rds"),
+      save(file= paste0(project.dic,"results/stan/Modelfit_",Code.focal,"_",country,".rds"),
            Modelfit)
     }
     
-    load(paste0(project.dic,"results/Modelfit_",Code.focal,"_",country,".rds"))
+    load(paste0(project.dic,"results/stan/Modelfit_",Code.focal,"_",country,".rds"))
     
     ModelfitPosteriors <- rstan::extract(Modelfit)
     
-    save(file= paste0(project.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"),
+    save(file= paste0(project.dic,"results/stan/ModelfitPosteriors",Code.focal,"_",country,".Rdata"),
          ModelfitPosteriors)
-    load(file= paste0(project.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"))
+    load(file= paste0(project.dic,"results/stan/ModelfitPosteriors",Code.focal,"_",country,".Rdata"))
     
     
     Modelfit_loo <- rstan::loo(Modelfit,pars ="F_sim")
     
-    save(file= paste0(project.dic,"results/ModelfitLOO",Code.focal,"_",country,".Rdata"),
+    save(file= paste0(project.dic,"results/stan/ModelfitLOO",Code.focal,"_",country,".Rdata"),
          Modelfit_loo)
     
     print("Final Fit done")
@@ -201,7 +200,7 @@ for(country in country.list){
     #---- 3.3. Final fit posterior check and behavior checks---- 
     
     ##### Diagnostic plots and post prediction 
-    pdf(paste0(project.dic,"figures/Modelfit_",Code.focal,"_",country,".pdf"))
+    pdf(paste0(project.dic,"figures/Models_behavior/Modelfit_",Code.focal,"_",country,".pdf"))
     # Internal checks of the behaviour of the Bayes Modelsummary(PrelimFit)
     #source("code/stan_modelcheck_rem.R") # call the functions to check diagnistic plots
     source(paste0(home.dic,"code/stan_modelcheck_rem.R")) # call the functions to check diagnistic plots
@@ -209,7 +208,7 @@ for(country in country.list){
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
     stan_post_pred_check_nbin(ModelfitPosteriors,"F_hat",Fecundity,
-                              paste0(project.dic,"results/PostFec_Modelfit_",Code.focal,"_",country,".csv.gz"),
+                              paste0(project.dic,"results/Models_behavior/PostFec_Modelfit_",Code.focal,"_",country,".csv.gz"),
                               limx=max(Fecundity)+100) 
     
     # N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
@@ -284,7 +283,7 @@ for(country in country.list){
     )
     
     
-    save(file= paste0(project.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"),
+    save(file= paste0(project.dic,"results/parameter/Parameters_",Code.focal,"_",country,".Rdata"),
          parameter)
     print(paste("all done for ",country,Code.focal))
     
