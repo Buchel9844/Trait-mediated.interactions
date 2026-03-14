@@ -605,7 +605,7 @@ for(country in country.list){
   sigmoid.list[[country]] <-  sigmoid.list.focal
 }
 
-AUS.sigmoid<- ggarrange(ggarrange(plotlist =   sigmoid.list[["aus"]],
+AUS.sigmoid <- ggarrange(ggarrange(plotlist =   sigmoid.list[["aus"]],
                                   #labels=species.spain,
                                   common.legend = F,
                                   legend="none"),

@@ -25,7 +25,7 @@ library(ggthemes)
 library(grid)
 #setwd("/home/lbuche/Eco_Bayesian/chapt3")
 home.dic <- "/home/lbuche/Eco_Bayesian/chapt3/"
-project.dic <- "/data/projects/punim1670/Eco_Bayesian/Complexity_caracoles/chapt3/"
+project.dic <- "/Users/lisabuche/Documents/Projects/Trait-mediated.interactions_modelbehavior/"
 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 2. Check Model----
@@ -58,15 +58,15 @@ for(country in country.list){
   for(Code.focal in Code.focal.list){ #focal.levels
     print(paste(country,Code.focal))
     if(Code.focal =="BEMA") next
-    load(paste0(project.dic,"results/Modelfit_",Code.focal,"_",country,".rds"))
+    load(paste0(project.dic,"results/stan/Modelfit_",Code.focal,"_",country,".rds"))
     
     
     ModelfitPosteriors <- rstan::extract(Modelfit)
     
     
-    load(file= paste0(project.dic,"results/ModelfitPosteriors",Code.focal,"_",country,".Rdata"))
+    load(file= paste0(project.dic,"results/stan/ModelfitPosteriors",Code.focal,"_",country,".Rdata"))
     
-    load(paste0(project.dic,"results/Parameters_",Code.focal,"_",country,".Rdata"))
+    load(paste0(project.dic,"results/stan/Parameters_",Code.focal,"_",country,".Rdata"))
     options(mc.cores =  parallel::detectCores())
     loo.fit <- rstan::loo(Modelfit,pars ="F_sim")
     loo.fit.df <- as.data.frame(loo.fit$estimates)

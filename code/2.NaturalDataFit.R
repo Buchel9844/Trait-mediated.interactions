@@ -172,7 +172,7 @@ for(country in country.list){
                        init =list.init, # all initial values are 0 
                        control=list(max_treedepth=15),
                        warmup = 2000,
-                       iter = 8000, 
+                       iter = 4000, 
                        init_r = 2,
                        chains = 4,
                        seed= 1616) 
@@ -208,7 +208,7 @@ for(country in country.list){
     # check the distribution of Rhats and effective sample sizes 
     ##### Posterior check
     stan_post_pred_check_nbin(ModelfitPosteriors,"F_hat",Fecundity,
-                              paste0(project.dic,"results/Models_behavior/PostFec_Modelfit_",Code.focal,"_",country,".csv.gz"),
+                              paste0(project.dic,"results/PostFec_Modelfit_",Code.focal,"_",country,".csv.gz"),
                               limx=max(Fecundity)+100) 
     
     # N.B. amount by which autocorrelation within the chains increases uncertainty in estimates can be measured
