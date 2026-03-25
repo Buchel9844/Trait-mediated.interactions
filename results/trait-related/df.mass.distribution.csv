@@ -1,49 +1,49 @@
-"","country","parameters","trait","estimate.positive","estimate.neg","estimate.median","estimate.probabilitydirection","trait.names","significance.pos","significance.neg","significance"
-"1","Australia","Focal trait","SRL",35.275,64.725,-0.00437810468150723,64.725,"Specific root length","","",""
-"2","Australia","Focal trait","Root mass density",16.3,83.7,-0.0111538669753678,83.7,"Root tissue density","","",""
-"3","Australia","Focal trait","Floret width",16.1,83.9,-0.00995066438538877,83.9,"Floret width","","",""
-"4","Australia","Focal trait","C13 water use efficiency",5.55,94.45,-0.0161103061329469,94.45,"Water use efficiency","˙","","˙"
-"5","Australia","Focal trait","SLA",60.125,39.875,0.00271452097020286,60.125,"Specific leaf area","","",""
-"6","Australia","Focal trait","Stem height",18.575,81.425,-0.00858716514598945,81.425,"Stem height","","",""
-"7","Australia","Focal trait -
-Neighbor trait","SRL",16.975,83.025,-0.00747852242427105,83.025,"Specific root length","","",""
-"8","Australia","Focal trait -
-Neighbor trait","Root mass density",14.2,85.8,-0.00842248235178877,85.8,"Root tissue density","","",""
-"9","Australia","Focal trait -
-Neighbor trait","Floret width",66.175,33.825,0.0035814227104084,66.175,"Floret width","","",""
-"10","Australia","Focal trait -
-Neighbor trait","C13 water use efficiency",1.7,98.3,-0.0168349468583848,98.3,"Water use efficiency","*","","*"
-"11","Australia","Focal trait -
-Neighbor trait","SLA",87.7,12.3,0.00920571463832276,87.7,"Specific leaf area","","",""
-"12","Australia","Focal trait -
-Neighbor trait","Stem height",28.075,71.925,-0.00446935148760624,71.925,"Stem height","","",""
-"13","Australia","Neighbor trait","SRL",77.25,22.75,0.0058936233622432,77.25,"Specific root length","","",""
-"14","Australia","Neighbor trait","Root mass density",67.975,32.025,0.00341766276331124,67.975,"Root tissue density","","",""
-"15","Australia","Neighbor trait","Floret width",9.35,90.65,-0.00936606101598025,90.65,"Floret width","˙","","˙"
-"16","Australia","Neighbor trait","C13 water use efficiency",88.75,11.25,0.00910886817357881,88.75,"Water use efficiency","","",""
-"17","Australia","Neighbor trait","SLA",11.6,88.4,-0.00845761917985322,88.4,"Specific leaf area","","",""
-"18","Australia","Neighbor trait","Stem height",47.85,52.15,-0.000411122515846185,52.15,"Stem height","","",""
-"19","Spain","Focal trait","SRL",19.725,80.275,-0.0121375508919904,80.275,"Specific root length","","",""
-"20","Spain","Focal trait","Root mass density",81.8,18.2,0.0135015603624349,81.8,"Root tissue density","","",""
-"21","Spain","Focal trait","Floret width",6.075,93.925,-0.0230422256774154,93.925,"Floret width","˙","","˙"
-"22","Spain","Focal trait","C13 water use efficiency",92.275,7.725,0.0200979622305137,92.275,"Water use efficiency","","˙","˙"
-"23","Spain","Focal trait","SLA",8.075,91.925,-0.0214142774229361,91.925,"Specific leaf area","˙","","˙"
-"24","Spain","Focal trait","Stem height",10.2,89.8,-0.0193931348551641,89.8,"Stem height","","",""
-"25","Spain","Focal trait -
-Neighbor trait","SRL",27.15,72.85,-0.00725469594026956,72.85,"Specific root length","","",""
-"26","Spain","Focal trait -
-Neighbor trait","Root mass density",67.725,32.275,0.00576472707639109,67.725,"Root tissue density","","",""
-"27","Spain","Focal trait -
-Neighbor trait","Floret width",61.975,38.025,0.00381113172900749,61.975,"Floret width","","",""
-"28","Spain","Focal trait -
-Neighbor trait","C13 water use efficiency",34.65,65.35,-0.00564708653829771,65.35,"Water use efficiency","","",""
-"29","Spain","Focal trait -
-Neighbor trait","SLA",76.95,23.05,0.00972218325138097,76.95,"Specific leaf area","","",""
-"30","Spain","Focal trait -
-Neighbor trait","Stem height",36.25,63.75,-0.00395399884457404,63.75,"Stem height","","",""
-"31","Spain","Neighbor trait","SRL",50.85,49.15,0.000267999414516717,50.85,"Specific root length","","",""
-"32","Spain","Neighbor trait","Root mass density",56.975,43.025,0.00200543221794081,56.975,"Root tissue density","","",""
-"33","Spain","Neighbor trait","Floret width",9.725,90.275,-0.0126351159111414,90.275,"Floret width","˙","","˙"
-"34","Spain","Neighbor trait","C13 water use efficiency",94,6,0.0167990337377858,94,"Water use efficiency","","˙","˙"
-"35","Spain","Neighbor trait","SLA",3.4,96.6,-0.0171973035084332,96.6,"Specific leaf area","*","","*"
-"36","Spain","Neighbor trait","Stem height",32.075,67.925,-0.00449066466120596,67.925,"Stem height","","",""
+,country,parameters,trait,estimate.positive,estimate.neg,estimate.median,significance.pos,significance.neg,significance
+1,Australia,Focal trait,SRL,35.275,64.725,-0.004378105,,,
+2,Australia,Focal trait,Root mass density,16.3,83.7,-0.011153867,,,
+3,Australia,Focal trait,Floret width,16.1,83.9,-0.009950664,,,
+4,Australia,Focal trait,C13 water use efficiency,5.55,94.45,-0.016110306,**,,**
+5,Australia,Focal trait,SLA,60.125,39.875,0.002714521,,,
+6,Australia,Focal trait,Stem height,18.575,81.425,-0.008587165,,,
+7,Australia,"Focal trait -
+Neighbor trait",SRL,16.975,83.025,-0.007478522,,,
+8,Australia,"Focal trait -
+Neighbor trait",Root mass density,14.2,85.8,-0.008422482,,,
+9,Australia,"Focal trait -
+Neighbor trait",Floret width,66.175,33.825,0.003581423,,,
+10,Australia,"Focal trait -
+Neighbor trait",C13 water use efficiency,1.7,98.3,-0.016834947,*,,*
+11,Australia,"Focal trait -
+Neighbor trait",SLA,87.7,12.3,0.009205715,,,
+12,Australia,"Focal trait -
+Neighbor trait",Stem height,28.075,71.925,-0.004469351,,,
+13,Australia,Neighbor trait,SRL,77.25,22.75,0.005893623,,,
+14,Australia,Neighbor trait,Root mass density,67.975,32.025,0.003417663,,,
+15,Australia,Neighbor trait,Floret width,9.35,90.65,-0.009366061,**,,**
+16,Australia,Neighbor trait,C13 water use efficiency,88.75,11.25,0.009108868,,,
+17,Australia,Neighbor trait,SLA,11.6,88.4,-0.008457619,,,
+18,Australia,Neighbor trait,Stem height,47.85,52.15,-0.000411123,,,
+19,Spain,Focal trait,SRL,19.725,80.275,-0.012137551,,,
+20,Spain,Focal trait,Root mass density,81.8,18.2,0.01350156,,,
+21,Spain,Focal trait,Floret width,6.075,93.925,-0.023042226,**,,**
+22,Spain,Focal trait,C13 water use efficiency,92.275,7.725,0.020097962,,**,**
+23,Spain,Focal trait,SLA,8.075,91.925,-0.021414277,**,,**
+24,Spain,Focal trait,Stem height,10.2,89.8,-0.019393135,,,
+25,Spain,"Focal trait -
+Neighbor trait",SRL,27.15,72.85,-0.007254696,,,
+26,Spain,"Focal trait -
+Neighbor trait",Root mass density,67.725,32.275,0.005764727,,,
+27,Spain,"Focal trait -
+Neighbor trait",Floret width,61.975,38.025,0.003811132,,,
+28,Spain,"Focal trait -
+Neighbor trait",C13 water use efficiency,34.65,65.35,-0.005647087,,,
+29,Spain,"Focal trait -
+Neighbor trait",SLA,76.95,23.05,0.009722183,,,
+30,Spain,"Focal trait -
+Neighbor trait",Stem height,36.25,63.75,-0.003953999,,,
+31,Spain,Neighbor trait,SRL,50.85,49.15,0.000267999,,,
+32,Spain,Neighbor trait,Root mass density,56.975,43.025,0.002005432,,,
+33,Spain,Neighbor trait,Floret width,9.725,90.275,-0.012635116,**,,**
+34,Spain,Neighbor trait,C13 water use efficiency,94,6,0.016799034,,**,**
+35,Spain,Neighbor trait,SLA,3.4,96.6,-0.017197304,*,,*
+36,Spain,Neighbor trait,Stem height,32.075,67.925,-0.004490665,,,

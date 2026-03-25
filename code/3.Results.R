@@ -334,7 +334,6 @@ load(paste0(home.dic,"results/sigmoid-output/Parameters_alpha.RData"))
 color.year <- data.frame(year=c("2015","2016","2017","2018","2019","2020","2021"),
                          col.value=colorblind_pal()(8)[2:8])
 plot.lambda <- list()
-env_pdsi_med_list <- list()
 for(country in country.list){
   Code.focal.list <- get(paste0("clean.data.",country))[[paste0("species_",country)]]
   competition_df <- get(paste0("clean.data.",country))[[paste0("competition_",country)]] 
@@ -345,26 +344,33 @@ for(country in country.list){
       add_row(sp="ME.sp", lambda=median(lambda_df$lambda[which(lambda_df$sp=="MEEL")],
                                         lambda_df$lambda[which(lambda_df$sp=="MESU")])) %>%
       add_row(sp="Po.sp", lambda=median(lambda_df$lambda[which(lambda_df$sp=="POMO")],
-                                        lambda_df$lambda[which(lambda_df$sp=="POMA")]))
+                                        lambda_df$lambda[which(lambda_df$sp=="POMA")])) %>%
+      rename("code"="sp")
   }
   
   for(Code.focal in Code.focal.list){ #focal.levels
     mean.fecundity <- competition_df %>% 
-      dplyr::filter(focal ==Code.focal)
+      dplyr::filter(focal ==Code.focal) 
     year.levels <- colnames(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd)
     
-    plot.lambda[[Code.focal]] <- Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd %>%
-      mutate_at(year.levels, ~ rowSums(cbind(., Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean))) %>%
-      tidyr::gather(all_of(year.levels),
-                    key="year", value="lambda_sd") %>%
-      ggplot(aes(y=lambda_sd, 
-                 x=as.factor(year))) +
-      geom_boxplot(width=0.2) +
-      geom_hline(yintercept=median(mean.fecundity$seed),
+    plot.lambda[[Code.focal]] <- ggplot() +
+      geom_boxplot(data=Parameters[[paste(country,"_",Code.focal)]]$df_lambda_sd %>%
+                     mutate_at(year.levels, ~ rowSums(cbind(., Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean))) %>%
+                     tidyr::gather(all_of(year.levels),
+                                   key="year", value="lambda_sd"),
+                   aes(y=log(lambda_sd), 
+                       x=as.factor(year)),
+                   width=0.2) +
+      geom_hline(yintercept=log(mean(mean.fecundity$seed)) ,
                  color="red") +
-      geom_hline(yintercept=median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1])) +
-      geom_hline(yintercept = lambda_df$lambda[which(lambda_df$sp==Code.focal)],
-                 color="blue")+
+      geom_rect(ymin=log(quantile(mean.fecundity$seed,0.05)),
+                ymax=log(quantile(mean.fecundity$seed,0.95)),
+                xmin=min(competition_df$year),
+                xmax=max(competition_df$year),
+               color="red") +
+      geom_hline(yintercept=log(median(Parameters[[paste(country,"_",Code.focal)]]$df_lambda_mean[,1]))) +
+      geom_hline(yintercept = log(lambda_df$lambda[which(lambda_df$code==Code.focal)]),
+                 color="blue") +
       labs(title = Code.focal, #title="Intrinsic growth rate of LEMA across years,\n as their mean PDSI",
            x= "year",
            y="Estimated intrinsic fecundity") +
