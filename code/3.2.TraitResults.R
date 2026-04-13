@@ -1341,11 +1341,11 @@ for( parameters.n in c("Focal trait","Neighbor trait","Focal trait -\nNeighbor t
                color=as.factor(trait),
                group=as.factor(trait) )) + 
     #shape=density.quantile)) +
-    geom_point(size=9,alpha=0.8) +
-    geom_pointrange(aes(ymin=low.est.high,
-                        ymax=up.est.high),alpha=0.6,size=1) +
-    geom_errorbarh(aes(xmin=low.est.low,
-                      xmax=up.est.low),alpha=0.6,size=1)+
+    geom_point(size=7,alpha=0.8) +
+    #geom_pointrange(aes(ymin=low.est.high,
+     #                   ymax=up.est.high),alpha=0.6,size=1) +
+    #geom_errorbarh(aes(xmin=low.est.low,
+     #                 xmax=up.est.low),alpha=0.6,size=1)+
     geom_abline(intercept=0,slope=1) +
     scale_shape_manual(values=c(16:17)) +
     scale_color_manual(values=dummy.col,
@@ -1360,7 +1360,7 @@ for( parameters.n in c("Focal trait","Neighbor trait","Focal trait -\nNeighbor t
              y = c(Inf, -Inf, Inf), fill = "grey70", alpha = 0.1 )+
     annotate(geom = "text",
              label=paste0(test.list[[parameters.n]]$result.df$percentage.low.vs.high[1]," % \u00B1 ", test.list[[parameters.n]]$result.df$sd[1]),
-             x=0.024,y=0.001,size=6,angle=0)+
+             x=0.02,y=0.001,size=4,angle=0)+
     coord_cartesian( xlim = c(0,0.03), ylim=c(0,0.03),
                      expand = F, default = FALSE, clip = "on") +
     theme_bw() +
@@ -1374,10 +1374,10 @@ for( parameters.n in c("Focal trait","Neighbor trait","Focal trait -\nNeighbor t
                                ifelse(country=="aus",
                                       3,0)),"cm"),
           strip.text = element_text(size=18),
-          legend.title =element_text(size=18),
-          legend.text =element_text(size=16),
-          axis.title=element_text(size=20),
-          axis.text = element_text(size=18),
+          legend.title =element_text(size=16),
+          legend.text =element_text(size=14),
+          axis.title=element_text(size=16),
+          axis.text = element_text(size=14),
           panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
           panel.border = element_rect( color = "grey60"),
           panel.grid.major =  element_blank(), #element_line( color = "grey70",linetype="dashed"),
@@ -1394,9 +1394,9 @@ ggarrange(Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal tr
           Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Neighbor trait")]],
           Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal trait -\nNeighbor trait")]],
           common.legend = T, legend = "bottom",
-          label.x = c(-0.02,-0.06,-0.21),
+          label.x = c(-0.03,-0.08,-0.21),
           label.y = 1.01,align="h",
-          font.label = list(size = 24, color = "black", 
+          font.label = list(size = 17, color = "black", 
                             face = "bold", family = NULL),
           labels=c("a. Focal trait", "b. Neighbor trait",
                    "c. Focal trait - Neighbor trait"),
@@ -1435,16 +1435,16 @@ plot_inter_intra  <-   summary.table.for.plot.glm[["aus"]]$df.i %>%
   geom_point( aes(shape = country,
                   color=trait),
               size=9,alpha=0.8) +
-  geom_errorbar(aes(color=trait,
-                  group=trait,
-                ymin=low.est.inter,
-                   ymax=up.est.inter),
-              size=1,alpha=0.3) +
-  geom_errorbarh(aes(color=trait,
-                    group=trait,
-                   xmin=low.est.intra,
-                  xmax=up.est.intra),
-              size=1,alpha=0.3, height=0) +
+  #geom_errorbar(aes(color=trait,
+   #               group=trait,
+    #            ymin=low.est.inter,
+     #              ymax=up.est.inter),
+       #       size=1,alpha=0.3) +
+  #geom_errorbarh(aes(color=trait,
+     #               group=trait,
+       #            xmin=low.est.intra,
+         #         xmax=up.est.intra),
+         #     size=1,alpha=0.3, height=0) +
   geom_hline(yintercept = 0)+
   geom_vline(xintercept=0)+
   #geom_abline(intercept=0,slope=1) +
@@ -1547,16 +1547,16 @@ plot_inter_lambda  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
               values_from = c('median.est',"low.est","up.est"), names_sep=".") %>%
   ggplot(aes(x=median.est.lambda,
              y=median.est.inter)) + 
-  geom_errorbar(aes(ymin=low.est.inter,
-                    ymax=up.est.inter,
-                    group=as.factor(trait),
-                    color=as.factor(trait)),
-               size=1,alpha=0.3) +
-  geom_errorbarh(aes(xmin=low.est.lambda,
-                     xmax=up.est.lambda,
-                    group=as.factor(trait),
-                    color=as.factor(trait)),
-                size=1,alpha=0.3, height=0) +
+  #geom_errorbar(aes(ymin=low.est.inter,
+   #                 ymax=up.est.inter,
+    #                group=as.factor(trait),
+    #                color=as.factor(trait)),
+     #          size=1,alpha=0.3) +
+  #geom_errorbarh(aes(xmin=low.est.lambda,
+    #                 xmax=up.est.lambda,
+       #             group=as.factor(trait),
+       #             color=as.factor(trait)),
+           #     size=1,alpha=0.3, height=0) +
   geom_point(aes(group=as.factor(trait),shape = country, color=as.factor(trait)),
              size=9,alpha=0.8) +
   geom_hline(yintercept = 0)+
@@ -1651,16 +1651,16 @@ plot_intra_lambda  <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i%>%
               values_from = c('median.est',"low.est","up.est"), names_sep=".") %>%
   ggplot(aes(x=median.est.lambda,
              y=median.est.intra)) + 
-  geom_errorbar(aes(ymin=low.est.intra,
-                    ymax=up.est.intra,
-                    group=as.factor(trait),
-                    color=as.factor(trait)),
-               size=1,alpha=0.3) +
-  geom_errorbarh(aes(xmin=low.est.lambda,
-                     xmax=up.est.lambda,
-                    group=as.factor(trait),
-                   color=as.factor(trait)),
-               size=1,alpha=0.3, height=0) +
+  #geom_errorbar(aes(ymin=low.est.intra,
+      #              ymax=up.est.intra,
+   ##                 group=as.factor(trait),
+       #             color=as.factor(trait)),
+        #       size=1,alpha=0.3) +
+  #geom_errorbarh(aes(xmin=low.est.lambda,
+      #               xmax=up.est.lambda,
+        #            group=as.factor(trait),
+           #        color=as.factor(trait)),
+           #    size=1,alpha=0.3, height=0) +
   geom_point(aes(group=as.factor(trait),shape = country, color=as.factor(trait)),
              size=9,alpha=0.8) +
   geom_hline(yintercept = 0)+
@@ -1822,7 +1822,7 @@ ggarrange(plot_theory,
                    "c. Heterospecific vs conspecific effect",
                    "d. Heterospecific vs intrinsic fecundity" ))
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+ #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 2. Supp figures----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 
