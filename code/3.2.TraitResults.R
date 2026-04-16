@@ -50,15 +50,16 @@ home.dic <- "" #"/Users/lisabuche/Documents/Projects/Facilitation_gradient/"
 
 #remotes::install_github("glmmTMB/glmmTMB/glmmTMB")
 library(glmmTMB)
+load("/Users/lisabuche/Documents/Projects/Trait-mediated.interactions/results/sigmoid-output/Theoretical.Int.list.RData")
 
 #---- 0.1. Import results----
-load(file=paste0(home.dic,"data/clean.data.aus.RData"))
+load(file=paste0(home.dic,"data/clean.data.aus.RData")) 
+clean.data.aus$plant_traits <- clean.data.aus$plant_traits %>% 
+  rename("Flower width"="flower width")
 load(file=paste0(home.dic,"data/clean.data.spain.RData"))
+clean.data.spain$plant_traits <- clean.data.spain$plant_traits %>% 
+  rename("Flower width"="flower width")
 country.list <- c("aus","spain")
-# parameter from models
-load(paste0(home.dic,"results/sigmoid-output/Parameters_alpha.RData")) 
-# realised interactions for each year
-load(paste0(project.dic,"results/sigmoid-output/Theoretical.Int.list.RData")) 
 
 #####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 1.Looking at trait-mediated interactions----
@@ -113,8 +114,8 @@ for( country in country.list){
 }
 
 save(taxize_dist.list,
-     file="results/data-info/taxize_dist.list.RData")
-load(file="results/data-info/taxize_dist.list.RData")
+     file="results/trait-related/taxize_dist.list.RData")
+load(file="results/trait-related/taxize_dist.list.RData")
 
 #---- 1.1. Make data df ----
 Cool.theory.trait.df <- list()
@@ -178,20 +179,20 @@ for( country in country.list){
   if(country=="aus"){
     specific.trait.dist <- specific.trait.dist %>%
       dplyr::filter(trait %in% c("SRL","Root tips","Root mass density","Root length",
-                                 "C13 water use efficiency","Floret width","Seed mass",
+                                 "C13 water use efficiency","Flower width","Seed mass",
                                  "Stem height","SLA"))%>%
       mutate(trait = factor(trait, levels=c("SRL","Root tips","Root mass density","Root length",
-                                            "C13 water use efficiency","Floret width","Seed mass",
+                                            "C13 water use efficiency","Flower width","Seed mass",
                                             "Stem height","SLA"))) 
   }
   if(country=="spain"){
     specific.trait.dist <- specific.trait.dist %>%
       dplyr::filter(trait %in% c("SRL","Root diameter","Root mass density","SRA",
                                  "C13 water use efficiency","Leaf C to N ratio",#"Leaf area index",
-                                 "Floret width","Seed mass","Stem height","SLA"))%>%
+                                 "Flower width","Seed mass","Stem height","SLA"))%>%
       mutate(trait = factor(trait, levels=c("SRL","Root diameter","Root mass density","SRA",
                                             "C13 water use efficiency","Leaf C to N ratio",#"Leaf area index",
-                                            "Floret width","Seed mass","Stem height","SLA"))) 
+                                            "Flower width","Seed mass","Stem height","SLA"))) 
   }
   Cool.theory.trait.df[[country]]$trait.dist.df <- specific.trait.dist
 }
@@ -213,7 +214,7 @@ for( country in country.list){
               relationship ="many-to-many")
   Lambda.trait.df <- NULL
   glm.lambda.trait.summary <- NULL
-  #trait.i = "Floret width"
+  #trait.i = "Flower width"
   #n ="low"
   for( trait.i in names(trait.df)){
     for(n in c("low","high")){
@@ -259,9 +260,9 @@ for( country in country.list){
   Cool.theory.trait.df[[country]]$Lambda.trait.df <- Lambda.trait.df
   
 }
-Lambda.trait.df <- Cool.theory.trait.df[[country]]$Lambda.trait.df
+#Lambda.trait.df <- Cool.theory.trait.df[[country]]$Lambda.trait.df
 save(Cool.theory.trait.df,
-     file="results/trait-related/Cool.theory.trait.df.Rdata")
+     file="results/Cool.theory.trait.df.Rdata")
 #---- 1.1.3 Run INTRA regression----
 
 for( country in country.list){
@@ -278,7 +279,7 @@ for( country in country.list){
   Intra.trait.df <- NULL
   glm.intra.trait.summary <- NULL
   #trait.i = "SLA"
-  #trait.i = "Floret width"
+  #trait.i = "Flower width"
   for( trait.i in names(trait.df)){
     print(trait.i)
     for(n in c("low","high")){#density.quantile.name){
@@ -327,7 +328,7 @@ for( country in country.list){
   Cool.theory.trait.df[[country]]$Intra.trait.df  <- Intra.trait.df 
 }
 save(Cool.theory.trait.df,
-     file="results/trait-related/Cool.theory.trait.df.Rdata")
+     file="results/Cool.theory.trait.df.Rdata")
 
 #---- 1.1.3 Run INTER regression----
 country="spain"
@@ -441,18 +442,18 @@ for( country in country.list){
   Cool.theory.trait.df[[country]]$trait.dist.df  <-  trait.dist.df 
   Cool.theory.trait.df[[country]]$Inter.trait.df  <- Inter.trait.df
   save(Cool.theory.trait.df,
-       file="results/trait-related/Cool.theory.trait.df.Rdata")
+       file="results/Cool.theory.trait.df.Rdata")
 }
 save(Cool.theory.trait.df,
-     file="results/trait-related/Cool.theory.trait.df.Rdata")
+     file="results/Cool.theory.trait.df.Rdata")
 
-load("results/trait-related/Cool.theory.trait.df.Rdata")
-
+load("results/Cool.theory.trait.df.Rdata")
+country="aus"
 view(Cool.theory.trait.df[[country]]$Inter.trait.df)
 str(Cool.theory.trait.df[[country]])
 levels(as.factor(Cool.theory.trait.df[[country]]$trait.dist.df$trait))
 ggplot()+
-  geom_point(aes(x=Cool.theory.trait.df[[country]]$trait.dist.df$receiver.trait[which(Cool.theory.trait.df[[country]]$trait.dist.df$trait=="Floret width")],
+  geom_point(aes(x=Cool.theory.trait.df[[country]]$trait.dist.df$receiver.trait[which(Cool.theory.trait.df[[country]]$trait.dist.df$trait=="Flower width")],
                  y=Cool.theory.trait.df[[country]]$trait.dist.df$receiver.trait[which(Cool.theory.trait.df[[country]]$trait.dist.df$trait=="C13 water use efficiency")]))
 
 #---- 1.2. Make detailed graphs ----
@@ -464,7 +465,7 @@ density.quantile.name <- c("low","high")
 country="aus"
 dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","Root tips"="#512DA8FF" ,
                "Root diameter"="#F28E2BFF" , "Root mass density"="#ED645AFF",
-               "Floret width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
+               "Flower width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
                "C13 water use efficiency"="#9C755FFF",
                "Leaf C to N ratio"= "#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
@@ -475,7 +476,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
+                 "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
@@ -488,7 +489,6 @@ for( country in country.list){
   for(n in c("low","high")){
     
     Inter.trait.df.long.i  <- Cool.theory.trait.df[[country]]$Inter.trait.df %>%
-      mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
       dplyr::filter(density.quantile %in% c(n)) %>%
       gather(any_of(c("Scaled.trait.dist",
                       "Emitter.trait.scaled","Receiver.trait.scaled")),
@@ -499,20 +499,17 @@ for( country in country.list){
     
     
     Intra.trait.df.long.i  <- Cool.theory.trait.df[[country]]$Intra.trait.df %>%
-      mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
       dplyr::filter(density.quantile %in% c(n)) %>%
       rename("trait.coeff"="Receiver.trait.scaled") %>%
       mutate(trait= factor(trait ,levels=names(dummy.names) ))
     
     
     Lambda.trait.df.long.i  <- Cool.theory.trait.df[[country]]$Lambda.trait.df %>%
-      mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
       dplyr::filter(density.quantile %in% c(n)) %>%
       rename("trait.coeff"="Receiver.trait.scaled") %>%
       mutate(trait= factor(trait ,levels=names(dummy.names)))
     
     Inter.trait.df.i <- Cool.theory.trait.df[[country]]$trait.dist.df %>%
-      mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
       dplyr::select(theoretical.effect,receiver.trait.scaled,trait,emitter.trait.scaled,scaled.trait.dist) %>%
       gather(receiver.trait.scaled,emitter.trait.scaled,scaled.trait.dist,
              key="trait.param", value="trait.value") %>%
@@ -523,7 +520,6 @@ for( country in country.list){
     #dplyr::filter(!is.na(trait.coeff))
     
     Intra.trait.df.i <- Cool.theory.trait.df[[country]]$trait.value.intra.df %>%
-      mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
       dplyr::filter(density.quantile %in% c(n))  %>%
       dplyr::select(theoretical.effect,receiver.trait.scaled,trait) %>%
       rename("raw.value"="theoretical.effect",
@@ -534,7 +530,6 @@ for( country in country.list){
       dplyr::filter(!is.na(trait.coeff)) 
     
     Lambda.trait.df.i <- Cool.theory.trait.df[[country]]$trait.value.lambda.df %>%
-      mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
       dplyr::filter( trait %in% levels(as.factor(Lambda.trait.df.long.i$trait))) %>%
       dplyr::filter(density.quantile %in% c(n))  %>%
       dplyr::select(lambda,receiver.trait.scaled,trait) %>%
@@ -780,7 +775,7 @@ summary.table.for.plot.glm <- list()
 for( country in country.list){
   
   Inter.trait.df <- Cool.theory.trait.df[[country]]$Inter.trait.df %>%
-    mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
+    mutate(trait = ifelse(trait =="Floret width", "Flower width", trait)) %>%
     mutate(trait = factor(trait, levels=names(dummy.names)))
   
   df.i <- Inter.trait.df %>%
@@ -797,7 +792,7 @@ for( country in country.list){
                                     levels=c("intercept","low","medium","high")))
   
   Intra.trait.df.i  <- Cool.theory.trait.df[[country]]$Intra.trait.df %>%
-    mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
+    mutate(trait = ifelse(trait =="Floret width", "Flower width", trait)) %>%
     gather(c("Receiver.trait.scaled","Intercept"),
            key="parameters",
            value="estimate") %>%
@@ -808,7 +803,7 @@ for( country in country.list){
                                     levels=c("intercept","low","medium","high")))
   
   Lambda.trait.df.i  <- Cool.theory.trait.df[[country]]$Lambda.trait.df %>%
-    mutate(trait = ifelse(trait =="Floret width", "Floret width", trait)) %>%
+    mutate(trait = ifelse(trait =="Floret width", "Flower width", trait)) %>%
     gather(c("Receiver.trait.scaled","Intercept"),
            key="parameters",
            value="estimate") %>%
@@ -827,7 +822,7 @@ for( country in country.list){
 dummy.col <- c("SRL"="#D55E00","SRA"=  "#F28E2BFF",
                "Root length"= "#F0B878FF","Root tips"= "#C07838FF",
                "Root diameter"= "#DAA51BFF", "Root mass density"="#FFD94AFF",
-               "Floret width"= "#B276B2FF","Seed mass"="#FF9DA7FF",
+               "Flower width"= "#B276B2FF","Seed mass"="#FF9DA7FF",
                "C13 water use efficiency"="#24796CFF",#"#9C755FFF",
                "Leaf C to N ratio"= "#72874EFF",#"#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#009E73",
@@ -837,7 +832,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
+                 "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
@@ -852,7 +847,7 @@ trait.to.keep <- c("C13 water use efficiency",
                    "SLA",
                    "Stem height",
                    "Root mass density", 
-                   "Floret width",
+                   "Flower width",
                    "SRL")
 library(purrr)
 library(broom)
@@ -939,9 +934,11 @@ result.ks.test <- read.csv("results/trait-related/df.meta.analysis.distribution.
   mutate(parameters = case_when(parameters =="Emitter trait" ~ "Neighbor trait",
                                 parameters =="Focal trait -\nEmitter trait" ~ "Focal trait -\nNeighbor trait",
                                 T ~ parameters)) %>%
+  mutate(trait = ifelse(trait =="Floret width", "Flower width", trait)) %>%
   select(-X)
 
 levels(as.factor(result.ks.test$parameters))
+levels(as.factor(result.ks.test$trait))
 # 
 
 # test mass distribtuion of each distribution 
@@ -998,7 +995,7 @@ data.subpanel.label <- data.frame(country=c(rep("Australia",18),rep("Spain",18))
                                                  "m","n","o",
                                                  "p","q","r", rep("",18)),
                                   trait.names = rep(rep(c("Specific leaf area","Water use efficiency",
-                                                          "Floret width","Stem height",
+                                                          "Flower width","Stem height",
                                                           "Specific root length","Root tissue density"),each=3),times=2),
                                   parameters = rep(c("Focal trait","Neighbor trait","Focal trait -\nNeighbor trait"),times=12))
 
@@ -1017,7 +1014,7 @@ inter.plot <- summary.table.for.plot.glm[["aus"]]$df.i %>%
   mutate(y_numb =case_when(country=="Spain" ~0.4, T~0),
          y_trait=((as.numeric(trait))+y_numb)) %>%
   left_join(result.ks.test, by=c("parameters","trait.names","trait")) %>%
-  mutate(rect.color=case_when(`Estimate...of.overlap`<0.5 ~ "Opposite",
+  mutate(rect.color=case_when(`Estimate % of overlap`<0.5 ~ "Opposite",
                               T~"Consistent")) %>%
   ggplot(aes(y=factor(country,levels=c("Spain","Australia")),
              x=estimate,
@@ -1033,7 +1030,7 @@ inter.plot <- summary.table.for.plot.glm[["aus"]]$df.i %>%
                                 "Positively correlated \nwith facilitation")) +
   facet_grid(factor(addline_format(trait.names),
                     addline_format(c("Specific leaf area","Water use efficiency",
-                                     "Floret width","Stem height",
+                                     "Flower width","Stem height",
                                      "Specific root length","Root tissue density"))) ~ factor(parameters, 
                                                                                               c("Focal trait","Neighbor trait","Focal trait -\nNeighbor trait"))) +
   geom_vline(xintercept=0) + 
@@ -1106,6 +1103,7 @@ inter.plot
 
 #figures/main/TraitEffectSize_distribution.pdf
 
+#figures/main/GLM.traits.INTER.bis.pdf
 #----Intra----
 mass.distribution.intra.df <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i %>%
   mutate(country="Australia") %>%
@@ -1169,7 +1167,7 @@ intra.plot <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i %>%
                        labels=c("Negatively correlated with facilitation","Neutre",
                                 "Positively correlated with facilitation"))+
   facet_grid(factor(addline_format(trait.names),
-                    addline_format(c("Floret width","Stem height",
+                    addline_format(c("Flower width","Stem height",
                                      "Specific leaf area","Water use efficiency",
                                      "Specific root length","Root tissue density"))) ~ factor(parameters, 
                                                                                               c("Focal trait"))) +
@@ -1213,12 +1211,7 @@ intra.plot <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i %>%
 
 intra.plot
 
-#figures/main/TraitEffectSizeIntra_distribution.pdf
-ggsave(GLM.traits.INTER.INTRA,
-       width=13.48,
-       height=10.48,
-       unit="in",
-       file="figures/main/GLM.traits.INTER.png")
+#figures/supp/TraitEffectSizeIntra_distribution.pdf
 
 library(grid)
 library(pBrackets) 
@@ -1341,11 +1334,11 @@ for( parameters.n in c("Focal trait","Neighbor trait","Focal trait -\nNeighbor t
                color=as.factor(trait),
                group=as.factor(trait) )) + 
     #shape=density.quantile)) +
-    geom_point(size=7,alpha=0.8) +
+    geom_point(size=9,alpha=0.8) +
     #geom_pointrange(aes(ymin=low.est.high,
-     #                   ymax=up.est.high),alpha=0.6,size=1) +
+    #                    ymax=up.est.high),alpha=0.6,size=1) +
     #geom_errorbarh(aes(xmin=low.est.low,
-     #                 xmax=up.est.low),alpha=0.6,size=1)+
+    #                  xmax=up.est.low),alpha=0.6,size=1)+
     geom_abline(intercept=0,slope=1) +
     scale_shape_manual(values=c(16:17)) +
     scale_color_manual(values=dummy.col,
@@ -1360,7 +1353,7 @@ for( parameters.n in c("Focal trait","Neighbor trait","Focal trait -\nNeighbor t
              y = c(Inf, -Inf, Inf), fill = "grey70", alpha = 0.1 )+
     annotate(geom = "text",
              label=paste0(test.list[[parameters.n]]$result.df$percentage.low.vs.high[1]," % \u00B1 ", test.list[[parameters.n]]$result.df$sd[1]),
-             x=0.02,y=0.001,size=4,angle=0)+
+             x=0.024,y=0.001,size=6,angle=0)+
     coord_cartesian( xlim = c(0,0.03), ylim=c(0,0.03),
                      expand = F, default = FALSE, clip = "on") +
     theme_bw() +
@@ -1374,10 +1367,10 @@ for( parameters.n in c("Focal trait","Neighbor trait","Focal trait -\nNeighbor t
                                ifelse(country=="aus",
                                       3,0)),"cm"),
           strip.text = element_text(size=18),
-          legend.title =element_text(size=16),
-          legend.text =element_text(size=14),
-          axis.title=element_text(size=16),
-          axis.text = element_text(size=14),
+          legend.title =element_text(size=18),
+          legend.text =element_text(size=16),
+          axis.title=element_text(size=20),
+          axis.text = element_text(size=18),
           panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
           panel.border = element_rect( color = "grey60"),
           panel.grid.major =  element_blank(), #element_line( color = "grey70",linetype="dashed"),
@@ -1394,15 +1387,15 @@ ggarrange(Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal tr
           Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Neighbor trait")]],
           Cool.glm.theory.trait.plotlist[[paste0(country,"_inter_diag","Focal trait -\nNeighbor trait")]],
           common.legend = T, legend = "bottom",
-          label.x = c(-0.03,-0.08,-0.21),
+          label.x = c(-0.02,-0.07,-0.22),
           label.y = 1.01,align="h",
-          font.label = list(size = 17, color = "black", 
+          font.label = list(size = 24, color = "black", 
                             face = "bold", family = NULL),
           labels=c("a. Focal trait", "b. Neighbor trait",
                    "c. Focal trait - Neighbor trait"),
           ncol=3)
 #figures/main/Oblique.INTER.pdf 
-#figures/main/Oblique.INTER.with.CI.pdf
+
 #---- 1.6. LAST figure manuscript -----
 #---- 1.6.2. FIG R3 - Make graph for main text -INTER - INTRA ----
 
@@ -1436,15 +1429,15 @@ plot_inter_intra  <-   summary.table.for.plot.glm[["aus"]]$df.i %>%
                   color=trait),
               size=9,alpha=0.8) +
   #geom_errorbar(aes(color=trait,
-   #               group=trait,
-    #            ymin=low.est.inter,
-     #              ymax=up.est.inter),
-       #       size=1,alpha=0.3) +
+  #                 group=trait,
+  #              ymin=low.est.inter,
+  #                 ymax=up.est.inter),
+  #            size=1,alpha=0.3) +
   #geom_errorbarh(aes(color=trait,
-     #               group=trait,
-       #            xmin=low.est.intra,
-         #         xmax=up.est.intra),
-         #     size=1,alpha=0.3, height=0) +
+  #                  group=trait,
+  #                 xmin=low.est.intra,
+  #                xmax=up.est.intra),
+  #             size=1,alpha=0.3, height=0) +
   geom_hline(yintercept = 0)+
   geom_vline(xintercept=0)+
   #geom_abline(intercept=0,slope=1) +
@@ -1501,8 +1494,8 @@ plot_inter_intra  <-   summary.table.for.plot.glm[["aus"]]$df.i %>%
   theme(legend.position="bottom",
         plot.margin = unit(c(1,1,1,1),"cm"),
         strip.text = element_text(size=18),
-        legend.title =element_text(size=18),
-        legend.text =element_text(size=16),
+        legend.title =element_text(size=16),
+        legend.text =element_text(size=14),
         axis.title=element_text(size=18),
         axis.text = element_text(size=18),
         panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
@@ -1516,7 +1509,7 @@ plot_inter_intra
 #---- 1.6.3. FIG R3 -Make graph for main text -INTER - LAMBDA ----
 
 trait.to.remove <- c(#"Root diameter",
-  #"Floret width","Seed mass",
+  #"Flower width","Seed mass",
   "Leaf area index",
   "Canopy shape"
 )
@@ -1548,15 +1541,15 @@ plot_inter_lambda  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
   ggplot(aes(x=median.est.lambda,
              y=median.est.inter)) + 
   #geom_errorbar(aes(ymin=low.est.inter,
-   #                 ymax=up.est.inter,
-    #                group=as.factor(trait),
-    #                color=as.factor(trait)),
-     #          size=1,alpha=0.3) +
+  #                  ymax=up.est.inter,
+  #                  group=as.factor(trait),
+  #                  color=as.factor(trait)),
+  #             size=1,alpha=0.3) +
   #geom_errorbarh(aes(xmin=low.est.lambda,
-    #                 xmax=up.est.lambda,
-       #             group=as.factor(trait),
-       #             color=as.factor(trait)),
-           #     size=1,alpha=0.3, height=0) +
+  #                   xmax=up.est.lambda,
+  #                  group=as.factor(trait),
+  #                  color=as.factor(trait)),
+  #              size=1,alpha=0.3, height=0) +
   geom_point(aes(group=as.factor(trait),shape = country, color=as.factor(trait)),
              size=9,alpha=0.8) +
   geom_hline(yintercept = 0)+
@@ -1607,8 +1600,8 @@ plot_inter_lambda  <- summary.table.for.plot.glm[["aus"]]$df.i %>%
   theme(legend.position="bottom",
         plot.margin = unit(c(1,1,1,1),"cm"),
         strip.text = element_text(size=18),
-        legend.title =element_text(size=18),
-        legend.text =element_text(size=16),
+        legend.title =element_text(size=16),
+        legend.text =element_text(size=14),
         axis.title=element_text(size=19),
         axis.text = element_text(size=18),
         panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
@@ -1621,7 +1614,7 @@ plot_inter_lambda
 #---- 1.6.4. FIG R3 -Make graph for main text -INTRA - LAMBDA ----
 
 trait.to.remove <- c(#"Root diameter",
-  #"Floret width","Seed mass",
+  #"Flower width","Seed mass",
   "Leaf area index",
   "Canopy shape")
 
@@ -1652,15 +1645,15 @@ plot_intra_lambda  <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i%>%
   ggplot(aes(x=median.est.lambda,
              y=median.est.intra)) + 
   #geom_errorbar(aes(ymin=low.est.intra,
-      #              ymax=up.est.intra,
-   ##                 group=as.factor(trait),
-       #             color=as.factor(trait)),
-        #       size=1,alpha=0.3) +
+  #                  ymax=up.est.intra,
+  #                  group=as.factor(trait),
+  #                  color=as.factor(trait)),
+  #              size=1,alpha=0.3) +
   #geom_errorbarh(aes(xmin=low.est.lambda,
-      #               xmax=up.est.lambda,
-        #            group=as.factor(trait),
-           #        color=as.factor(trait)),
-           #    size=1,alpha=0.3, height=0) +
+  #                   xmax=up.est.lambda,
+  #                  group=as.factor(trait),
+  #                  color=as.factor(trait)),
+  #              size=1,alpha=0.3, height=0) +
   geom_point(aes(group=as.factor(trait),shape = country, color=as.factor(trait)),
              size=9,alpha=0.8) +
   geom_hline(yintercept = 0)+
@@ -1710,8 +1703,8 @@ plot_intra_lambda  <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i%>%
   theme(legend.position="bottom",
         plot.margin = unit(c(2,1,1,1),"cm"),
         strip.text = element_text(size=18),
-        legend.title =element_text(size=18),
-        legend.text =element_text(size=16),
+        legend.title =element_text(size=16),
+        legend.text =element_text(size=14),
         axis.title=element_text(size=19),
         axis.text = element_text(size=18),
         panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
@@ -1792,8 +1785,8 @@ plot_theory <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i%>%
   theme(legend.position="bottom",
         plot.margin = unit(c(2,1,1,1),"cm"),
         strip.text = element_text(size=18),
-        legend.title =element_text(size=18),
-        legend.text =element_text(size=16),
+        legend.title =element_text(size=16),
+        legend.text =element_text(size=14),
         axis.title=element_text(size=19),
         axis.text = element_text(size=18),
         panel.background = element_blank(), #element_rect(fill = "white", color = "white"),
@@ -1802,7 +1795,7 @@ plot_theory <- summary.table.for.plot.glm[["aus"]]$Intra.trait.df.i%>%
         panel.grid.minor = element_blank())
 #plot_theory
 
-#figures/main/Oblique.INTER.INTRA.LAMBDA.with.CI.pdf 
+#figures/main/Oblique.INTER.INTRA.LAMBDA.pdf 
 ggarrange(plot_theory,  
           plot_intra_lambda,
           plot_inter_intra,
@@ -1810,8 +1803,8 @@ ggarrange(plot_theory,
           ncol=2,
           nrow=2,
           common.legend = T, legend="bottom",
-          label.x= c(-0.28,-0.28,
-                     -0.28,-0.28),
+          label.x= c(-0.36,-0.33,
+                     -0.35,-0.35),
           label.y= c(1.01,1.01,
                      1.02,1.02),
           align="hv",
@@ -1822,7 +1815,7 @@ ggarrange(plot_theory,
                    "c. Heterospecific vs conspecific effect",
                    "d. Heterospecific vs intrinsic fecundity" ))
 
- #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 #---- 2. Supp figures----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 
@@ -1832,7 +1825,7 @@ dummy.names <- list("SRL"="SRL (cm/g)","SRA"="SRA (cm^2/g)" ,"Root length"="Root
                     "Root tips"="Root tips" ,
                     "Root diameter"="Root diameter \n(mm)" ,
                     "Root mass density"="Root mass \ndensity \n(mg/mm3)",
-                    "Floret width"= "Floret width \n(mm)" ,"Seed mass"="Seed mass \n(mg)",
+                    "Flower width"= "Flower width \n(mm)" ,"Seed mass"="Seed mass \n(mg)",
                     "C13 water use efficiency"="C13 water \nuse efficiency \n(per ml)",
                     "Leaf C to N ratio"= "Leaf C to N ratio" ,
                     "Leaf area index"="Leaf area index" ,
@@ -1888,7 +1881,8 @@ Cool.theory.trait.df[["spain"]]$trait.dist.df %>%
              shape = 15, size = 4) +
   
   facet_wrap(.~factor(trait,levels=names(dummy.names)),
-             nrow=3,scale="free_x") +
+             nrow=3,scale="free_x",
+             labeller=trait_labeller) +
   scale_color_manual(values =c("#FBE183FF",   "#FE9B00FF","#D8443CFF",
                                "#E6A2A6FF","#9F5691FF","#633372FF",
                                "#1F6E9CFF", "#2B9B81FF","#92C051FF")) +
@@ -2016,8 +2010,8 @@ inter.plot <- summary.table.for.plot.glm[["aus"]]$df.i %>%
   mutate(trait.names=dummy.names[trait]) %>%
   mutate(y_numb =case_when(country=="Spain" ~0.4, T~0),
          y_trait=((as.numeric(trait))+y_numb)) %>%
-  mutate(rect.color=case_when((trait=="Floret width" & parameters=="Focal trait")~ "Consistent",
-                              (trait=="Floret width" & parameters=="Neighbor trait")~ "Consistent",
+  mutate(rect.color=case_when((trait=="Flower width" & parameters=="Focal trait")~ "Consistent",
+                              (trait=="Flower width" & parameters=="Neighbor trait")~ "Consistent",
                               (trait=="Stem height" & parameters=="Focal trait")~ "Consistent",
                               (trait=="SLA" & !parameters=="Focal trait") ~ "Consistent",
                               (trait=="C13 water use efficiency" & parameters=="Focal trait") ~ "Opposite",
@@ -2036,7 +2030,7 @@ inter.plot <- summary.table.for.plot.glm[["aus"]]$df.i %>%
                        breaks=c(-0.07,0,0.07),
                        labels=c("Negatively correlated with facilitation","Neutral",
                                 "Positively correlated with facilitation"))+
-  facet_grid(factor(addline_format(trait)) ~ factor(parameters, 
+  facet_grid(factor(addline_format(trait.names)) ~ factor(parameters, 
                                                           c("Focal trait","Neighbor trait","Focal trait -\nNeighbor trait"))) +
   geom_vline(xintercept=0) + 
   scale_x_continuous(breaks=c(-0.06,0,0.06)) +
@@ -2196,7 +2190,7 @@ lambda.plot <- summary.table.for.plot.glm[["aus"]]$Lambda.trait.df.i %>%
                        breaks=c(-3,0,3),
                        labels=c("Negatively correlated with facilitation","Neutre",
                                 "Positively correlated with facilitation"))+
-  facet_grid(factor(addline_format(trait)) ~ factor(parameters, 
+  facet_grid(factor(addline_format(trait.names)) ~ factor(parameters, 
                                                           c("Focal trait"))) +
   geom_vline(xintercept=0) + 
   #scale_x_continuous(breaks=c(-0.02,0,0.02)) +
@@ -2229,7 +2223,7 @@ lambda.plot <- summary.table.for.plot.glm[["aus"]]$Lambda.trait.df.i %>%
 
 lambda.plot
 
-#figures/supp/All_TraitEffectSizeLambda_distribution.pdf
+#figures/supp/All_TraitEffectSizeLambda_distribution
 
 
 #---- 2.3. Trait correlation----
@@ -2285,9 +2279,9 @@ for( country in country.list){
       mutate(interactions="Conspecific")
     
     write.csv(Inter.trait.df.i,
-              file=paste0("results/trait-related/Inter.trait.coeff.",country,".csv"))
+              file=paste0("results/Inter.trait.coeff.",country,".csv"))
     write.csv(Intra.trait.df.i,
-              file=paste0("results/trait-related/Intra.trait.coeff.",country,".csv"))
+              file=paste0("results/Intra.trait.coeff.",country,".csv"))
     
   }
 }
@@ -2375,7 +2369,7 @@ result.HL.test.small
 
 view(result.HL.test)
 write.csv(result.HL.test,
-          "results/trait-related/df.meta.analysis.distribution.HighLow.csv") 
+          "results/df.meta.analysis.distribution.HighLow.csv") 
 
 
 
@@ -2394,7 +2388,7 @@ dummy.names <- c("C13 water use efficiency"="Water use efficiency",
                  "SRL"="Specific root length")
 dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","Root tips"="#512DA8FF" ,
                "Root diameter"="#F28E2BFF" , "Root mass density"="#ED645AFF",
-               "Floret width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
+               "Flower width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
                "C13 water use efficiency"="#9C755FFF",
                "Leaf C to N ratio"= "#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
@@ -2404,7 +2398,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
+                 "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",
@@ -2549,7 +2543,7 @@ density.quantile.name <- c("low","high")
 country="aus"
 dummy.col <- c("SRL"="#4E79A7FF","SRA"="#76B7B2FF" ,"Root length"="#A4BED5FF","Root tips"="#512DA8FF" ,
                "Root diameter"="#F28E2BFF" , "Root mass density"="#ED645AFF",
-               "Floret width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
+               "Flower width"= "#FF9DA7FF" ,"Seed mass"="#B276B2FF",
                "C13 water use efficiency"="#9C755FFF",
                "Leaf C to N ratio"= "#BCBD22FF" ,
                "Leaf area index"="#D4E157FF" ,"Canopy shape"="#72874EFF",
@@ -2560,7 +2554,7 @@ dummy.names <- c("SRL"="Specific root length",
                  "SRA"="Specific root area" ,
                  "Root length"= "Root length","Root tips"="Root tips",
                  "Root diameter"="Root diameter" , "Root mass density"="Root tissue density",
-                 "Floret width"= "Floret width" ,"Seed mass"="Seed mass",
+                 "Flower width"= "Flower width" ,"Seed mass"="Seed mass",
                  "C13 water use efficiency"="Water use efficiency",
                  "Leaf C to N ratio"= "Nitrogen use efficiency" ,
                  "Leaf area index"="Leaf area index" ,"Canopy shape"="Canopy shape",

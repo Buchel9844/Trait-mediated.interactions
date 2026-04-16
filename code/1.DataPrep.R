@@ -1,6 +1,29 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 0. SET UP: pacakges----
+# 0. SET UP: pacakges adn create metadata ----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#---- 0.1. METADATE: Create meta data file to Summarise our data----
+# 0.1. CREATE TEMPLATES
+create_spice() # creates template from directory
+
+# 0.2. EDIT TEMPLATES
+#attributes.csv: This is where most of the user data entry will take place. 
+# For each variable, its name, units, and a written description are filled in.
+edit_attributes()
+
+# access.csv: Includes a row for each file that was read in, 
+# and documents the name of each file and its format.
+edit_access()
+
+# creators.csv: One row for each creator, and gives their affiliation,
+# contact email, ORCID, etc
+edit_creators() #
+
+#biblio.csv: Citation information about the project, 
+# as much or as little data as possible can be included, 
+# but if things like bounding box coordinates are not included, 
+# then when the website is generated there will not be a bounding box map generated
+edit_biblio() 
+
 #---- 0.2. Import packages----
 #install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)
 library(rstan)
@@ -27,6 +50,8 @@ library(FactoMineR)
 #install.packages("factoextra")
 library(factoextra)
 library(vegan)
+setwd("~/Documents/Projects/Trait-mediated.interactions")
+
 
 ####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~####
 # 1. Data from Caracoles, Donana National Park, Spain----
@@ -39,7 +64,7 @@ plant_code_spain <- read.csv( "data/spain_rawdata/plant_code_spain.csv",
 
 
 #---- 2.2. Identify most abundance species ----
- 
+
 abundance_spain <- read.csv("data/spain_rawdata/abundance.csv",
                             header = T,stringsAsFactors = F, sep=",",
                             na.strings=c("","NA"))
@@ -48,9 +73,14 @@ abundance_spain.summary <- abundance_spain %>%
   aggregate(individuals ~ year + species, sum) %>%
   spread(species,individuals)
 
+species.list.to.keep <- c("BEMA","CETE","CHFU",
+                          "CHMI","HOMA","LEMA","MESU","PAIN","PLCO",
+                          "POMA","POMO","SASO","SCLA","SPRU")
+# Amaranthaceae, Gentianaceae, Asteraceae, 
+# Poaceae, Fabaceae,Plantaginaceae, Amaranthaceae, Caryophyllaceae
 final.species.list.spain <- c("BEMA","CETE","CHFU",
-                        "HOMA","LEMA","ME.sp","PAIN","PLCO",
-                        "PO.sp","SASO","SCLA","SPRU")
+                              "HOMA","LEMA","ME.sp","PAIN","PLCO",
+                              "PO.sp","SASO","SCLA","SPRU")
 head(abundance_spain)
 zscore.fct <- function(x){
   (x-mean(x))/var(x)
@@ -67,6 +97,70 @@ abundance_spain.summary <- abundance_spain %>%
   mutate(count.zscore = zscore.fct(individuals)) %>%
   ungroup()
 
+# regroup POMA and POMO under Polypogon
+# regroup MEEL and MESU under Melilotus ? 
+# regroup CHFU and CHMI under Chamaemelum? Or put CHMI under rare 
+species.list.to.rare <- c("COSQ","ACHI","ANAR","FRPU","LYTR","MEEL",
+                          "MEPO","PUPA","RAPE","SOAS","SUSP")
+
+# PLCO and SCLA missing 2018
+# PUPA has good data
+abundance.plot <- abundance_spain %>%
+  rename("code.plant"=species) %>%
+  left_join(plant_code_spain, by="code.plant") %>%
+  filter( code.analysis %in% final.species.list.spain ) %>%
+  aggregate(individuals ~ code.analysis + year + plot + subplot , sum) %>%
+  mutate(individuals =individuals/100,
+         com_id = paste(plot,subplot,sep="_")) %>%
+  ggplot(aes(y=individuals,x=as.character(year),
+             fill=as.factor(code.analysis),
+             group=as.factor(code.analysis),
+             color=as.factor(code.analysis))) +
+  stat_summary(fun.y = mean,
+               fun.ymin = function(x) mean(x) - sd(x), 
+               fun.ymax = function(x) mean(x) + sd(x), 
+               geom = "pointrange",size=2) +
+  stat_summary(fun.y = mean,
+               geom = "line",size=1) +
+  theme_bw() +
+  scale_y_log10() +
+  scale_color_manual(values=unname(kelly())) +
+  scale_fill_manual(values=unname(kelly())) +
+  labs(y="number of individual per centimeter", 
+       x="year",fill="species",color="species",
+       title="Number of individuals of each focal for abundance observations in spain")  +
+  theme( legend.key.size = unit(1, 'cm'),
+         legend.position = "bottom",
+         strip.background = element_blank(),
+         panel.grid.minor = element_blank(),
+         panel.grid.major.x = element_blank(),
+         strip.text = element_text(size=28),
+         legend.text=element_text(size=20),
+         legend.title=element_text(size=20),
+         #axis.ticks.x=element_blank(),
+         axis.text.x= element_text(size=20, angle=66, hjust=1),
+         axis.text.y= element_text(size=20),
+         axis.title.x= element_text(size=24),
+         axis.title.y= element_text(size=24),
+         title=element_text(size=16))
+abundance.plot
+
+ggsave(paste0("figures/abundance.spain.pdf"),
+       dpi="retina",
+       width = 21,
+       height = 16,
+       units = c("cm"),
+       abundance.plot)
+
+str(abundance_spain.summary)
+abundance_spain.summary %>%
+  #filter()%>%
+  ggplot(aes(y=CHFU, x=SCLA)) +
+  geom_point() +
+  geom_smooth() +
+  coord_cartesian(xlim=c(0,100),ylim=c(0,100))
+
+
 abundance_spain.summary.df <- abundance_spain %>%
   rename("code.plant"=species) %>%
   left_join(plant_code_spain, by="code.plant") %>%
@@ -77,11 +171,11 @@ abundance_spain.summary.df <- abundance_spain %>%
             mean = mean(individuals, na.rm = TRUE)/4, 
             sd = sd(individuals, na.rm = TRUE)/4)
 write.csv(abundance_spain.summary.df,
-          "results/data_info/abundance_spain.summary.df.csv")
-
+          "results/abundance_spain.summary.df.csv")
+head(abundance_spain.summary.df)
 #---- 2.3. Import competition data -----
 competition.spain <- read.csv("data/spain_rawdata/competition.csv")
-
+str(competition.spain)
 species.neigh <- names(competition.spain)
 species.neigh  <- species.neigh[!species.neigh %in% c("day","month","year","plot","subplot","focal","fruit","comments",
                                                       "observers", "site", "treatment")]
@@ -107,10 +201,41 @@ competition.spain_long <- competition.spain %>%
               rename(focal="code.plant",focal.analysis="code.analysis"),
             by="focal")  %>%
   dplyr::select(day,month,year,plot,subplot,focal.analysis,fruit,seed,code.analysis,
-         abundance) %>%
+                abundance) %>%
   aggregate(abundance ~ day + month + year + plot + subplot + focal.analysis +
               fruit + seed + code.analysis, sum) %>%
   spread(code.analysis, abundance)
+
+comp.plot <- competition.spain_long %>%
+  aggregate(fruit ~ focal.analysis + year, length) %>%
+  ggplot(aes(y=fruit,x=as.factor(year),fill=as.factor(focal.analysis))) +
+  geom_bar(stat="identity", position="dodge",
+           color="black") +
+  theme_bw() +
+  scale_fill_manual(values=unname(kelly())) +
+  labs(y="number of observations", 
+       x="year",fill="focal",
+       title="Number of observation of each focal for the competitive experirement in Spain") 
+comp.plot
+
+ggsave(paste0("figures/supp/observations.spain.pdf"),
+       dpi="retina",
+       width = 21,
+       height = 16,
+       units = c("cm"),
+       comp.plot)
+
+comp.plot.df <- competition.spain_long %>%
+  rename("code.plant"=focal.analysis) %>%
+  left_join(plant_code_spain, by="code.plant") %>%
+  filter( code.analysis %in% final.species.list.spain ) %>%
+  aggregate(fruit ~ code.analysis + year + plot + subplot +species +family+Native.sp, sum) %>%
+  group_by(code.analysis,species, family) %>%
+  summarise( n.obs = n(),
+             mean.ind.fruit = mean(fruit),
+             sd.ind.fruit=sd(fruit)) 
+write.csv(comp.plot.df,
+          "results/spain.comp.plot.df.csv")
 
 #---- 2.4. Seed production -----
 
@@ -128,8 +253,24 @@ numb.seed.spain <- numb.seed.spain %>%
                                  1,
                                  fruits.panicle )) %>%
   mutate(total.seeds = fruits.panicle*seeds.fruit) %>%
-  filter(total.seeds < 3000) # in spain more than 3000 seeds is impossible
+  filter(total.seeds < 3000)
 
+numb.seed.spain.plot <- numb.seed.spain %>%
+  ggplot(aes(y=total.seeds,x=as.factor(focal.analysis),
+             fill=as.factor(focal.analysis))) +
+  geom_boxplot(color="black") +
+  labs(x="focal",y="seeds per individual",color="focal",
+       title="Number of seeds per fruit of individuals of each focal for the competitive experiment in Spain") +
+  scale_fill_manual(values=unname(kelly())) +
+  theme_bw() 
+numb.seed.spain.plot
+
+ggsave(paste0("figures/supp/Seed.per.flower.spain.pdf"),
+       dpi="retina",
+       width = 21,
+       height = 16,
+       units = c("cm"),
+       numb.seed.spain.plot)
 
 #---- 2.5. Join seed and interactions -----
 
@@ -141,38 +282,38 @@ for(i in c(1:nrow(competition.spain_long))){
   plot.i <- competition.spain_long[i,"plot"] 
   subplot.i <- competition.spain_long[i,"subplot"] 
   seeds.fruit.i <- NA
-
+  
   
   seeds.fruit.i <- abs(rnorm(1,mean = mean(numb.seed.spain[which(numb.seed.spain$year %in% year.i &
-                                                numb.seed.spain$focal.analysis == focal.i &
-                                                numb.seed.spain$plot == plot.i &
-                                                numb.seed.spain$subplot == subplot.i),
-                                  "total.seeds"], na.rm=T),
-                         sd = sd(numb.seed.spain[which(numb.seed.spain$year %in% year.i &
-                                                           numb.seed.spain$focal.analysis == focal.i &
-                                                           numb.seed.spain$plot == plot.i &
-                                                         numb.seed.spain$subplot == subplot.i),
-                                                   "total.seeds"], na.rm=T)))
+                                                                   numb.seed.spain$focal.analysis == focal.i &
+                                                                   numb.seed.spain$plot == plot.i &
+                                                                   numb.seed.spain$subplot == subplot.i),
+                                                           "total.seeds"], na.rm=T),
+                             sd = sd(numb.seed.spain[which(numb.seed.spain$year %in% year.i &
+                                                             numb.seed.spain$focal.analysis == focal.i &
+                                                             numb.seed.spain$plot == plot.i &
+                                                             numb.seed.spain$subplot == subplot.i),
+                                                     "total.seeds"], na.rm=T)))
   
   if(is.na(seeds.fruit.i)){
     seeds.fruit.i <- abs(rnorm(1,mean(numb.seed.spain[which(numb.seed.spain$year  %in% year.i &
-                                                        numb.seed.spain$focal.analysis == focal.i &
-                                                        numb.seed.spain$plot == plot.i),
-                                                "total.seeds"], na.rm=T),
+                                                              numb.seed.spain$focal.analysis == focal.i &
+                                                              numb.seed.spain$plot == plot.i),
+                                                      "total.seeds"], na.rm=T),
                                sd = sd(numb.seed.spain[which(numb.seed.spain$year  %in% year.i &
-                                                         numb.seed.spain$focal.analysis == focal.i &
-                                                           numb.seed.spain$plot == plot.i),
-                                                 "total.seeds"], na.rm=T)))
+                                                               numb.seed.spain$focal.analysis == focal.i &
+                                                               numb.seed.spain$plot == plot.i),
+                                                       "total.seeds"], na.rm=T)))
     
     
   }
   if(is.na(seeds.fruit.i)){
     seeds.fruit.i <- abs(rnorm(1,mean(numb.seed.spain[which(numb.seed.spain$year %in% year.i &
-                                                        numb.seed.spain$focal.analysis == focal.i),
-                                                "total.seeds"], na.rm=T),
+                                                              numb.seed.spain$focal.analysis == focal.i),
+                                                      "total.seeds"], na.rm=T),
                                sd = sd(numb.seed.spain[which(numb.seed.spain$year %in% year.i &
                                                                numb.seed.spain$focal.analysis == focal.i ),
-                                                 "total.seeds"], na.rm=T)))
+                                                       "total.seeds"], na.rm=T)))
     
   }
   if(is.na(seeds.fruit.i)){
@@ -186,14 +327,26 @@ for(i in c(1:nrow(competition.spain_long))){
   competition.spain_long$seed[i] <-  seeds.fruit.i*competition.spain_long[i,"fruit"]
 }
 
-summary.fec.spain.df <- competition.spain_long%>%
-  group_by(focal.analysis,year) %>%
-  summarise( n.obs = n(),
-             mean.ind.seed = mean(seed),
-             sd.ind.seed =sd(seed)) 
-write.csv(summary.fec.spain.df,
-          "results/data_info/summary.fec.spain.df.csv")
+str(competition.spain_long)
+focal.comp.seed.plot <- competition.spain_long %>%
+  filter(seed < 5000) %>%
+  ggplot(aes(y=seed,x=as.factor(focal.analysis),
+             fill=as.factor(focal.analysis))) +
+  geom_boxplot(color="black") +
+  labs(color="focal",
+       fill="",
+       x="focal",
+       y="total seeds peer individual") + 
+  scale_fill_manual(values=unname(kelly())) +
+  theme_bw()  
+focal.comp.seed.plot 
 
+ggsave(paste0("figures/supp/Seed.per.ind.spain.pdf"),
+       dpi="retina",
+       width = 21,
+       height = 16,
+       units = c("cm"),
+       focal.comp.seed.plot)
 #---- 2.6. Seed germination and survival -----
 
 seed_germination_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"),
@@ -207,8 +360,8 @@ seed_germination_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.c
   bind_rows(read.csv(paste0("data/spain_rawdata/germination_2020.csv"),
                      header = T,stringsAsFactors = F, sep=",",
                      na.strings=c("","NA")) %>%
-                          tidyr::gather(any_of(plant_code_spain$code.plant),
-                                        key="focal.code",value="germination")
+              tidyr::gather(any_of(plant_code_spain$code.plant),
+                            key="focal.code",value="germination")
   ) %>%
   dplyr::select(year,focal.code,focal,germination,survival) %>%
   rename("code.plant" ="focal.code") %>%
@@ -238,7 +391,7 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
   rename("code.plant" ="focal.code") %>%
   left_join(plant_code_spain, by="code.plant") %>%
   mutate(survival = case_when(year ==2015 ~ survival/100,
-                                 T ~ survival/10)) %>%
+                              T ~ survival/10)) %>%
   group_by(code.analysis) %>% 
   mutate(s.mean = mean(survival, na.rm = T),
          s.sd = sd(survival, na.rm = T)) %>%
@@ -250,14 +403,14 @@ seed_survival_spain <- read.csv(paste0("data/spain_rawdata/germination_2015.csv"
 #---- 3.0 Trait----
 #---- 3.1 Export and exploration Trait----
 Flower_traits_spain <- read.csv("data/spain_rawdata/spain_flower_trait.csv",
-                               header = T, stringsAsFactors = F, sep=",",
-                               na.strings = c("","NA")) %>%
-  dplyr::select(species,code.plant,code.analysis,floret.mm) %>% 
+                                header = T, stringsAsFactors = F, sep=",",
+                                na.strings = c("","NA")) %>%
+  dplyr::select(species,code.plant,code.analysis,flower.mm) %>% 
   left_join(plant_code_spain %>% dplyr::select(code.plant,code.analysis)) 
 
 Seed_traits_spain <- read.csv( "data/spain_rawdata/spain_seed_mass.txt",
-                                header = T, stringsAsFactors = F, sep="\t",
-                                na.strings = c("","NA")) %>%
+                               header = T, stringsAsFactors = F, sep="\t",
+                               na.strings = c("","NA")) %>%
   rename("seed.mass"="mean.seed.mass..100.seeds.aprox.",
          "code.plant"="code")%>%
   dplyr::select(species,code.plant,seed.mass) %>% 
@@ -273,8 +426,8 @@ plant_traits_spain <- read.csv("data/spain_rawdata/spain_trait_df.csv",
   full_join(Seed_traits_spain ) %>%
   filter( code.analysis %in% final.species.list.spain ) %>%
   dplyr::select(-c(code.plant,species)) %>%
-  gather(c("C13","seed.mass", "floret.mm","C.N", "CS","DR","heigh",
-    "TDMr","LAI","SLA","SRL","SRA"),key="trait",value="value") %>%
+  gather(c("C13","seed.mass", "flower.mm","C.N", "CS","DR","heigh",
+           "TDMr","LAI","SLA","SRL","SRA"),key="trait",value="value") %>%
   aggregate(value ~ trait + code.analysis, mean) %>%
   spread(trait,value) %>%
   column_to_rownames("code.analysis") %>%
@@ -284,96 +437,97 @@ plant_traits_spain <- read.csv("data/spain_rawdata/spain_trait_df.csv",
          "Root diameter"="DR",
          "Stem height"="heigh",
          "Leaf area index"="LAI",
-         "Floret width"="floret.mm",
+         "flower width"="flower.mm",
          "Seed mass"= "seed.mass",
          #"Leaf area"="LeafArea",
          #"Leaf nitrogen cc"="N15",
          "Root mass density"="TDMr") 
-  view(plant_traits_spain )
-  #---- 3.1.1 Data specific to PAIN----
-  # Data from https://uol.de/en/landeco/research/leda/data-files
-  #The LEDA Traitbase: A database of life-history traits of Northwest European flora. Journal of Ecology 96: 1266-1274.
-  
-  LS <- read_delim("data/spain_rawdata/PAIN_traits/LA.csv", delim = ";", escape_double = FALSE, 
-                   trim_ws = TRUE, skip = 3) %>%
-    rename("species"="SBS name") %>%
-    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
-                    str_detect(species, "^Parapholis")) %>%
-    dplyr::select(c("species","single value [mm^2]","mean LS [mm^2]")) %>% as.data.frame() %>%
-    rename("value"="single value [mm^2]",
-           "mean.value"="mean LS [mm^2]") %>% 
-    mutate(mean.value = coalesce(mean.value, value)) %>%
-    mutate(trait = "Leaf area")%>%
-    group_by( species,trait) %>%
-    summarise(value.trait = mean(mean.value)/100)
-  
-  
-  SLA <- read_delim("data/spain_rawdata/PAIN_traits/SLA.csv", delim = ";", escape_double = FALSE, 
-                    trim_ws = TRUE, skip = 4) %>%
-    rename("species"="SBS name") %>%
-    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
-                    str_detect(species, "^Parapholis")) %>%
-    dplyr::select(c("species","single value [mm^2/mg]","mean SLA [mm^2/mg]")) %>% as.data.frame() %>%
-    rename("value"="single value [mm^2/mg]",
-           "mean.value"="mean SLA [mm^2/mg]") %>% 
-    mutate(mean.value = coalesce(mean.value, value)) %>%
-    mutate(trait = "SLA") %>%
-    group_by( species,trait) %>%
-    summarise(value.trait = mean(mean.value)*100)
-  
-  height <- read_delim("data/spain_rawdata/PAIN_traits/height.csv", delim = ";", escape_double = FALSE, 
-                       trim_ws = TRUE, skip = 4) %>%
-    rename("species"="SBS name") %>%
-    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
-                    str_detect(species, "^Parapholis")) %>%
-    dplyr::select(c("species","single value [m]","mean CH [m]")) %>% as.data.frame() %>%
-    rename("value"="single value [m]",
-           "mean.value"="mean CH [m]") %>% 
-    mutate(mean.value = coalesce(mean.value, value)) %>%
-    mutate(trait = "Stem height") %>%
-    group_by( species,trait) %>%
-    summarise(value.trait = mean(mean.value)*100)
-  
-  
-  LMDC <- read_delim("data/spain_rawdata/PAIN_traits/LMDC.csv", delim = ";", escape_double = FALSE, 
+view(plant_traits_spain )
+#---- 3.1.1 Data specific to PAIN----
+# Data from https://uol.de/en/landeco/research/leda/data-files
+#The LEDA Traitbase: A database of life-history traits of Northwest European flora. Journal of Ecology 96: 1266-1274.
+
+LS <- read_delim("data/spain_rawdata/PAIN_traits/LA.csv", delim = ";", escape_double = FALSE, 
+                 trim_ws = TRUE, skip = 3) %>%
+  rename("species"="SBS name") %>%
+  dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                  str_detect(species, "^Parapholis")) %>%
+  dplyr::select(c("species","single value [mm^2]","mean LS [mm^2]")) %>% as.data.frame() %>%
+  rename("value"="single value [mm^2]",
+         "mean.value"="mean LS [mm^2]") %>% 
+  mutate(mean.value = coalesce(mean.value, value)) %>%
+  mutate(trait = "Leaf area")%>%
+  group_by( species,trait) %>%
+  summarise(value.trait = mean(mean.value)/100)
+
+
+SLA <- read_delim("data/spain_rawdata/PAIN_traits/SLA.csv", delim = ";", escape_double = FALSE, 
+                  trim_ws = TRUE, skip = 4) %>%
+  rename("species"="SBS name") %>%
+  dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                  str_detect(species, "^Parapholis")) %>%
+  dplyr::select(c("species","single value [mm^2/mg]","mean SLA [mm^2/mg]")) %>% as.data.frame() %>%
+  rename("value"="single value [mm^2/mg]",
+         "mean.value"="mean SLA [mm^2/mg]") %>% 
+  mutate(mean.value = coalesce(mean.value, value)) %>%
+  mutate(trait = "SLA") %>%
+  group_by( species,trait) %>%
+  summarise(value.trait = mean(mean.value)*100)
+
+height <- read_delim("data/spain_rawdata/PAIN_traits/height.csv", delim = ";", escape_double = FALSE, 
                      trim_ws = TRUE, skip = 4) %>%
-    rename("species"="SBS name") %>%
-    dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
-                    str_detect(species, "^Parapholis")) %>%
-    dplyr::select(c("species","single value [mg/g]","mean LMDC [mg/g]")) %>% as.data.frame() %>%
-    rename("value"="single value [mg/g]",
-           "mean.value"="mean LMDC [mg/g]") %>% 
-    mutate(mean.value = coalesce(mean.value, value)) %>%
-    mutate(trait = "LeafDryMatter") %>%
-    group_by(species,trait) %>%
-    summarise(value.trait = mean(mean.value)/100) 
-  
-  PAIN_traits <- bind_rows(SLA,height) %>% # Seed mas and leaf dry matter,LS
-    dplyr::filter(str_detect(species, "^Parapholis")) %>%
-    aggregate(value.trait ~ trait, function(x) mean(x,na.rm=T)) %>%
-    spread(trait,value.trait)  %>% 
-    mutate(code="PAIN") %>%
-    column_to_rownames("code")
-  
-  plant_traits_spain["PAIN","SLA"] <-PAIN_traits$SLA
-  plant_traits_spain["PAIN","Stem height"] <-PAIN_traits$'Stem height'
-  view(plant_traits_spain)
-  
+  rename("species"="SBS name") %>%
+  dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                  str_detect(species, "^Parapholis")) %>%
+  dplyr::select(c("species","single value [m]","mean CH [m]")) %>% as.data.frame() %>%
+  rename("value"="single value [m]",
+         "mean.value"="mean CH [m]") %>% 
+  mutate(mean.value = coalesce(mean.value, value)) %>%
+  mutate(trait = "Stem height") %>%
+  group_by( species,trait) %>%
+  summarise(value.trait = mean(mean.value)*100)
+
+
+LMDC <- read_delim("data/spain_rawdata/PAIN_traits/LMDC.csv", delim = ";", escape_double = FALSE, 
+                   trim_ws = TRUE, skip = 4) %>%
+  rename("species"="SBS name") %>%
+  dplyr::filter(species %in% plant_code_spain$species[which(plant_code_spain$code.analysis %in% final.species.list.spain)] |
+                  str_detect(species, "^Parapholis")) %>%
+  dplyr::select(c("species","single value [mg/g]","mean LMDC [mg/g]")) %>% as.data.frame() %>%
+  rename("value"="single value [mg/g]",
+         "mean.value"="mean LMDC [mg/g]") %>% 
+  mutate(mean.value = coalesce(mean.value, value)) %>%
+  mutate(trait = "LeafDryMatter") %>%
+  group_by(species,trait) %>%
+  summarise(value.trait = mean(mean.value)/100) 
+
+PAIN_traits <- bind_rows(SLA,height) %>% # Seed mas and leaf dry matter,LS
+  dplyr::filter(str_detect(species, "^Parapholis")) %>%
+  aggregate(value.trait ~ trait, function(x) mean(x,na.rm=T)) %>%
+  spread(trait,value.trait)  %>% 
+  mutate(code="PAIN") %>%
+  column_to_rownames("code")
+
+plant_traits_spain["PAIN","SLA"] <-PAIN_traits$SLA
+plant_traits_spain["PAIN","Stem height"] <-PAIN_traits$'Stem height'
+view(plant_traits_spain)
+
 #----4. Intrinsic fecundity from Garcia-Callejas, Nat com, 2022 ----
 spain_intrinsic_fecun <- read.csv("data/spain_rawdata/spain.intrinsic.fecun.csv")  %>%
-    aggregate(lambda ~ sp, mean)
-  
+  aggregate(lambda ~ sp, mean)
+
 #----5. Save data SPAIN ----
 competition.spain_long <- competition.spain_long[,-c(1:2)] %>%
   rename("focal"="focal.analysis") 
 
 clean.data.spain = list(species_spain = final.species.list.spain,
-                      competition_spain =competition.spain_long,
-                      abundance_spain.summary=abundance_spain.summary,
-                      seed_germination_spain =seed_germination_spain,
-                      seed_survival_spain = seed_survival_spain,
-                      plant_traits =plant_traits_spain,
-                      intrinsic_fecun = spain_intrinsic_fecun)
+                        competition_spain =competition.spain_long,
+                        abundance_spain.summary=abundance_spain.summary,
+                        seed_germination_spain =seed_germination_spain,
+                        seed_survival_spain = seed_survival_spain,
+                        plant_traits =plant_traits_spain,
+                        intrinsic_fecun = aus_intrinsic_fecun)
+clean.data.spain$plant_traits =plant_traits_spain
 #load( file="data/clean.data.spain.RData")
 view(clean.data.spain$intrinsic_fecun)
 save(clean.data.spain,
@@ -396,6 +550,12 @@ abundance_aus <- community_id_df
 abundance_aus.summary.year <- abundance_aus %>%
   mutate(count=as.numeric((count/(scale.area))*625)) %>%
   filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>%
+  dplyr::select(count,year,family) %>%
+  aggregate(count~ family, mean)
+
+abundance_aus.summary.year <- abundance_aus %>%
+  mutate(count=as.numeric((count/(scale.area))*625)) %>%
+  filter(!stringr::str_detect(id.plot, 'BO_|CA_')) %>%
   dplyr::select(count,year,final.code) %>%
   filter( final.code %in% species.list.to.keep.aus) %>%
   aggregate(count~ year + final.code, mean) %>%
@@ -405,6 +565,10 @@ abundance_aus.summary.year <- abundance_aus %>%
                       across(where(is.numeric), function(x) sum(x,na.rm = T)),
                       across(where(is.character), ~"Total")))
 
+names(abundance_aus.summary.year)[abundance_aus.summary.year[10,] > 10]
+view(abundance_aus.summary.year)
+
+# only keep the species that have maximum of two years without abundance data
 final.species.list.aus <- c("ARCA","GOBE","GORO","HYGL",
                             "LARO","MIMY","PEAI","PLDE",
                             "POAR", "POLE","TRCY","WAAC")
@@ -418,7 +582,62 @@ abundance_aus.summary <- abundance_aus %>%
   rename("individuals" ="count") %>%
   rename("com_id" ="id.plot")%>%
   aggregate(individuals ~ year + species + com_id +collector +scale.width+scale.area , sum) %>%
-  mutate(individuals =individuals/scale.area )  # number of individuals per cm^2
+  mutate(individuals =individuals/scale.area ) %>% # number of individuals per cm^2
+  group_by(year) %>%
+  mutate(count.zscore = zscore.fct(individuals)) %>%
+  ungroup()
+
+#abundance_aus_med <-  abundance_aus.preclean  %>%
+# aggregate(individuals ~ species + year, function(x) median(x[!x==0 & !is.na(x)]))
+
+# VISUALISATION
+library(pals)
+color.palette <- unname(kelly())[1:length(final.species.list.aus)]
+
+abundance_aus_plot <- ggplot() +
+  stat_summary(data=abundance_aus.clean ,
+               aes(x=as.character(year), y = individuals,
+                   group=as.factor(species),
+                   color=as.factor(species)),
+               fun.y = mean,
+               fun.ymin = function(x) mean(x) - sd(x), 
+               fun.ymax = function(x) mean(x) + sd(x), 
+               geom = "pointrange",size=2) +
+  stat_summary(data=abundance_aus.clean ,
+               aes(x=as.character(year), y = individuals,
+                   group=as.factor(species),
+                   color=as.factor(species)),
+               fun.y = mean,
+               geom = "line",size=1) +
+  scale_x_discrete("year",limits=c("2010","2011","2012-2013","2014","2015","2016",
+                                   "2017","2018","2019","2020","2021","2022","2023")) +
+  scale_y_log10()+
+  labs(color="species",y="Mean number of \nindividuals per centimeter",
+       title="Density over time of annual plants in Perenjory region") +
+  scale_color_manual(values=color.palette) +
+  theme_bw() +
+  
+  theme( legend.key.size = unit(1, 'cm'),
+         legend.position = "bottom",
+         strip.background = element_blank(),
+         panel.grid.minor = element_blank(),
+         panel.grid.major.x = element_blank(),
+         strip.text = element_text(size=28),
+         legend.text=element_text(size=20),
+         legend.title=element_text(size=20),
+         #axis.ticks.x=element_blank(),
+         axis.text.x= element_text(size=20, angle=66, hjust=1),
+         axis.text.y= element_text(size=20),
+         axis.title.x= element_text(size=24),
+         axis.title.y= element_text(size=24),
+         title=element_text(size=16))
+
+abundance_aus_plot
+
+library(plotly)
+plotly::ggplotly(abundance_aus_plot)
+ggsave(abundance_aus_plot,
+       file="figures/abundance_aus_plot.pdf")
 
 abundance_aus.summary.df <- abundance_aus %>%
   mutate(individuals=as.numeric(count/(scale.width))) %>%
@@ -430,7 +649,7 @@ abundance_aus.summary.df <- abundance_aus %>%
             sd = sd(individuals, na.rm = TRUE)*25)
 head(abundance_aus.summary.df)
 write.csv(abundance_aus.summary.df,
-          "results/data_info/abundance_aus.summary.df.csv")
+          "results/abundance_aus.summary.df.csv")
 
 #---- 3.1. Wainwright 2014 preparation ----
 
@@ -458,8 +677,8 @@ Wainwright2014<- Wainwright2014 %>%
   separate(col=species, into=c("genus","species")) %>%
   filter(!is.na(genus)) %>%
   left_join(plant_code_aus[,c("genus","species","final.code")], 
-             by=c("genus","species"),
-             relationship = "many-to-many") %>%
+            by=c("genus","species"),
+            relationship = "many-to-many") %>%
   filter(!is.na(count)) %>%
   mutate(focal=case_when(focal == "a" ~ "ARCA",
                          focal == "t" ~ "TRCY",
@@ -476,19 +695,21 @@ Wainwright2014<- Wainwright2014 %>%
 
 
 Wainwright2014[is.na(Wainwright2014)] <- 0
+str(Wainwright2014) 
+head(Wainwright2014) 
 table(Wainwright2014$focal)
 
 #---- 3.2. Wainwright 2015 - used in Stouffer2017 Cyclic paper ----
-
-# to reattribute other to actual name - intern files of Claire Wainwright:
+#load("~/Documents/Projects/Original/Stouffer2017_Cyclic/data.Rdata")
+# to reattribute other to actual name - intern fils of Claire Wainwright:
 Wainwright2015 <-  read.csv("data/aus_rawdata/Wainwright2015_comp_aus.csv",sep=",") %>%
   left_join(read.csv("data/aus_rawdata/Wainwright2015_seed_aus.csv")%>%
               filter(competition =="Highcomp"),
             by=c("treatment","block","plot.ID","plot.letter","focal"),
             relationship = "many-to-many") %>%
   bind_rows(read.csv("data/aus_rawdata/Wainwright2015_seed_aus.csv",sep=",") %>%
-            filter(competition =="Solo") %>%
-            mutate(density=0,neigh=focal)) %>%
+              filter(competition =="Solo") %>%
+              mutate(density=0,neigh=focal)) %>%
   filter(treatment =="Open") %>%
   mutate(scale="30",
          year=2015) %>%
@@ -509,11 +730,13 @@ Wainwright2015 <-  read.csv("data/aus_rawdata/Wainwright2015_comp_aus.csv",sep="
          "neigh"="final.code.neigh") %>%
   spread(neigh,density) %>%
   dplyr::select(any_of(c("plot","focal","year",
-                  "seed",final.species.list.aus ))) %>%
+                         "seed",final.species.list.aus ))) %>%
   mutate(scale=30,
          main.collector="Wainwright")
 
 Wainwright2015[is.na(Wainwright2015)] <- 0
+str(Wainwright2015) 
+head(Wainwright2015) 
 table(Wainwright2015$focal)
 
 
@@ -524,18 +747,22 @@ Martyn2016 <- Martyn2016 %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
   dplyr::select(plot,seed,focal,code,count) %>%
   left_join(plant_code_aus[,c("code","genus",
-                               "species","final.code")], 
-             by=c("code"),
-             relationship = "many-to-many") %>%
+                              "species","final.code")], 
+            by=c("code"),
+            relationship = "many-to-many") %>%
   aggregate(count ~ plot + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
   mutate( year=2016)%>%
   mutate(plot=as.character(plot)) %>%
   dplyr::select(any_of(c("plot","focal","year","seed",final.species.list.aus ))) %>%
   mutate(scale=15,
-         main.collector="Martyn")
+         main.collector="Trace Martyn") 
 
-table(Martyn2016$focal)
+levels(as.factor(Martyn2016$focal))
+#str(Martyn2016)
+#table(Martyn2016$focal)
+#head(Martyn2016)
+
 
 #---- 3.4. Pastore 2017 preparation----
 Pastore2017_com <-  read.csv("data/aus_rawdata/Pastore2017_com_aus.csv" )
@@ -543,14 +770,14 @@ Pastore2017_seed <-  read.csv("data/aus_rawdata/Pastore2017_seed_aus.csv" )
 
 Pastore2017 <- Pastore2017_com %>% 
   left_join(Pastore2017_seed, by=c("plot","focal","id.focal"),
-             relationship = "many-to-many") %>%
+            relationship = "many-to-many") %>%
   filter(!is.na(seed)) %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
   dplyr::select(plot,seed,focal,code,count,id.focal) %>%
   left_join(plant_code_aus[,c("code","genus",
-                               "species","final.code")], 
-             by=c("code"),
-             relationship = "many-to-many") %>%
+                              "species","final.code")], 
+            by=c("code"),
+            relationship = "many-to-many") %>%
   aggregate(count ~ plot + id.focal + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
   mutate( year=2017)%>%
@@ -559,28 +786,31 @@ Pastore2017 <- Pastore2017_com %>%
   mutate(scale=15,
          main.collector="Pastore")
 
-table(Pastore2017$focal)
+
+#view(Pastore2017)
+#str(Pastore2017)
+#table(Pastore2017$focal)
 
 #---- 3.5. Sevenello 2022 preparation----
 
 Sevenello2022_com <- read.csv("data/aus_rawdata/Sevenello2022_com_aus.csv",
-                        header = T,stringsAsFactors = F, sep=",",
-                        na.strings=c("","NA"))
+                              header = T,stringsAsFactors = F, sep=",",
+                              na.strings=c("","NA"))
 Sevenello2022_seed <- read.csv("data/aus_rawdata/Sevenello2022_seed_aus.csv",
-                         header = T,stringsAsFactors = F, sep=",",
-                         na.strings=c("","NA"))
+                               header = T,stringsAsFactors = F, sep=",",
+                               na.strings=c("","NA"))
 view(Sevenello2022_seed )
 Sevenello2022 <- Sevenello2022_com %>% 
   left_join(Sevenello2022_seed,
-              relationship = "many-to-many") %>%
+            relationship = "many-to-many") %>%
   dplyr::filter(treatment %in% c("OP")) %>%
   filter(!is.na(seed)) %>%
   gather(any_of(plant_code_aus$code), key="code", value="count") %>%
   dplyr::select(plot,seed,focal,code,count) %>%
   left_join(plant_code_aus[,c("code","genus",
-                               "species","final.code")], 
-             by=c("code"),
-             relationship = "many-to-many") %>%
+                              "species","final.code")], 
+            by=c("code"),
+            relationship = "many-to-many") %>%
   aggregate(count ~ plot + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
   mutate( year=2022)%>%
@@ -589,7 +819,10 @@ Sevenello2022 <- Sevenello2022_com %>%
   mutate(scale=15,
          main.collector="Sevenello")
 
-table(Sevenello2022$focal)
+
+#str(Sevenello2022)
+#view(Sevenello2022)
+#table(Sevenello2022$focal)
 
 
 #---- 3.6. Taylor 2023 preparation----p
@@ -602,8 +835,8 @@ Taylor2023_com <- bind_rows(neighbourhoods[["BOCL"]] %>% as.data.frame(),
                             neighbourhoods[["PEOP"]] %>% as.data.frame())
 view(Taylor2023_com)
 Taylor2023_seed <- read.csv("data/aus_rawdata/Taylor2023_seed_aus.csv",
-                               header = T,stringsAsFactors = F, sep=",",
-                               na.strings=c("","NA"))
+                            header = T,stringsAsFactors = F, sep=",",
+                            na.strings=c("","NA"))
 view(Taylor2023_seed ) 
 
 Taylor2023 <- Taylor2023_com %>% 
@@ -617,16 +850,16 @@ Taylor2023 <- Taylor2023_com %>%
   rename("focal" ="code",
          "name"="species") %>%
   left_join(plant_code_aus[,c("code","genus","name",
-                               "species","final.code")], 
-             by=c("name"),
-             relationship = "many-to-many") %>%
+                              "species","final.code")], 
+            by=c("name"),
+            relationship = "many-to-many") %>%
   aggregate(count ~ plot + focal + final.code + seed,sum) %>%
   spread(final.code,count) %>%
   left_join(plant_code_aus[,c("code","final.code")] %>%
-               rename("focal" ="code" ) %>%
-               rename("final.focal" ="final.code" ), 
-             by=c("focal"),
-             relationship = "many-to-many") %>%
+              rename("focal" ="code" ) %>%
+              rename("final.focal" ="final.code" ), 
+            by=c("focal"),
+            relationship = "many-to-many") %>%
   dplyr::select(-"focal") %>%
   rename("focal" ="final.focal" ) %>%
   mutate( year=2023)%>%
@@ -635,23 +868,26 @@ Taylor2023 <- Taylor2023_com %>%
   mutate(scale=15,
          main.collector="Taylor")
 
-table(Taylor2023$focal)
+view((Taylor2023))
+#str(Taylor2023)
+#head(Taylor2023)
+#table(Taylor2023$focal)
 
 #---- 3.7. summary table ----
 
 summary_table_aus <- bind_rows(as.data.frame(table(Martyn2016$focal)) %>%
-  mutate(year="2016"),
-  as.data.frame(table(Wainwright2014$focal)) %>%
-    mutate(year="2014"),
-  as.data.frame(table(Wainwright2015$focal)) %>%
-    mutate(year="2015"),
-  as.data.frame(table(Pastore2017$focal)) %>%
-    mutate(year="2017"),
-  as.data.frame(table(Taylor2023$focal)) %>%
-    mutate(year="2023"),
-  as.data.frame(table(Sevenello2022$focal)) %>%
-    mutate(year="2022")
-    ) %>%
+                                 mutate(year="2016"),
+                               as.data.frame(table(Wainwright2014$focal)) %>%
+                                 mutate(year="2014"),
+                               as.data.frame(table(Wainwright2015$focal)) %>%
+                                 mutate(year="2015"),
+                               as.data.frame(table(Pastore2017$focal)) %>%
+                                 mutate(year="2017"),
+                               as.data.frame(table(Taylor2023$focal)) %>%
+                                 mutate(year="2023"),
+                               as.data.frame(table(Sevenello2022$focal)) %>%
+                                 mutate(year="2022")
+) %>%
   rename("focal"="Var1") %>%
   mutate(focal = case_when(focal=="VERO"~"GORO",
                            focal=="POCA"~"POAR",
@@ -679,11 +915,18 @@ competition_aus <- bind_rows(Martyn2016,Wainwright2014,Wainwright2015,
   mutate(focal = case_when(focal=="VERO"~"GORO",
                            focal=="POCA"~"POAR",
                            focal=="VECY"~"GOCY",
-                           T~focal))
+                           T~focal)) 
 
-table(competition_aus$focal)
 
-summary.fec.aus.df <- competition_aus %>%
+head(competition_aus)
+str(competition_aus)
+view(competition_aus)
+
+comp.plot.aus.df <- competition_aus %>%
+  mutate(focal = case_when(focal=="VERO"~"GORO",
+                           focal=="POCA"~"POAR",
+                           focal=="VECY"~"GOCY",
+                           T~focal)) %>%
   filter( focal %in% final.species.list.aus) %>%
   rename("code"=focal) %>%
   left_join(plant_code_aus, by="code") %>%
@@ -691,30 +934,31 @@ summary.fec.aus.df <- competition_aus %>%
   summarise( n.obs = n(),
              mean.ind.seed = mean(seed),
              sd.ind.seed=sd(seed)) 
-view(summary.fec.aus.df)
-write.csv(summary.fec.aus.df,
-          "results/data_info/summary.fec.aus.df.csv")
-            
+view(comp.plot.aus.df)
+write.csv(comp.plot.aus.df,
+          "results/aus.comp.plot.df.csv")
+
 #----3.9. Seed survival and germination----
 View(plant_code_aus)
 seed_germination_aus <- read.csv(paste0("data/aus_rawdata/Wainwright2015_seedgermss_aus.csv"),
-                                   header = T,stringsAsFactors = F, sep=",",
-                                   na.strings=c("","NA")) 
-  #dplyr::select(code.plant,year,species,germination,survival) %>%
-  #left_join(plant_code_aus %>%
-    #          dplyr::select(code.plant))
+                                 header = T,stringsAsFactors = F, sep=",",
+                                 na.strings=c("","NA")) 
+#dplyr::select(code.plant,year,species,germination,survival) %>%
+#left_join(plant_code_aus %>%
+#          dplyr::select(code.plant))
 
 #----4.0. Traits list----
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #----4.1 Regroup trait dataset----
+# internal dataset
 OG.plant_traits_aus <- read.csv("data/aus_rawdata/Traits_database.csv",
-                             header = T, stringsAsFactors = F, sep=",",
-                             na.strings = c("","NA"))
+                                header = T, stringsAsFactors = F, sep=",",
+                                na.strings = c("","NA"))
 plant_germ_aus <- read.csv("~/Documents/Projects/Perenjori/data/seed_rates.csv",
                            header = T, stringsAsFactors = F, sep=",",
                            na.strings = c("","NA"))
-ManuelSevenello.traits <- read.csv("data/aus_rawdata/ManuelSevenello_traits.csv")
+ManuelSevenello.traits <- read.csv("data/aus_rawdata/ManuelSevenello_traits.csv") 
 WinnieSiu.traits <- read.csv("data/aus_rawdata/WinnieSiu_traits.csv") %>%
   gather(root.biomass,srl,key="traits",value="value") %>%
   aggregate(value ~ traits + species + final.code, median) %>%
@@ -739,7 +983,6 @@ aus_traits_df <- OG.plant_traits_aus %>%
   left_join(plant_germ_aus[,c("name","code","germ","surv")] %>%
               rename("species" ="name",
                      "final.code"="code")) %>%
-  left_join(web.traits) %>%
   left_join(ManuelSevenello.traits) %>%
   left_join(WinnieSiu.traits) %>%
   left_join(clean.data.aus$abundance_aus.summary %>%
@@ -766,10 +1009,9 @@ plant_traits_aus <- aus_traits_df %>%
          sla.mm2.mg = 10*sla.mm2.mg, # to have cm2/g
          srl= 1000*srl, # to have cm2/g
          height.mm = height.mm/10, # to have cm
-         floret.mm = flower.size.numb*10, # flower size in mm
          Root.mass.density =root.biomass/(total.root.volume.cm3*1000)) %>% # convert to mg/cm3
   dplyr::select(final.code,
-                floret.mm,
+                flower.mm,
                 Fecundity,
                 #surv,
                 mean.seed.mass.mg,
@@ -784,25 +1026,24 @@ plant_traits_aus <- aus_traits_df %>%
                 srl,
                 Root.mass.density 
                 #root.volume.less.than.0.5mm.diameter.mm3
-                )  %>%
+  )  %>%
   rename(#"Root volume"="root.volume.less.than.0.5mm.diameter.mm3",
-         "SLA"="sla.mm2.mg",
-         "SRL"="srl",
-         "Root length"="total.root.length.cm",
-         "Canopy shape" = "CanopyArea",
-         "C13 water use efficiency"="C13.plant.permill",
-         #"Canopy width"="width.longest.mm",
-         #"Canopy width 90deg"="width.90.from.longest.mm",
-         "Stem height"="height.mm",
-         "Seed mass"= "mean.seed.mass.mg",
-         "Root tips"="number.of.root.tips",
-         "Root mass density"="Root.mass.density",
-         "Floret width"="floret.mm" ,
-         "Mean fecundity" ="Fecundity") %>%
+    "SLA"="sla.mm2.mg",
+    "SRL"="srl",
+    "Root length"="total.root.length.cm",
+    "Canopy shape" = "CanopyArea",
+    "C13 water use efficiency"="C13.plant.permill",
+    #"Canopy width"="width.longest.mm",
+    #"Canopy width 90deg"="width.90.from.longest.mm",
+    "Stem height"="height.mm",
+    "Seed mass"= "mean.seed.mass.mg",
+    "Root tips"="number.of.root.tips",
+    "Root mass density"="Root.mass.density",
+    "flower width"="flower.mm" ,
+    "Mean fecundity" ="Fecundity") %>%
   #dplyr::filter(!final.code %in% c("ARCA","PEAI")) %>%
   column_to_rownames("final.code") 
 view(plant_traits_aus)
-
 # ---- 5. Intrinsic fecundity from Garcia-Callejas, Nat com, 2022 ----
 aus_intrinsic_fecun <- read.csv("data/aus_rawdata/Aus.intrinsic.fecun.csv")  
 
@@ -810,8 +1051,10 @@ aus_intrinsic_fecun <- read.csv("data/aus_rawdata/Aus.intrinsic.fecun.csv")
 clean.data.aus = list(seed_germination_aus=seed_germination_aus,
                       species_aus = final.species.list.aus,
                       competition_aus =competition_aus,
-                      abundance_aus.summary=abundance_aus.summary,
+                      abundance_aus.summary=abundance_aus.clean,
                       plant_traits = plant_traits_aus,
                       intrinsic_fecun = aus_intrinsic_fecun)
+load(     file="data/clean.data.aus.RData")
+clean.data.aus$competition_aus =competition_aus
 save(clean.data.aus,
      file="data/clean.data.aus.RData")
