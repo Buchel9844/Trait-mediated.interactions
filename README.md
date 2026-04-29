@@ -5,7 +5,7 @@ by
 Lisa Buche, Oscar Godoy, Lauren Shoemaker, Lauren Hallett, Courtney Taylor, Wing Man Siu, Manuel Sevenello, Peter Vesk, and Margie Mayfield 
 Published in PNAS. 
 
-Buche L., Godoy, O. et al (2026), Buchel9844/Facilitation_gradient: Initial release (V.1). Zenodo. DOI:  . 
+Buche L., Godoy, O. et al (2026), Buchel9844/Facilitation_gradient: Initial release (V.1). Zenodo. DOI 10.5281/zenodo.19893932:  . 
 Contact details: Lisa Buche (buchel9844@gmail.com)
 
 Statement of authorship: The research group led by Margaret Mayfield, including Lisa Buche, Manuel Sevenello, Wing Man Siu, and Courtney Taylor, collected the data from Australia. Oscar Godoy and Lisa Buche collected the data from Spain. Lisa Buche built the conceptual idea with input from all co-authors, especially Peter Vesk and Margaret Mayfield. Lisa Buche analyzed the data with substantial input from Peter Vesk, Lauren Shoemaker, and Oscar Godoy. Lisa Buche wrote the first draft with substantial input from Margaret Mayfield, Oscar Godoy, Lauren Shoemaker, Lauren Hallett, and Peter Vesk. All co-authors reviewed the manuscript.
