@@ -1,25 +1,24 @@
-Read me file for the article entitled 
+Read-me file for the article entitled 
 "Trait-mediated interactions drive local diversity" 
 TIDE framework
 by
 Lisa Buche, Oscar Godoy, Lauren Shoemaker, Lauren Hallett, Courtney Taylor, Wing Man Siu, Manuel Sevenello, Peter Vesk, and Margie Mayfield 
-Published in 
-""
+Published in PNAS. 
 
-Buche L., Godoy, O. et al (2025), Buchel9844/Facilitation_gradient: Initial release (V.0). Zenodo. DOI:  (version V.1 will be released upon acceptance).
+Buche L., Godoy, O. et al (2026), Buchel9844/Facilitation_gradient: Initial release (V.1). Zenodo. DOI:  . 
 Contact details: Lisa Buche (buchel9844@gmail.com)
 
-Statement of authorship: The research group led by Margaret Mayfield, including Lisa Buche, Manuel Sevenello, Wing Man Siu, and Courtney Taylor, collected the data from Australia. Oscar Godoy and Lisa Buche collected the data from Spain. Lisa Buche built the conceptual idea with input from all co-authors, especially Peter Vesk and Margaret Mayfield. Lisa Buche analyzed the data with substantial input from Peter Vesk, Lauren Shoemaker, and Oscar Godoy. Lisa Buche wrote the first draft with substantial input from Margaret Mayfield, Oscar Godoy, Lauren Shoemaker, Lauren Hallett and Peter Vesk. All co-authors reviewed the manuscript.
+Statement of authorship: The research group led by Margaret Mayfield, including Lisa Buche, Manuel Sevenello, Wing Man Siu, and Courtney Taylor, collected the data from Australia. Oscar Godoy and Lisa Buche collected the data from Spain. Lisa Buche built the conceptual idea with input from all co-authors, especially Peter Vesk and Margaret Mayfield. Lisa Buche analyzed the data with substantial input from Peter Vesk, Lauren Shoemaker, and Oscar Godoy. Lisa Buche wrote the first draft with substantial input from Margaret Mayfield, Oscar Godoy, Lauren Shoemaker, Lauren Hallett, and Peter Vesk. All co-authors reviewed the manuscript.
 
 Abstract: 
+Identifying overarching processes that maintain biodiversity in natural communities remains a challenge in ecology. Although functional traits help explain regional species distributions, they often fall short at the local community level. We investigate whether traits can offer mechanism-based insights into local diversity maintenance due to associations with the sign and strength of plant interactions. We examine the effect of 12 plant functional traits on the sign and strength of pairwise species interactions across two Mediterranean annual plant communities. Results show that traits mediate a spectrum from facilitative to competitive interactions and are influenced by neighbor density and identity. At low densities, species with conservative resource-use traits are consistently stronger facilitators than acquisitive species. The traits of the focal species, however, explain facilitation at low densities better than the traits of neighbors or the pairwise differences in traits. When neighbor density increases, facilitation switches to competition, a pattern we hypothesize reflects a density-mediated reduction in how much neighbors' traits drive interactions. Moreover, species frequently receiving heterospecific facilitation also display traits associated with self-competition and low intrinsic population growth rate. This study of community-level trait sorting provides novel insights into the persistence of co-occurring populations, showing trait-based generalizable insights into the local context-dependency of species interactions. 
 
 
-Authorship of data: Members of the Mayfield lab collected the data in Australia. We want to thank John Dwyer, Claire Wainwright, Maia Raymundo, Trace Martyn, Victoria Reynolds, Catherine Bowler, Aubrie James, Abigail Pastore, Manuel Sevenello, and Courtney Taylor for the data collected in the Perenjori region. Oscar Godoy and his lab collected the data in Spain.
+Data authorship: Members of the Mayfield lab collected the data in Australia. We want to thank John Dwyer, Claire Wainwright, Maia Raymundo, Trace Martyn, Victoria Reynolds, Catherine Bowler, Aubrie James, Abigail Pastore, Manuel Sevenello, and Courtney Taylor for the data collected in the Perenjori region. Oscar Godoy and his lab collected the data in Spain.
 
 Authorship of code: R Code was written by Lisa Buche.
 
-
-Details of R script and their function in the folder CODE:
+Details of R scripts and their function in the folder CODE:
 
 1.DataPrep.R - Gathers data from all sources (internal files and online resources for traits). The script is divided between Spain related data gathering and Australia. The scripts creates one list object for each country (i.e., "data/clean.data.aus.RData"), containing all the data separated in different data frame.  
 
@@ -33,4 +32,4 @@ Details of R script and their function in the folder CODE:
 
 3.2 TraitResults.R - Runs the GLM with BRMS packages to estimated the effect size of the trait variables. It also produce fig 3-4-5 and supplementary figures Fig S13-S14.
 
-
+Notes on the Data: Please contact us if you would like to use any of this data. 
